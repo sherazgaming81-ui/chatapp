@@ -22,9 +22,10 @@ import { useSwipeReply } from '@/lib/v1/useSwipeReply';
 import { triggerPush } from '@/lib/v1/pushClient';
 
 function msgState(msg: ChatMessage, chat: Chat, meId: string): 'sent' | 'delivered' | 'read' {
-  const others = chat.participants.filter((p) => p !== meId);
-  if (others.length > 0 && others.every((o) => msg.readBy.includes(o))) return 'read';
-  const anyOnline = others.some((o) => chat.participantProfiles[o]?.online);
+  const others = (chat.participants || []).filter((p) => p !== meId);
+  const readBy = msg.readBy || [];
+  if (others.length > 0 && others.every((o) => readBy.includes(o))) return 'read';
+  const anyOnline = others.some((o) => chat.participantProfiles?.[o]?.online);
   if (anyOnline || Date.now() - msg.createdAt > 20000) return 'delivered';
   return 'sent';
 }
@@ -182,7 +183,7 @@ export default function ChatView({
   );
   const pinned = useMemo(() => visible.filter((m) => m.isPinned), [visible]);
   const unreadCount = useMemo(
-    () => visible.filter((m) => m.senderId !== me.id && !m.readBy.includes(me.id)).length,
+    () => visible.filter((m) => m.senderId !== me.id && !(m.readBy || []).includes(me.id)).length,
     [visible, me.id]
   );
   const isAdmin = (chat.adminIds || []).includes(me.id);

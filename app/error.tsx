@@ -39,6 +39,9 @@ export default function Error({
       {error?.digest && (
         <p className="text-[#8696a0]/60 text-xs mt-6">Code: {error.digest}</p>
       )}
+      {error?.message && (
+        <p className="text-[#8696a0]/60 text-xs mt-2 max-w-md break-words">Error: {error.message}</p>
+      )}
     </div>
   );
 }

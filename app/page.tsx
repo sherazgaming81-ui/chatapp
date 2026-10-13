@@ -100,7 +100,7 @@ export default function Home() {
     const unsubs = chats.map((chat) =>
       backend.onMessages(chat.id, (msgs) => {
         const n = msgs.filter(
-          (m) => m.senderId !== user.id && !m.readBy.includes(user.id) && !(m.deletedFor || []).includes(user.id)
+          (m) => m.senderId !== user.id && !(m.readBy || []).includes(user.id) && !(m.deletedFor || []).includes(user.id)
         ).length;
         setUnread((prev) => (prev[chat.id] === n ? prev : { ...prev, [chat.id]: n }));
         // v1: naye incoming message par sound (muted chats me nahi, khuli chat me nahi)
