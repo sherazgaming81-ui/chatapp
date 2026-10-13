@@ -1,0 +1,8 @@
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Sirf login users photos / voice notes bhej aur dekh sakte hain
+    match /chat-media/{chatId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
