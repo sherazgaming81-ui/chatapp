@@ -71,13 +71,16 @@ export default function Home() {
       setAuthReady(true);
       if (!u) return;
       try {
-        const forced = sessionStorage.getItem(FORCED_LOGOUT_KEY) === '1';
+        const forced = localStorage.getItem(FORCED_LOGOUT_KEY) === '1';
         const seen = localStorage.getItem(V5_SEEN_KEY);
         const owner = (u.email || '').toLowerCase() === OWNER_EMAIL.toLowerCase();
-        if (!forced && seen !== V5_VERSION && !owner) {
+        // Naya signup (abhi bana account) ko kabhi logout nahi — sirf purane v4 sessions ko ek baar saaf karo.
+        const createdAt = u.created_at ? new Date(u.created_at).getTime() : 0;
+        const isNewSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
+        if (!forced && seen !== V5_VERSION && !owner && !isNewSignup) {
           // Purana (v4) session — fresh start: logout + v5 keys saaf.
-          // `forced` flag isi tab me rehta hai taake dobara login par loop na bane.
-          sessionStorage.setItem(FORCED_LOGOUT_KEY, '1');
+          // `forced` flag isi device par rehta hai taake dobara login par loop na bane.
+          localStorage.setItem(FORCED_LOGOUT_KEY, '1');
           clearV5Keys();
           markVersionSeen(); // update tour skip — seedha login → onboarding
           setShowUpdate(false);
