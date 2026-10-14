@@ -72,7 +72,7 @@ export function VoicePlayer({ url, duration, mine }: { url: string; duration?: n
       <button
         onClick={(e) => { e.stopPropagation(); toggle(); }}
         aria-label={playing ? 'Rokein' : 'Chalayein'}
-        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+        className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
         style={{ color: mine ? '#fff' : 'var(--wa4-muted)' }}
       >
         {playing ? <PauseIcon size={20} /> : <PlayIcon size={22} />}

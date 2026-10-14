@@ -219,7 +219,7 @@ export default function ChatsScreen({
             <button
               key={f.id}
               onClick={() => { setFilter(f.id); tapHaptic(); }}
-              className={`wa4-chip flex items-center gap-1.5 px-4 h-9 rounded-full text-[14px] font-medium whitespace-nowrap ${
+              className={`wa4-chip flex items-center gap-1.5 px-4 h-11 rounded-full text-[14px] font-medium whitespace-nowrap ${
                 active
                   ? 'text-[var(--wa4-accent)]'
                   : 'bg-[var(--wa4-chip)] text-[var(--wa4-muted)]'
@@ -467,7 +467,7 @@ function ArchivedRow({ chat, user, onOpen, onUnarchive }: {
         <span className="block text-[13px] text-[var(--wa4-muted)] truncate">{lastPreview(chat, user.id)}</span>
       </button>
       <button onClick={onUnarchive} aria-label="Unarchive karein"
-        className="w-10 h-10 rounded-full bg-[var(--wa4-accent-dim)] text-[var(--wa4-accent)] flex items-center justify-center shrink-0">
+        className="w-11 h-11 rounded-full bg-[var(--wa4-accent-dim)] text-[var(--wa4-accent)] flex items-center justify-center shrink-0">
         <ArchiveIcon size={18} />
       </button>
     </div>
@@ -672,7 +672,7 @@ function NewChatSheet({
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`flex-1 h-10 rounded-full text-[14px] font-medium ${
+              className={`flex-1 h-11 rounded-full text-[14px] font-medium ${
                 mode === m ? 'bg-[var(--wa4-accent)] text-[#0b141a] font-semibold' : 'bg-[var(--wa4-input)] text-[var(--wa4-muted)]'
               }`}
             >

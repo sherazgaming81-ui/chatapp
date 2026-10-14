@@ -162,7 +162,7 @@ function MainView(props: {
                   onClick={() => backend.setGroupDescription(chat.id, desc).then(() => setDescEdit(false)).catch(() => {})}
                   className="px-4 rounded-full bg-[#00a884] text-white text-[13px] font-medium"
                 >
-                  Save
+                  Save karein
                 </button>
               </div>
             ) : (

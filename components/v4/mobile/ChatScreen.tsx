@@ -521,7 +521,7 @@ export default function ChatScreen({
             <span className="block text-[13px] text-[var(--wa4-muted)] truncate">{replyTo.text}</span>
           </span>
           <button onClick={() => setReplyTo(null)} aria-label="Reply hatayein"
-            className="w-9 h-9 flex items-center justify-center text-[var(--wa4-muted)] shrink-0">
+            className="w-11 h-11 flex items-center justify-center text-[var(--wa4-muted)] shrink-0">
             <XIcon size={17} />
           </button>
         </div>
@@ -696,9 +696,9 @@ export default function ChatScreen({
                 );
               })}
             </div>
-            <SheetRow label="Reply" onClick={() => doReply(actionMsg)} icon={<ReplyIcon size={22} />} />
-            {actionMsg.text && <SheetRow label="Copy" onClick={() => doCopy(actionMsg)} icon={<CopyIcon size={22} />} />}
-            <SheetRow label="Forward" onClick={() => setForwardMsg(actionMsg)} icon={<ForwardIcon size={22} />} />
+            <SheetRow label="Jawab dein" onClick={() => doReply(actionMsg)} icon={<ReplyIcon size={22} />} />
+            {actionMsg.text && <SheetRow label="Copy karein" onClick={() => doCopy(actionMsg)} icon={<CopyIcon size={22} />} />}
+            <SheetRow label="Forward karein" onClick={() => setForwardMsg(actionMsg)} icon={<ForwardIcon size={22} />} />
             <SheetRow label={starredIds.has(actionMsg.id) ? 'Unstar karein' : 'Star karein'} onClick={() => doStar(actionMsg)}
               icon={<StarIcon size={22} filled={starredIds.has(actionMsg.id)} />} />
             <SheetRow label={actionMsg.isPinned ? 'Unpin karein' : 'Pin karein'} onClick={() => doPin(actionMsg)}
@@ -718,7 +718,7 @@ export default function ChatScreen({
                   ))}
               </div>
             )}
-            <SheetRow label="Delete" danger sub="Mere liye delete karein" onClick={() => doDelete(actionMsg, false)}
+            <SheetRow label="Delete karein" danger sub="Sirf mere liye" onClick={() => doDelete(actionMsg, false)}
               icon={<TrashIcon size={22} />} />
             {actionMsg.senderId === me && (
               <SheetRow label="Sab ke liye delete" danger onClick={() => doDelete(actionMsg, true)}
@@ -1204,7 +1204,7 @@ function PollSheet({ open, onClose, onCreate }: {
         ))}
         {opts.length < 6 && (
           <button onClick={() => setOpts((a) => [...a, ''])}
-            className="text-[14px] text-[var(--wa4-accent)] font-medium py-2">+ Option add karein</button>
+            className="text-[14px] text-[var(--wa4-accent)] font-medium py-2 min-h-[44px] inline-flex items-center">+ Option add karein</button>
         )}
         <button onClick={() => onCreate(q.trim(), opts.map((o) => o.trim()).filter(Boolean))} disabled={!valid}
           className="w-full mt-3 h-12 rounded-full bg-[var(--wa4-accent)] text-[#0b141a] font-semibold disabled:opacity-40">
@@ -1280,7 +1280,7 @@ function LocationSheet({ open, onClose, onSendCurrent, onSendLive }: {
           <div className="flex gap-2">
             {[15, 60, 480].map((m) => (
               <button key={m} onClick={() => setLiveFor(m)}
-                className={`flex-1 h-10 rounded-full text-[13px] font-medium ${
+                className={`flex-1 h-11 rounded-full text-[13px] font-medium ${
                   liveFor === m ? 'bg-[var(--wa4-accent)] text-[#0b141a] font-semibold' : 'bg-[var(--wa4-input)] text-[var(--wa4-muted)]'
                 }`}>
                 {m >= 60 ? `${m / 60} ghanta` : `${m} min`}
