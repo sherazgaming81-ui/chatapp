@@ -117,6 +117,7 @@ export class SupabaseBackend implements ChatBackend {
   private channels: RealtimeChannel[] = [];
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   private typingCache = new Map<string, Record<string, number>>();
+  private chanSeq = 0;
 
   constructor() {
     this.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -270,7 +271,7 @@ export class SupabaseBackend implements ChatBackend {
     refresh();
     const ch = this.track(
       this.sb
-        .channel('chats-list')
+        .channel(`chats-list-${++this.chanSeq}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, debounced)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants' }, debounced)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debounced)
@@ -297,9 +298,10 @@ export class SupabaseBackend implements ChatBackend {
       if (alive) cb(((data || []) as DbMessage[]).map(toChatMessage));
     };
     refresh();
+    const chName = `msgs-${chatId}-${++this.chanSeq}`;
     const ch = this.track(
       this.sb
-        .channel(`msgs-${chatId}`)
+        .channel(chName)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
