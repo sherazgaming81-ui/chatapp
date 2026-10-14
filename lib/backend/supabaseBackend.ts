@@ -1039,6 +1039,37 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   }
 
   /**
+   * v6.3: Owner ke liye personal DM — kisi member se 1-to-1 chat.
+   * Sirf owner chala sakta hai. Pehle se DM hai to wahi wapas.
+   */
+  async createDM(otherUserId: string): Promise<string> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    if (!this.isOwner()) throw new Error('Sirf owner personal chat kar sakta hai');
+    if (!otherUserId || otherUserId === me) throw new Error('Ghalat user');
+    // Pehle se DM hai?
+    const { data: mine } = await this.sb.from('chat_participants').select('chat_id').eq('user_id', me);
+    const { data: theirs } = await this.sb.from('chat_participants').select('chat_id').eq('user_id', otherUserId);
+    const mySet = new Set((mine || []).map((r) => r.chat_id));
+    const common = (theirs || []).map((r) => r.chat_id).filter((c) => mySet.has(c));
+    if (common.length > 0) {
+      const { data: chat } = await this.sb.from('chats').select('id').eq('id', common[0]).eq('type', 'dm').maybeSingle();
+      if (chat) return (chat as { id: string }).id;
+    }
+    const id = `dm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { error } = await this.sb.from('chats').insert({
+      id, type: 'dm', name: '', admin_ids: [], is_main_group: false,
+      description: '', updated_at: Date.now(),
+    });
+    if (error) throw error;
+    const { error: perr } = await this.sb.from('chat_participants').insert([
+      { chat_id: id, user_id: me }, { chat_id: id, user_id: otherUserId },
+    ]);
+    if (perr) throw perr;
+    return id;
+  }
+
+  /**
    * v6: naya group banana — SIRF OWNER ke liye khula (owner bypass).
    * Members ke liye single-group rule barkarar: un par ab bhi Error.
    * Owner group banata hai to khud admin + pehla member banta hai.

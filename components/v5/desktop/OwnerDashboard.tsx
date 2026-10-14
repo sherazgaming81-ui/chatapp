@@ -22,8 +22,8 @@ interface Props {
   chat: Chat;
   me: UserProfile;
   ownerId: string | null;
-  /** v6: group kholo (dashboard se naye group me jao) */
-  onOpenGroup?: (chat: Chat) => void;
+  /** v6: group kholo (dashboard se naye group me jao) — Chat ya chat ID */
+  onOpenGroup?: (chat: Chat | string) => void;
 }
 
 function StatCard({ icon, label, value, tint }: { icon: string; label: string; value: string | number; tint: string }) {
@@ -55,6 +55,7 @@ export default function OwnerDashboard({ chat, me, ownerId, onOpenGroup }: Props
   const [pollQ, setPollQ] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
   const [, tick] = useState(0);
+  const [dmUser, setDmUser] = useState(''); // v6.3: direct chat target
   // ---- v6: groups (naya group + members) ----
   const [groups, setGroups] = useState<Chat[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
@@ -85,6 +86,20 @@ export default function OwnerDashboard({ chat, me, ownerId, onOpenGroup }: Props
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Group nahi ban saka');
     } finally { setCreating(false); }
+  };
+
+  // v6.3: member se direct chat shuru karo
+  const startDM = async () => {
+    if (!dmUser) { showToast('Pehle member chunein'); return; }
+    if (!backend.createDM) { showToast('Backend me DM nahi hai'); return; }
+    setBusy(true);
+    try {
+      const dmId = await backend.createDM(dmUser);
+      showToast('Chat tayyar ✓');
+      if (onOpenGroup) onOpenGroup(dmId);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Chat nahi ban saki');
+    } finally { setBusy(false); }
   };
 
   const searchMembers = async (q: string) => {
@@ -367,6 +382,31 @@ export default function OwnerDashboard({ chat, me, ownerId, onOpenGroup }: Props
               })}
             </div>
           )}
+        </div>
+
+        {/* v6.3: Direct Chat — kisi member se 1-to-1 baat (sirf owner) */}
+        <SectionTitle>Direct Chat (sirf owner)</SectionTitle>
+        <div className="bg-[#111b21] border border-[#222d34] rounded-2xl p-4 space-y-3 mb-8">
+          <div className="flex gap-2">
+            <select
+              value={dmUser}
+              onChange={(e) => setDmUser(e.target.value)}
+              className="flex-1 bg-[#1f2c34] text-[#e9edef] text-[13.5px] rounded-xl px-3 py-2.5 outline-none"
+            >
+              <option value="">Member chunein…</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={startDM}
+              disabled={busy || !dmUser}
+              className="px-5 py-2.5 rounded-xl bg-[#00a884] hover:bg-[#06cf9c] text-white text-[13.5px] font-medium transition disabled:opacity-50"
+            >
+              Chat Shuru
+            </button>
+          </div>
+          <p className="text-[12px] text-[#8696a0]">Sirf aap members se personal chat kar sakte hain.</p>
         </div>
 
         {/* stats */}

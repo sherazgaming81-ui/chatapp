@@ -319,7 +319,16 @@ export default function DesktopShell() {
           chat={chat}
           me={me}
           ownerId={ownerId}
-          onOpenGroup={(c) => { setChat(c); setView('group'); }}
+          onOpenGroup={(c) => {
+            if (typeof c === 'string') {
+              // DM ID mila — chat list se dhoondo ya refresh karo
+              setChat(null);
+              setView('group');
+              // Chat list refresh hogi aur DM nazar aayega
+            } else {
+              setChat(c); setView('group');
+            }
+          }}
         />
       )}
 

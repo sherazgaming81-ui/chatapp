@@ -171,6 +171,8 @@ export interface ChatBackend {
   setTyping(chatId: string, isTyping: boolean): Promise<void>;
   searchUsers(query: string): Promise<UserProfile[]>;
   getOrCreateDirectChat(otherId: string): Promise<string>;
+  /** v6.3: owner ke liye personal DM (sirf owner). */
+  createDM?(otherUserId: string): Promise<string>;
   createGroup(name: string, memberIds: string[]): Promise<string>;
   /** v6: group me members add karo (owner/admin). Optional — sirf supabase backend me. */
   addGroupMembers?(chatId: string, userIds: string[]): Promise<void>;
