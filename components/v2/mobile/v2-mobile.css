@@ -1,0 +1,102 @@
+/* v2 mobile theme — WhatsApp-style, premium & clean. Dark default, light override. */
+.mv2 {
+  --mv2-bg: #0b141a;
+  --mv2-header: #1f2c34;
+  --mv2-sheet: #1f2c34;
+  --mv2-input: #1f2c34;
+  --mv2-bubble-in: #1f2c34;
+  --mv2-bubble-out: #005c4b;
+  --mv2-text: #e9edef;
+  --mv2-muted: #8696a0;
+  --mv2-accent: #00a884;
+  --mv2-accent-soft: rgba(0, 168, 132, 0.14);
+  --mv2-danger: #ea0038;
+  --mv2-divider: #2a3942;
+  --mv2-chat-bg: #0b141a;
+  --mv2-unread: #00a884;
+  --mv2-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--mv2-text);
+  background: var(--mv2-bg);
+}
+.mv2[data-theme='light'] {
+  --mv2-bg: #f0f2f5;
+  --mv2-header: #ffffff;
+  --mv2-sheet: #ffffff;
+  --mv2-input: #ffffff;
+  --mv2-bubble-in: #ffffff;
+  --mv2-bubble-out: #d9fdd3;
+  --mv2-text: #111b21;
+  --mv2-muted: #667781;
+  --mv2-accent: #00a884;
+  --mv2-accent-soft: rgba(0, 168, 132, 0.12);
+  --mv2-danger: #ea0038;
+  --mv2-divider: #e9edef;
+  --mv2-chat-bg: #efeae2;
+  --mv2-unread: #00a884;
+  --mv2-shadow: 0 8px 24px rgba(11, 20, 26, 0.12);
+}
+
+/* Chat wallpaper patterns (subtle doodle feel via gradients) */
+.mv2-wall-doodle {
+  background-color: var(--mv2-chat-bg);
+  background-image: radial-gradient(rgba(134, 150, 160, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.mv2-wall-plain {
+  background-color: var(--mv2-chat-bg);
+  background-image: none;
+}
+.mv2-wall-waves {
+  background-color: var(--mv2-chat-bg);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(0, 168, 132, 0.04) 0px,
+    rgba(0, 168, 132, 0.04) 2px,
+    transparent 2px,
+    transparent 14px
+  );
+}
+.mv2-wall-grid {
+  background-color: var(--mv2-chat-bg);
+  background-image:
+    linear-gradient(rgba(134, 150, 160, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(134, 150, 160, 0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* Animations — smooth, no bounce gimmicks */
+@keyframes mv2-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes mv2-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes mv2-msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mv2-pop {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.mv2-sheet-anim { animation: mv2-sheet-up 0.28s cubic-bezier(0.32, 0.72, 0.35, 1); }
+.mv2-fade-anim { animation: mv2-fade-in 0.18s ease-out; }
+.mv2-msg-anim { animation: mv2-msg-in 0.16s ease-out; }
+.mv2-pop-anim { animation: mv2-pop 0.18s ease-out; }
+
+/* Hide scrollbars on horizontal chip rows */
+.mv2-no-scrollbar::-webkit-scrollbar { display: none; }
+.mv2-no-scrollbar { scrollbar-width: none; }
+
+/* Safe-area helpers */
+.mv2-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.mv2-safe-top { padding-top: env(safe-area-inset-top); }
+
+/* Remove tap highlight + callout for app feel */
+.mv2, .mv2 * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+.mv2 input, .mv2 textarea { -webkit-touch-callout: default; user-select: text; }
