@@ -3,38 +3,52 @@
 import type { Chat, ChatBackend, ChatMessage, SendInput, UserProfile } from '@/lib/backend/types';
 
 /**
- * v5 backend contract — methods the backend worker is adding to
- * lib/backend/supabaseBackend.ts in parallel. Components code against
- * this interface; QA phase wires the real backend.
+ * v5 backend contract — lib/backend/supabaseBackend.ts ke ASAL methods.
+ * (Pehle ye "parallel worker add karega" wali draft thi; QA me asal
+ * signatures se mila di gayi taake runtime par koi mismatch na rahe.)
  */
 export interface V5Backend extends ChatBackend {
   /** true agar current user group owner hai (sherazgaming81@gmail.com) */
   isOwner(): boolean;
-  /** current user ka role: 'owner' | 'member' */
-  getRole(): 'owner' | 'member';
+  /** badge text: 'Owner' | custom role | 'Member' */
+  getRole(userId: string): Promise<string>;
   /** main group ("Madrasa Group") lao; null agar maujood nahi */
   getMainGroup(): Promise<Chat | null>;
-  /** user ko group me auto-join karao; group id return kare */
-  ensureMemberAutoJoin(): Promise<string>;
+  /** user ko group me auto-join karao; group id return kare (userId optional = current user) */
+  ensureMemberAutoJoin(userId?: string): Promise<string>;
   /** "/" command parse karo; null agar command nahi */
-  parseCommand(text: string): { command: string; args: string[] } | null;
-  /** owner command chalao; confirmation/error string return kare */
-  executeCommand(command: string, args: string[]): Promise<string>;
-  /** kya current user muted hai? until = epoch ms jab mute khatam hoga */
-  isMuted(): Promise<{ muted: boolean; until: number | null }>;
+  parseCommand(text: string): { command: string; args: string[]; rawArgs: string } | null;
+  /** owner command chalao; CommandResult { ok, text, stats? } (chatId optional = main group) */
+  executeCommand(
+    command: string,
+    args: string[],
+    chatId?: string
+  ): Promise<{ ok: boolean; text: string; stats?: unknown }>;
+  /** mute status — chatId/userId optional (default: main group + current user) */
+  isMuted(chatId?: string, userId?: string): Promise<{ muted: boolean; remainingMs: number }>;
   /**
-   * v5 delete: mode 'me' = sirf mere liye (soft),
-   * 'everyone' = owner ka hard delete — koi placeholder nahi.
+   * v5 delete: forEveryone=false = sirf mere liye (soft),
+   * forEveryone=true = SIRF owner, hard delete — koi placeholder nahi.
    */
-  deleteMessage(msgId: string, mode: 'me' | 'everyone'): Promise<void>;
+  deleteMessage(chatId: string, messageId: string, forEveryone: boolean): Promise<void>;
   /** single message payload realtime stream */
-  onMessagePayload(chatId: string, cb: (msg: ChatMessage) => void): () => void;
-  /** presence tracking shuru karo */
-  trackPresence(): void;
-  /** online members par subscribe karo */
-  onPresenceChange(cb: (onlineCount: number, onlineMembers: UserProfile[]) => void): () => void;
-  /** optimistic send — temp/real id return kare */
-  sendMessageOptimistic(chatId: string, input: SendInput): Promise<string>;
+  onMessagePayload(
+    chatId: string,
+    cb: (msg: ChatMessage, event: 'INSERT' | 'UPDATE' | 'DELETE') => void
+  ): () => void;
+  /** presence tracking shuru karo (userId optional = current user) */
+  trackPresence(userId?: string): void;
+  /** online members par subscribe karo — poori presence state milti hai */
+  onPresenceChange(cb: (state: Record<string, { online: boolean; lastSeen: number }>) => void): () => void;
+  /**
+   * optimistic send — temp message FORAN milta hai (UI turant render kare),
+   * asal persist background me `sent` par hota hai.
+   */
+  sendMessageOptimistic(
+    chatId: string,
+    input: SendInput,
+    sender: { id: string; displayName: string }
+  ): { temp: ChatMessage; sent: Promise<void> };
 }
 
 export type { Chat, ChatMessage, SendInput, UserProfile };

@@ -118,7 +118,8 @@ export default function Onboarding({ user, onDone }: { user: UserProfile; onDone
     }
     setBusy(true);
     try {
-      await b.sendMessageOptimistic(groupId, { type: 'text', text: t });
+      const { sent } = b.sendMessageOptimistic(groupId, { type: 'text', text: t }, { id: user.id, displayName: user.displayName });
+      await sent;
       showToast('Bhej diya! 🎉');
       window.setTimeout(() => setStep(4), 900);
     } catch (e) {
@@ -133,14 +134,15 @@ export default function Onboarding({ user, onDone }: { user: UserProfile; onDone
     try {
       const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
       const up = await backend.uploadMedia(groupId, file);
-      await b.sendMessageOptimistic(groupId, {
+      const { sent } = b.sendMessageOptimistic(groupId, {
         type: 'audio',
         text: '',
         mediaURL: up.url,
         duration: dur,
         fileName: file.name,
         fileSize: file.size,
-      });
+      }, { id: user.id, displayName: user.displayName });
+      await sent;
       showToast('Voice note bhej diya! 🎙️');
       window.setTimeout(() => setStep(5), 900);
     } catch (e) {
@@ -160,13 +162,14 @@ export default function Onboarding({ user, onDone }: { user: UserProfile; onDone
     setBusy(true);
     try {
       const up = await backend.uploadMedia(groupId, guidePhoto.file);
-      await b.sendMessageOptimistic(groupId, {
+      const { sent } = b.sendMessageOptimistic(groupId, {
         type: 'image',
         text: '',
         mediaURL: up.url,
         fileName: guidePhoto.file.name,
         fileSize: guidePhoto.file.size,
-      });
+      }, { id: user.id, displayName: user.displayName });
+      await sent;
       showToast('Photo bhej di! 📸');
       window.setTimeout(() => setStep(6), 900);
     } catch (e) {

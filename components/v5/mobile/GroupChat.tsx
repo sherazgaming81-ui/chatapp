@@ -83,6 +83,36 @@ export default function GroupChat() {
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   }, []);
 
+  // ---- mute status (backend deta hai { muted, remainingMs }) ----
+  const refreshMute = useCallback(async (): Promise<MuteState | null> => {
+    try {
+      const m = await b.isMuted();
+      return { muted: m.muted, until: m.muted ? Date.now() + m.remainingMs : null };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // ---- optimistic temp messages: tempId -> signature ----
+  // Real INSERT aate hi temp se swap ho jata hai (duplicate nahi banta).
+  const pendingTemps = useRef(new Map<string, string>());
+  const tempSig = (senderId: string, m: { type: string; text: string; mediaURL?: string; fileName?: string }) =>
+    `${senderId}|${m.type}|${m.text}|${m.mediaURL || ''}|${m.fileName || ''}`;
+
+  /** temp message list me daalo + pending mark karo */
+  function trackTemp(temp: ChatMessage) {
+    pendingTemps.current.set(temp.id, tempSig(temp.senderId, temp));
+    setMessages(prev => [...prev, temp].sort((x, y) => x.createdAt - y.createdAt));
+    setPendingIds(prev => new Set(prev).add(temp.id));
+  }
+
+  /** temp hatao (send fail hone par) */
+  function dropTemp(tempId: string) {
+    pendingTemps.current.delete(tempId);
+    setMessages(prev => prev.filter(m => m.id !== tempId));
+    setPendingIds(prev => { const n = new Set(prev); n.delete(tempId); return n; });
+  }
+
   // ---- auth ----
   useEffect(() => {
     const off = backend.onAuth(u => setUser(u));
@@ -108,15 +138,19 @@ export default function GroupChat() {
         } catch { /* group basic info optional */ }
 
         b.trackPresence();
-        offPresence = b.onPresenceChange(count => {
-          if (!cancelled) setOnlineCount(count);
+        offPresence = b.onPresenceChange(state => {
+          if (!cancelled) setOnlineCount(Object.keys(state).length);
         });
 
         const merge = (list: ChatMessage[]) => {
           if (cancelled) return;
           const mine = user.id;
           const visible = list.filter(m => !m.deletedFor?.includes(mine));
-          setMessages(visible);
+          setMessages(prev => {
+            // apne temp messages mehfooz rakho — real INSERT aane par swap honge
+            const temps = prev.filter(m => m.id.startsWith('tmp_') && pendingTemps.current.has(m.id));
+            return [...visible, ...temps].sort((x, y) => x.createdAt - y.createdAt);
+          });
           // pending ids jo ab real list me hain, hata do
           setPendingIds(prev => {
             const ids = new Set(list.map(m => m.id));
@@ -126,9 +160,26 @@ export default function GroupChat() {
           });
         };
         offMsgs = backend.onMessages(id, merge);
-        offPayload = b.onMessagePayload(id, msg => {
+        offPayload = b.onMessagePayload(id, (msg, event) => {
           if (cancelled) return;
+          if (event === 'DELETE') {
+            setMessages(prev => prev.filter(m => m.id !== msg.id));
+            return;
+          }
           if (msg.deletedFor?.includes(user.id)) return;
+          // apna temp message ho to real se swap karo (duplicate nahi)
+          const sig = tempSig(msg.senderId, msg);
+          let swapTemp: string | null = null;
+          for (const [tid, tsig] of pendingTemps.current) {
+            if (tsig === sig) { swapTemp = tid; break; }
+          }
+          if (swapTemp) {
+            pendingTemps.current.delete(swapTemp);
+            const tid = swapTemp;
+            setPendingIds(prev => { const n = new Set(prev); n.delete(tid); return n; });
+            setMessages(prev => prev.map(m => (m.id === tid ? msg : m)));
+            return;
+          }
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) {
               return prev.map(m => (m.id === msg.id ? msg : m));
@@ -137,8 +188,8 @@ export default function GroupChat() {
           });
         });
 
-        const m = await b.isMuted().catch(() => ({ muted: false, until: null }));
-        if (!cancelled) setMute(m);
+        const m = await refreshMute();
+        if (!cancelled && m) setMute(m);
       } catch (e) {
         if (!cancelled) showToast(e instanceof Error ? e.message : 'Group load nahi ho saka');
       }
@@ -150,20 +201,18 @@ export default function GroupChat() {
       offPayload?.();
       offPresence?.();
     };
-  }, [user, showToast]);
+  }, [user, showToast, refreshMute]);
 
   // ---- mute refresh + countdown tick ----
   useEffect(() => {
     if (!user) return;
     const iv = window.setInterval(async () => {
       setNow(Date.now());
-      try {
-        const m = await b.isMuted();
-        setMute(prev => (prev.muted === m.muted && prev.until === m.until ? prev : m));
-      } catch { /* ignore */ }
+      const m = await refreshMute();
+      if (m) setMute(prev => (prev.muted === m.muted && prev.until === m.until ? prev : m));
     }, 1000);
     return () => clearInterval(iv);
-  }, [user]);
+  }, [user, refreshMute]);
 
   // ---- auto scroll ----
   useEffect(() => {
@@ -214,44 +263,51 @@ export default function GroupChat() {
 
   async function handleSend() {
     const t = text.trim();
-    if (!t || !groupId || mute.muted) return;
-    // owner command?
-    if (isOwner) {
+    if (!t || !groupId || mute.muted || !user) return;
+    // owner command? (desktop jaisa: "/" se shuru ho to command hi samjho)
+    if (isOwner && t.startsWith('/')) {
+      setText('');
       try {
         const parsed = b.parseCommand(t);
-        if (parsed) {
-          setText('');
-          const res = await b.executeCommand(parsed.command, parsed.args);
-          showToast(res || 'Ho gaya ✓');
-          return;
-        }
-      } catch { /* command nahi, normal message bhejo */ }
+        if (!parsed) throw new Error('Command samajh nahi aaya');
+        const res = await b.executeCommand(parsed.command, parsed.args, groupId);
+        showToast(res.text || 'Ho gaya ✓');
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : 'Command nahi chala');
+        setText(t);
+      }
+      return;
     }
     setText('');
-    try {
-      const id = await b.sendMessageOptimistic(groupId, { type: 'text', text: t });
-      setPendingIds(prev => new Set(prev).add(id));
-    } catch (e) {
+    const sender = { id: user.id, displayName: user.displayName };
+    const { temp, sent } = b.sendMessageOptimistic(groupId, { type: 'text', text: t }, sender);
+    trackTemp(temp);
+    sent.catch(e => {
+      dropTemp(temp.id);
       showToast(e instanceof Error ? e.message : 'Message nahi bheja ja saka');
       setText(t);
-    }
+    });
   }
 
   async function handleVoiceSend(blob: Blob, durSec: number) {
     setRecording(false);
-    if (!groupId) return;
+    if (!groupId || !user) return;
     try {
       const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
       const up = await backend.uploadMedia(groupId, file);
-      const id = await b.sendMessageOptimistic(groupId, {
+      const { temp, sent } = b.sendMessageOptimistic(groupId, {
         type: 'audio',
         text: '',
         mediaURL: up.url,
         duration: durSec,
         fileName: file.name,
         fileSize: file.size,
+      }, { id: user.id, displayName: user.displayName });
+      trackTemp(temp);
+      sent.catch(e => {
+        dropTemp(temp.id);
+        showToast(e instanceof Error ? e.message : 'Voice note nahi bheja ja saka');
       });
-      setPendingIds(prev => new Set(prev).add(id));
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Voice note nahi bheja ja saka');
     }
@@ -260,18 +316,22 @@ export default function GroupChat() {
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (!f || !groupId) return;
+    if (!f || !groupId || !user) return;
     showToast('Photo bheji ja rahi hai…');
     try {
       const up = await backend.uploadMedia(groupId, f);
-      const id = await b.sendMessageOptimistic(groupId, {
+      const { temp, sent } = b.sendMessageOptimistic(groupId, {
         type: 'image',
         text: '',
         mediaURL: up.url,
         fileName: f.name,
         fileSize: f.size,
+      }, { id: user.id, displayName: user.displayName });
+      trackTemp(temp);
+      sent.catch(err => {
+        dropTemp(temp.id);
+        showToast(err instanceof Error ? err.message : 'Photo nahi bheji ja saki');
       });
-      setPendingIds(prev => new Set(prev).add(id));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Photo nahi bheji ja saki');
     }
@@ -287,11 +347,11 @@ export default function GroupChat() {
   }
 
   async function doDelete(mode: 'me' | 'everyone') {
-    if (!sheetMsg) return;
+    if (!sheetMsg || !groupId) return;
     const id = sheetMsg.id;
     setSheetMsg(null);
     try {
-      await b.deleteMessage(id, mode);
+      await b.deleteMessage(groupId, id, mode === 'everyone');
       if (mode === 'me') {
         setMessages(prev => prev.filter(m => m.id !== id));
         showToast('Aapke liye delete ho gaya');

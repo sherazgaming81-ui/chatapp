@@ -1,12 +1,43 @@
 'use client';
 
-// v4 entry — device ke hisab se Mobile ya Desktop shell render hota hai.
-// Dono shells khud auth, chats, theme sab sambhalte hain.
+// v5 entry — device ke hisab se v5 mobile ya v5 desktop shell.
+// Mobile flow: LoadingScreen (7s premium) → [UpdatePage agar version badla]
+//   → Login (agar logout) → Onboarding (agar pehli dafa) → GroupChat.
+// Desktop: DesktopShell (apna auth/login khud sambhalta hai).
+// PWAInit app/layout.tsx me hai (wahi rehta hai).
 
 import { useEffect, useState } from 'react';
 import { getDeviceKind, type DeviceKind } from '@/lib/v2/types';
-import MobileShell from '@/components/v4/mobile/MobileShell';
-import DesktopShell from '@/components/v4/desktop/DesktopShell';
+import { backend } from '@/lib/backend';
+import { OWNER_EMAIL } from '@/lib/backend/supabaseBackend';
+import type { UserProfile } from '@/lib/backend/types';
+import LoginScreen from '@/components/LoginScreen';
+import {
+  LoadingScreen,
+  Onboarding,
+  GroupChat,
+  UpdatePage,
+  shouldShowUpdate,
+  isOnboardingDone,
+  markVersionSeen,
+} from '@/components/v5/mobile';
+import DesktopShell from '@/components/v5/desktop/DesktopShell';
+
+const V5_SEEN_KEY = 'v5_seen';
+const V5_VERSION = '5.0';
+const FORCED_LOGOUT_KEY = 'v5_forced_logout';
+
+/** v5 keys saaf karo (fresh start) — sirf 'v5' prefix wali. */
+function clearV5Keys() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('v5')) localStorage.removeItem(k);
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 function BootSplash() {
   return (
@@ -20,6 +51,11 @@ function BootSplash() {
 
 export default function Home() {
   const [kind, setKind] = useState<DeviceKind | null>(null);
+  const [booted, setBooted] = useState(false); // LoadingScreen mukammal
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [onbDone, setOnbDone] = useState<boolean>(() => isOnboardingDone());
+  const [showUpdate, setShowUpdate] = useState<boolean>(() => shouldShowUpdate());
 
   useEffect(() => {
     const update = () => setKind(getDeviceKind());
@@ -28,6 +64,53 @@ export default function Home() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  // ---- auth + v5 fresh-start gate (mobile + desktop dono ke liye) ----
+  useEffect(() => {
+    const off = backend.onAuth(async (u) => {
+      setUser(u);
+      setAuthReady(true);
+      if (!u) return;
+      try {
+        const forced = sessionStorage.getItem(FORCED_LOGOUT_KEY) === '1';
+        const seen = localStorage.getItem(V5_SEEN_KEY);
+        const owner = (u.email || '').toLowerCase() === OWNER_EMAIL.toLowerCase();
+        if (!forced && seen !== V5_VERSION && !owner) {
+          // Purana (v4) session — fresh start: logout + v5 keys saaf.
+          // `forced` flag isi tab me rehta hai taake dobara login par loop na bane.
+          sessionStorage.setItem(FORCED_LOGOUT_KEY, '1');
+          clearV5Keys();
+          markVersionSeen(); // update tour skip — seedha login → onboarding
+          setShowUpdate(false);
+          setOnbDone(false);
+          await backend.signOut();
+          return;
+        }
+        localStorage.setItem(V5_SEEN_KEY, V5_VERSION);
+      } catch {
+        /* ignore */
+      }
+    });
+    return off;
+  }, []);
+
   if (!kind) return <BootSplash />;
-  return kind === 'mobile' ? <MobileShell /> : <DesktopShell />;
+
+  if (kind === 'desktop') {
+    // DesktopShell apna auth + LoginScreen khud sambhalta hai.
+    return <DesktopShell />;
+  }
+
+  // ---- mobile v5 flow ----
+  if (!booted) {
+    return <LoadingScreen onDone={() => setBooted(true)} />;
+  }
+  if (!authReady) return <BootSplash />;
+  if (!user) return <LoginScreen />;
+  if (showUpdate) {
+    return <UpdatePage onDone={() => setShowUpdate(false)} />;
+  }
+  if (!onbDone) {
+    return <Onboarding user={user} onDone={() => setOnbDone(true)} />;
+  }
+  return <GroupChat />;
 }

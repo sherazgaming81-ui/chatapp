@@ -76,7 +76,7 @@ export default function Splash({ ready = false }: SplashProps) {
     >
       <LogoMark />
       <h1 className="mt-6 px-6 text-center font-serif text-2xl tracking-wide text-white md:text-3xl">
-        Madrasa-e-Tahfeez-ul-Quran Ilmuddin
+        ChatsApp
       </h1>
       <p className="mt-3 text-sm tracking-wide text-[#8696a0]">
         Deeni bhaion ka apna messenger

@@ -47,6 +47,7 @@ export interface ParsedCommand {
 export interface CommandStats {
   totalMessages: number;
   activeMembers: number;
+  messagesToday: number;
   topSenders: { userId: string; displayName: string; count: number }[];
 }
 
@@ -405,6 +406,11 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       } catch (e) {
         console.error('ensureMemberAutoJoin failed:', e);
       }
+      // v5: FRESH START — owner ke login par ek dafa purana data saaf
+      // (flag group_settings me; fire-and-forget taake login na ruke)
+      if (this.isOwner()) {
+        this.runV5ResetIfNeeded().catch((e) => console.error('runV5ResetIfNeeded failed:', e));
+      }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
       this.startPresence();
       this.registerDevice();
@@ -442,7 +448,7 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   private startPresence() {
     if (this.presenceStarted || !this.meId) return;
     this.presenceStarted = true;
-    this.trackPresence(this.meId);
+    this.trackPresence(this.meId || undefined);
     // Login par ek dafa online flag lagao (purana fallback)
     this.sb.from('profiles').update({ online: true, last_seen: Date.now() }).eq('id', this.meId).then(
       () => {},
@@ -767,6 +773,28 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       if (others.some((u) => blocked.has(u))) throw new Error('Aap ne is user ko block kiya hua hai');
     }
     const now = Date.now();
+    // v5: per-member slow mode — aakhri message ke `slow_seconds` guzarna zaroori
+    // (owner is se mustasna hai taake announcements kabhi na rukein)
+    if (!this.isOwner()) {
+      const slowSec = await this.getMemberSlow(chatId, me);
+      if (slowSec > 0) {
+        const { data: lastMsg } = await this.sb
+          .from('messages')
+          .select('created_at')
+          .eq('chat_id', chatId)
+          .eq('sender_id', me)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const lastTs = num((lastMsg as { created_at?: number | string } | null)?.created_at);
+        if (lastTs > 0) {
+          const waitMs = slowSec * 1000 - (now - lastTs);
+          if (waitMs > 0) {
+            throw new Error(`Thoda sabar — ${Math.ceil(waitMs / 1000)} second baad dobara message bhejein`);
+          }
+        }
+      }
+    }
     const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).single();
     const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
     // v3: E2E — text messages encrypt karke store karo
@@ -2018,29 +2046,31 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
    * Ban user skip hota hai (khamoshi se — login flow nahi rokna).
    * Group na bana ho to banao (owner admin banta hai).
    */
-  async ensureMemberAutoJoin(userId: string): Promise<string> {
+  async ensureMemberAutoJoin(userId?: string): Promise<string> {
+    const uid = userId || this.meId;
+    if (!uid) throw new Error('Not signed in');
     const { data: ban } = await this.sb
       .from('bans')
       .select('user_id')
       .eq('chat_id', MAIN_GROUP_ID)
-      .eq('user_id', userId)
+      .eq('user_id', uid)
       .maybeSingle();
     if (ban) return MAIN_GROUP_ID;
     const { data: existing } = await this.sb.from('chats').select('id').eq('id', MAIN_GROUP_ID).maybeSingle();
     if (!existing) {
-      const ownerId = (await this.getOwnerId()) || userId;
+      const ownerId = (await this.getOwnerId()) || uid;
       await this.sb.from('chats').insert({
         id: MAIN_GROUP_ID,
         type: 'group',
         name: 'Madrasa Group',
         admin_ids: [ownerId],
         is_main_group: true,
-        description: 'Madrasse Tahfeez-ul-Quran ke sab doston ka group',
+        description: 'Sab doston ka group — ChatsApp',
         updated_at: Date.now(),
       });
     }
     await this.sb.from('chat_participants').upsert(
-      { chat_id: MAIN_GROUP_ID, user_id: userId },
+      { chat_id: MAIN_GROUP_ID, user_id: uid },
       { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
     );
     return MAIN_GROUP_ID;
@@ -2073,33 +2103,38 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
 
   /**
    * v5: owner command chalao. Sirf owner — warna Error.
-   * Commands: /mute, /timeout, /unmute, /ban, /warn, /lock, /unlock,
+   * Commands: /mute, /timeout, /unmute, /ban, /unban, /warn, /lock, /unlock,
    *           /announce, /clear, /stats
    */
-  async executeCommand(command: string, args: string[], chatId: string): Promise<CommandResult> {
+  async executeCommand(command: string, args: string[], chatId?: string): Promise<CommandResult> {
     if (!this.meId) throw new Error('Not signed in');
     if (!this.isOwner()) throw new Error('Ye command sirf owner chala sakta hai');
+    const cid = chatId || MAIN_GROUP_ID;
     const cmd = command.toLowerCase().replace(/^\//, '');
     switch (cmd) {
       case 'mute':
       case 'timeout':
-        return this.cmdMute(chatId, args);
+        return this.cmdMute(cid, args);
       case 'unmute':
-        return this.cmdUnmute(chatId, args);
+        return this.cmdUnmute(cid, args);
       case 'ban':
-        return this.cmdBan(chatId, args);
+        return this.cmdBan(cid, args);
+      case 'unban':
+        return this.cmdUnban(cid, args);
       case 'warn':
-        return this.cmdWarn(chatId, args);
+        return this.cmdWarn(cid, args);
+      case 'slowmode':
+        return this.cmdSlowmode(cid, args);
       case 'lock':
         return this.cmdLockUnlock(true);
       case 'unlock':
         return this.cmdLockUnlock(false);
       case 'announce':
-        return this.cmdAnnounce(chatId, args);
+        return this.cmdAnnounce(cid, args);
       case 'clear':
-        return this.cmdClear(chatId, args);
+        return this.cmdClear(cid, args);
       case 'stats':
-        return this.cmdStats(chatId);
+        return this.cmdStats(cid);
       default:
         throw new Error(`'/${cmd}' koi command nahi hai`);
     }
@@ -2196,6 +2231,13 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     return { ok: true, text: `🚫 ${target.displayName} ko group se ban kar diya${reason ? ` — wajah: ${reason}` : ''}` };
   }
 
+  private async cmdUnban(chatId: string, args: string[]): Promise<CommandResult> {
+    const target = await this.resolveCommandTarget(chatId, args);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /unban @ahmed)');
+    await this.unbanUser(chatId, target.userId);
+    return { ok: true, text: `✅ ${target.displayName} ka ban hata diya — ab group me wapas aa sakta hai` };
+  }
+
   private async cmdWarn(chatId: string, args: string[]): Promise<CommandResult> {
     const target = await this.resolveCommandTarget(chatId, args);
     if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /warn @ahmed wajah)');
@@ -2214,6 +2256,31 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       extra = ' — 3 warnings par 1 minute ke liye auto-mute kar diya';
     }
     return { ok: true, text: `⚠️ ${target.displayName} ko warning #${count} mili${reason ? ` — ${reason}` : ''}${extra}` };
+  }
+
+  private async cmdSlowmode(chatId: string, args: string[]): Promise<CommandResult> {
+    // /slowmode @ahmed 30 — aakhri numeric token seconds hai; 0 = slow mode hatao
+    let secs = 0;
+    let secsIdx = -1;
+    for (let i = args.length - 1; i >= 0; i--) {
+      const tok = (args[i] || '').trim();
+      if (/^\d+$/.test(tok)) {
+        secs = parseInt(tok, 10);
+        secsIdx = i;
+        break;
+      }
+    }
+    const nameTokens = secsIdx >= 0 ? args.filter((_, i) => i !== secsIdx) : args;
+    const target = await this.resolveCommandTarget(chatId, nameTokens);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /slowmode @ahmed 30)');
+    await this.setMemberSlow(chatId, target.userId, secs);
+    return {
+      ok: true,
+      text:
+        secs > 0
+          ? `🐢 ${target.displayName} par slow mode lag gaya — har ${secs} second me 1 message`
+          : `🚀 ${target.displayName} ka slow mode hata diya`,
+    };
   }
 
   private async cmdLockUnlock(locked: boolean): Promise<CommandResult> {
@@ -2316,6 +2383,13 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   private async cmdStats(chatId: string): Promise<CommandResult> {
     const analytics = await this.getChatAnalytics(chatId);
     const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const { count: today } = await this.sb
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('chat_id', chatId)
+      .gte('created_at', dayStart.getTime());
     const topSenders = analytics.perUser.slice(0, 5).map((p) => ({
       userId: p.userId,
       displayName: p.displayName,
@@ -2324,12 +2398,13 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     const stats: CommandStats = {
       totalMessages: analytics.totalMessages,
       activeMembers: (parts || []).length,
+      messagesToday: today || 0,
       topSenders,
     };
     const top = topSenders.map((t, i) => `${i + 1}. ${t.displayName} — ${t.count}`).join('\n') || '—';
     return {
       ok: true,
-      text: `📊 Group stats:\n• Kul messages: ${stats.totalMessages}\n• Members: ${stats.activeMembers}\n• Top senders:\n${top}`,
+      text: `📊 Group stats:\n• Kul messages: ${stats.totalMessages}\n• Aaj ke messages: ${stats.messagesToday}\n• Members: ${stats.activeMembers}\n• Top senders:\n${top}`,
       stats,
     };
   }
@@ -2339,14 +2414,17 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   /**
    * v5: kya user mute hai? Expired mutes ki lazy-safai bhi yahin hoti hai.
    */
-  async isMuted(chatId: string, userId: string): Promise<{ muted: boolean; remainingMs: number }> {
+  async isMuted(chatId?: string, userId?: string): Promise<{ muted: boolean; remainingMs: number }> {
+    const cid = chatId || MAIN_GROUP_ID;
+    const uid = userId || this.meId;
+    if (!uid) return { muted: false, remainingMs: 0 };
     const now = Date.now();
-    await this.sb.from('mutes').delete().eq('chat_id', chatId).eq('user_id', userId).lte('muted_until', now);
+    await this.sb.from('mutes').delete().eq('chat_id', cid).eq('user_id', uid).lte('muted_until', now);
     const { data } = await this.sb
       .from('mutes')
       .select('muted_until')
-      .eq('chat_id', chatId)
-      .eq('user_id', userId)
+      .eq('chat_id', cid)
+      .eq('user_id', uid)
       .maybeSingle();
     const until = num((data as { muted_until?: number | string } | null)?.muted_until);
     if (until > now) return { muted: true, remainingMs: until - now };
@@ -2429,14 +2507,16 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
    * Disconnect/tab-close par Supabase khud seconds me entry hata deta hai
    * (60-sec heartbeat ki tarah atka "online" nahi rehta).
    */
-  trackPresence(userId: string, meta?: Record<string, unknown>): void {
+  trackPresence(userId?: string, meta?: Record<string, unknown>): void {
     if (typeof window === 'undefined') return;
-    const payload = { user_id: userId, online: true, lastSeen: Date.now(), ...(meta || {}) };
+    const uid = userId || this.meId;
+    if (!uid) return;
+    const payload = { user_id: uid, online: true, lastSeen: Date.now(), ...(meta || {}) };
     if (this.presenceCh) {
       this.presenceCh.track(payload).catch(() => {});
       return;
     }
-    const ch = this.sb.channel('presence-global', { config: { presence: { key: userId } } });
+    const ch = this.sb.channel('presence-global', { config: { presence: { key: uid } } });
     ch.on('presence', { event: 'sync' }, () => this.emitPresenceState(ch))
       .on('presence', { event: 'join' }, () => this.emitPresenceState(ch))
       .on('presence', { event: 'leave' }, () => this.emitPresenceState(ch));
@@ -2491,5 +2571,303 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     return () => {
       this.presenceCbs.delete(cb);
     };
+  }
+
+  // ---- 7. Unban helper (v5) ----
+
+  /**
+   * v5: user ko ban se hatao aur group me wapas add karo — SIRF owner.
+   * /unban command isi ko chalata hai; OwnerDashboard bhi.
+   */
+  async unbanUser(chatId: string, userId: string): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner unban kar sakta hai');
+    await this.sb.from('bans').delete().eq('chat_id', chatId).eq('user_id', userId);
+    await this.sb.from('chat_participants').upsert(
+      { chat_id: chatId, user_id: userId },
+      { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+    );
+  }
+
+  /** v5: mute hatao — SIRF owner (OwnerDashboard ke liye). */
+  async unmuteUser(chatId: string, userId: string): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner unmute kar sakta hai');
+    await this.sb.from('mutes').delete().eq('chat_id', chatId).eq('user_id', userId);
+  }
+
+  // ---- 8. Moderation lists (v5, owner dashboard ke liye) ----
+
+  /** v5: mute hue users — baqi muddat (remainingMs) aur wajah ke sath. */
+  async getMutedUsers(
+    chatId: string
+  ): Promise<Array<{ userId: string; displayName: string; until: number; remainingMs: number; reason?: string }>> {
+    const now = Date.now();
+    try {
+      await this.sb.from('mutes').delete().eq('chat_id', chatId).lte('muted_until', now);
+      const { data } = await this.sb.from('mutes').select('user_id,muted_until,reason').eq('chat_id', chatId);
+      const rows = (data || []) as Array<{ user_id: string; muted_until: number | string; reason: string | null }>;
+      const names = await this.displayNames(rows.map((r) => r.user_id));
+      return rows
+        .map((r) => {
+          const until = num(r.muted_until);
+          return {
+            userId: r.user_id,
+            displayName: names.get(r.user_id) || 'User',
+            until,
+            remainingMs: Math.max(0, until - now),
+            reason: r.reason || undefined,
+          };
+        })
+        .filter((r) => r.remainingMs > 0)
+        .sort((a, b) => a.remainingMs - b.remainingMs);
+    } catch (e) {
+      console.error('getMutedUsers failed:', e);
+      return [];
+    }
+  }
+
+  /** v5: ban hue users ki list (wajah ke sath). */
+  async getBannedUsers(
+    chatId: string
+  ): Promise<Array<{ userId: string; displayName: string; at: number; reason?: string }>> {
+    try {
+      const { data } = await this.sb.from('bans').select('user_id,reason,created_at').eq('chat_id', chatId);
+      const rows = (data || []) as Array<{ user_id: string; reason: string | null; created_at: number | string | null }>;
+      const names = await this.displayNames(rows.map((r) => r.user_id));
+      return rows.map((r) => ({
+        userId: r.user_id,
+        displayName: names.get(r.user_id) || 'User',
+        at: r.created_at ? num(r.created_at) : 0,
+        reason: r.reason || undefined,
+      }));
+    } catch (e) {
+      console.error('getBannedUsers failed:', e);
+      return [];
+    }
+  }
+
+  /**
+   * v5: warnings — har warning ek row; `count` me us user ki kul warnings.
+   * (OwnerDashboard per-user group karke dikhata hai.)
+   */
+  async getWarnings(
+    chatId: string
+  ): Promise<
+    Array<{ id: string; userId: string; displayName: string; reason: string; at: number; by: string; count: number }>
+  > {
+    try {
+      const { data } = await this.sb
+        .from('warns')
+        .select('id,user_id,reason,created_at')
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: false });
+      const rows = (data || []) as Array<{
+        id: string;
+        user_id: string;
+        reason: string | null;
+        created_at: number | string | null;
+      }>;
+      const counts = new Map<string, number>();
+      for (const r of rows) counts.set(r.user_id, (counts.get(r.user_id) || 0) + 1);
+      const names = await this.displayNames(rows.map((r) => r.user_id));
+      return rows.map((r) => ({
+        id: String(r.id),
+        userId: r.user_id,
+        displayName: names.get(r.user_id) || 'User',
+        reason: r.reason || '—',
+        at: r.created_at ? num(r.created_at) : 0,
+        by: OWNER_DISPLAY_NAME, // warn sirf owner de sakta hai
+        count: counts.get(r.user_id) || 1,
+      }));
+    } catch (e) {
+      console.error('getWarnings failed:', e);
+      return [];
+    }
+  }
+
+  /** v5: ek warning hatao — SIRF owner. */
+  async clearWarning(chatId: string, warnId: string): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner warning hata sakta hai');
+    await this.sb.from('warns').delete().eq('id', warnId).eq('chat_id', chatId);
+  }
+
+  /** user ids -> display names (moderation lists ke liye helper). */
+  private async displayNames(userIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ids = [...new Set(userIds.filter(Boolean))];
+    if (ids.length === 0) return out;
+    try {
+      const { data } = await this.sb.from('profiles').select('id,display_name').in('id', ids);
+      for (const p of (data || []) as Array<{ id: string; display_name: string }>) {
+        out.set(p.id, p.display_name || 'User');
+      }
+    } catch {
+      /* ignore */
+    }
+    return out;
+  }
+
+  // ---- 9. Per-member slow mode (v5) ----
+
+  /**
+   * v5: member par slow mode lagao/hatayo — SIRF owner.
+   * seconds=0 (ya negative) = slow mode hatao.
+   * Table: slow_modes(chat_id, user_id, slow_seconds).
+   */
+  async setMemberSlow(chatId: string, userId: string, seconds: number): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner slow mode laga sakta hai');
+    if (userId === this.meId) throw new Error('Khud par slow mode nahi laga sakte');
+    const s = Math.max(0, Math.floor(seconds || 0));
+    if (s <= 0) {
+      await this.sb.from('slow_modes').delete().eq('chat_id', chatId).eq('user_id', userId);
+      return;
+    }
+    if (s > 86400) throw new Error('Slow mode zyada se zyada 24 ghante ka ho sakta hai');
+    await this.sb.from('slow_modes').upsert(
+      { chat_id: chatId, user_id: userId, slow_seconds: s },
+      { onConflict: 'chat_id,user_id' }
+    );
+  }
+
+  /** v5: desktop contract ka naam (setMemberSlowMode) — wahi kaam. */
+  async setMemberSlowMode(chatId: string, userId: string, seconds: number): Promise<void> {
+    return this.setMemberSlow(chatId, userId, seconds);
+  }
+
+  /** v5: member ka slow mode (seconds) — 0 = koi limit nahi. */
+  async getMemberSlow(chatId: string, userId: string): Promise<number> {
+    try {
+      const { data } = await this.sb
+        .from('slow_modes')
+        .select('slow_seconds')
+        .eq('chat_id', chatId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      return Math.max(0, num((data as { slow_seconds?: number | string } | null)?.slow_seconds));
+    } catch {
+      return 0;
+    }
+  }
+
+  // ---- 10. Group theme (v5) ----
+
+  /**
+   * v5: group theme — group_themes(chat_id, theme jsonb).
+   * Na mile to null (UI localStorage fallback istemal karti hai).
+   */
+  async getGroupTheme(chatId: string): Promise<{ kind: string; presetId?: string; url?: string; mediaType?: string } | null> {
+    try {
+      const { data } = await this.sb.from('group_themes').select('theme').eq('chat_id', chatId).maybeSingle();
+      const t = (data as { theme?: unknown } | null)?.theme;
+      if (t && typeof t === 'object') {
+        const o = t as { kind?: unknown; presetId?: unknown; url?: unknown; mediaType?: unknown };
+        if (typeof o.kind === 'string') {
+          return {
+            kind: o.kind,
+            presetId: typeof o.presetId === 'string' ? o.presetId : undefined,
+            url: typeof o.url === 'string' ? o.url : undefined,
+            mediaType: o.mediaType === 'image' || o.mediaType === 'video' ? o.mediaType : undefined,
+          };
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** v5: group theme set karo — SIRF owner. */
+  async setGroupTheme(chatId: string, theme: { kind: string; presetId?: string; url?: string; mediaType?: string }): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner theme badal sakta hai');
+    await this.sb.from('group_themes').upsert({ chat_id: chatId, theme }, { onConflict: 'chat_id' });
+  }
+
+  // ---- 11. Group stats (v5) ----
+
+  /**
+   * v5: group stats — { totalMessages, activeMembers, messagesToday, topSenders }.
+   * OwnerDashboard isi ko dikhata hai; /stats command bhi isi par bana hai.
+   */
+  async getGroupStats(chatId: string): Promise<{
+    totalMessages: number;
+    activeMembers: number;
+    messagesToday: number;
+    topSenders: Array<{ userId: string; displayName: string; count: number }>;
+  }> {
+    try {
+      const analytics = await this.getChatAnalytics(chatId);
+      const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+      const { count: today } = await this.sb
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('chat_id', chatId)
+        .gte('created_at', dayStart.getTime());
+      return {
+        totalMessages: analytics.totalMessages,
+        activeMembers: ((parts || []) as Array<{ user_id: string }>).length,
+        messagesToday: today || 0,
+        topSenders: analytics.perUser.slice(0, 5).map((p) => ({
+          userId: p.userId,
+          displayName: p.displayName,
+          count: p.count,
+        })),
+      };
+    } catch (e) {
+      console.error('getGroupStats failed:', e);
+      return { totalMessages: 0, activeMembers: 0, messagesToday: 0, topSenders: [] };
+    }
+  }
+
+  // ---- 12. v5 fresh-start reset (v5) ----
+
+  /**
+   * v5: FRESH START (user demand). Owner ke login par SIRF EK DAFA chalta hai —
+   * group_settings key 'v5_reset_done' flag hai.
+   * - 'main-group' ke siwa TAMAM chats delete (participants/messages samet)
+   * - main-group ke TAMAM messages delete (chat row rehti hai — fresh start)
+   * - mutes / warns / bans / slow_modes sab saaf (clean slate)
+   * - Owner ki profile KABHI delete nahi hoti (profiles ko haath nahi lagata)
+   */
+  async runV5ResetIfNeeded(): Promise<void> {
+    if (!this.isOwner()) return;
+    try {
+      const { data: flag } = await this.sb.from('group_settings').select('value').eq('key', 'v5_reset_done').maybeSingle();
+      if ((flag as { value?: unknown } | null)?.value) return; // pehle ho chuka — dobara kabhi nahi
+      console.log('[v5] fresh-start reset shuru…');
+
+      // 1. main-group ke siwa tamam chats
+      const { data: chats } = await this.sb.from('chats').select('id').neq('id', MAIN_GROUP_ID);
+      const chatIds = ((chats || []) as Array<{ id: string }>).map((c) => c.id);
+      for (let i = 0; i < chatIds.length; i += 50) {
+        const batch = chatIds.slice(i, i + 50);
+        await this.sb.from('chat_participants').delete().in('chat_id', batch);
+        await this.sb.from('messages').delete().in('chat_id', batch);
+        await this.sb.from('chats').delete().in('id', batch);
+      }
+
+      // 2. main-group ke tamam messages (chat row rehti hai)
+      const { data: mids } = await this.sb.from('messages').select('id').eq('chat_id', MAIN_GROUP_ID);
+      const msgIds = ((mids || []) as Array<{ id: string }>).map((m) => m.id);
+      for (let i = 0; i < msgIds.length; i += 100) {
+        await this.sb.from('messages').delete().in('id', msgIds.slice(i, i + 100));
+      }
+      await this.sb.from('chats').update({ last_message: null, updated_at: Date.now() }).eq('id', MAIN_GROUP_ID);
+
+      // 3. moderation tables — clean slate
+      for (const t of ['mutes', 'warns', 'bans', 'slow_modes']) {
+        try {
+          await this.sb.from(t).delete().neq('chat_id', '__never__');
+        } catch {
+          /* table na ho to skip */
+        }
+      }
+
+      // 4. flag — dobara kabhi nahi chalega
+      await this.sb.from('group_settings').upsert({ key: 'v5_reset_done', value: true }, { onConflict: 'key' });
+      console.log('[v5] fresh-start reset mukammal.');
+    } catch (e) {
+      console.error('runV5ResetIfNeeded failed:', e);
+    }
   }
 }
