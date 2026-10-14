@@ -92,10 +92,17 @@ export default function PWAInit() {
       if (local === remote) return; // same version — kuch nahi karna
 
       // NAYA VERSION: pehle SW ko foran update karne ko kaho…
+      // v6.5 NUCLEAR: purana SW kabhi kabhi update() par bhi nahi badalta
+      // (browser HTTP cache se purani sw.js de deta hai). Is liye mismatch par
+      // tamam SW unregister + tamam caches delete — phir reload. 100% taza.
       try {
         if ('serviceWorker' in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map((r) => r.update().catch(() => undefined)));
+          await Promise.all(regs.map((r) => r.unregister().catch(() => undefined)));
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k).catch(() => undefined)));
         }
       } catch {
         /* ignore */
