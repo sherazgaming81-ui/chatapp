@@ -1,12 +1,12 @@
 'use client';
 
-// v2 entry — device ke hisab se Mobile ya Desktop shell render hota hai.
+// v4 entry — device ke hisab se Mobile ya Desktop shell render hota hai.
 // Dono shells khud auth, chats, theme sab sambhalte hain.
 
 import { useEffect, useState } from 'react';
 import { getDeviceKind, type DeviceKind } from '@/lib/v2/types';
-import MobileShell from '@/components/v2/mobile/MobileShell';
-import DesktopShell from '@/components/v2/desktop/DesktopShell';
+import MobileShell from '@/components/v4/mobile/MobileShell';
+import DesktopShell from '@/components/v4/desktop/DesktopShell';
 
 function BootSplash() {
   return (

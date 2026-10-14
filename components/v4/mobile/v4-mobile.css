@@ -1,0 +1,119 @@
+/* v4 mobile — pixel-faithful WhatsApp Android (dark mode). Dark-only, no theme switching. */
+.wa4 {
+  --wa4-bg: #0b141a;
+  --wa4-header: #1f2c34;
+  --wa4-sheet: #1f2c34;
+  --wa4-input: #1f2c34;
+  --wa4-bubble-in: #1f2c34;
+  --wa4-bubble-out: #005c4b;
+  --wa4-text: #e9edef;
+  --wa4-muted: #8696a0;
+  --wa4-accent: #25d366;
+  --wa4-accent-dim: rgba(37, 211, 102, 0.2); /* #25D36633 */
+  --wa4-tick-blue: #53bdeb;
+  --wa4-danger: #f15c6d;
+  --wa4-divider: #1f2c34;
+  --wa4-chip: #1f2c34;
+  --wa4-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--wa4-text);
+  background: var(--wa4-bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- WhatsApp doodle wallpaper on #0b141a ---- */
+.wa4-doodle {
+  background-color: #0b141a;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%238696a0' stroke-opacity='0.10' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M30 36 h20 a6 6 0 0 1 6 6 v9 a6 6 0 0 1 -6 6 h-11 l-7 7 v-7 h-2 a6 6 0 0 1 -6 -6 v-9 a6 6 0 0 1 6 -6 z'/%3E%3Cpath d='M162 28 l3.2 7.4 7.4 3.2 -7.4 3.2 -3.2 7.4 -3.2 -7.4 -7.4 -3.2 7.4 -3.2 z'/%3E%3Ccircle cx='112' cy='40' r='9'/%3E%3Cpath d='M108 38.5 q4 3 8 0 M107 43 q5 4 10 0'/%3E%3Cpath d='M52 118 c-7 -7 -18 -2 -14 7 l14 12 14 -12 c4 -9 -7 -14 -14 -7 z'/%3E%3Cpath d='M168 108 v20 m0 0 a4.5 4.5 0 1 0 .1 0 M168 108 l13 -3.5 v18'/%3E%3Crect x='26' y='168' width='26' height='18' rx='4'/%3E%3Ccircle cx='39' cy='177' r='4.5'/%3E%3Cpath d='M196 160 l20 -12 -12 20 -4 -7 -7 -3 z'/%3E%3Cpath d='M96 150 q9 -3 13 5 q-7 2 -9 7 q-7 -4 -9 -9 q5 -1 5 -3 z'/%3E%3Ccircle cx='150' cy='196' r='2.2'/%3E%3Ccircle cx='160' cy='196' r='2.2'/%3E%3Ccircle cx='90' cy='90' r='2.2'/%3E%3Cpath d='M200 96 h12 M206 90 v12'/%3E%3Cpath d='M36 96 l4 4 8 -8'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 240px 240px;
+}
+
+/* ---- safe areas ---- */
+.wa4-safe-top { padding-top: env(safe-area-inset-top); }
+.wa4-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ---- animations ---- */
+@keyframes wa4-msg-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wa4-msg-in { animation: wa4-msg-in 0.22s ease-out both; }
+
+@keyframes wa4-screen-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.wa4-screen-in { animation: wa4-screen-in 0.25s cubic-bezier(0.32, 0.72, 0.35, 1) both; }
+
+@keyframes wa4-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.wa4-fade-in { animation: wa4-fade-in 0.18s ease-out both; }
+
+@keyframes wa4-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.wa4-sheet-in { animation: wa4-sheet-in 0.28s cubic-bezier(0.32, 0.72, 0.35, 1) both; }
+
+@keyframes wa4-pop {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.wa4-pop { animation: wa4-pop 0.25s ease-out both; }
+
+@keyframes wa4-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.wa4-typing-dot {
+  width: 7px; height: 7px; border-radius: 9999px;
+  background: var(--wa4-muted);
+  display: inline-block;
+  animation: wa4-typing-bounce 1.2s infinite;
+}
+.wa4-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.wa4-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+.wa4-no-scrollbar::-webkit-scrollbar { display: none; }
+.wa4-no-scrollbar { scrollbar-width: none; }
+
+/* FAB press */
+.wa4-fab { transition: transform 0.12s ease-out; }
+.wa4-fab:active { transform: scale(0.9); }
+
+/* filter chip indicator slide */
+.wa4-chip { transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease; }
+.wa4-chip:active { transform: scale(0.95); }
+
+/* chat row press */
+.wa4-row { transition: background-color 0.12s ease; }
+.wa4-row:active { background-color: rgba(37, 211, 102, 0.08); }
+
+/* bubble tail */
+.wa4-tail-in {
+  position: absolute; top: 0; left: -7px;
+  width: 8px; height: 13px;
+  color: var(--wa4-bubble-in);
+}
+.wa4-tail-out {
+  position: absolute; top: 0; right: -7px;
+  width: 8px; height: 13px;
+  color: var(--wa4-bubble-out);
+  transform: scaleX(-1);
+}
+
+/* highlight for search */
+.wa4-hl {
+  background: rgba(255, 213, 79, 0.45);
+  color: inherit;
+  border-radius: 2px;
+}
+
+/* bottom nav pill */
+.wa4-nav-pill { transition: background-color 0.2s ease, color 0.2s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wa4-msg-in, .wa4-screen-in, .wa4-fade-in, .wa4-sheet-in, .wa4-pop { animation: none; }
+}
