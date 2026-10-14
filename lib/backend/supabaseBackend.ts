@@ -241,35 +241,14 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     }
   }
 
-  /** text messages ka text encrypt karo (khali ya pehle se encrypted ko chhoro). */
+  /** v4: E2E encryption HATA DIYA — plaintext hi store hota hai. */
   private async encryptForChat(chatId: string, text: string): Promise<string> {
-    if (!text || text.startsWith(ENC_PREFIX)) return text;
-    const key = await this.getChatKey(chatId);
-    if (!key) return text; // key na mile to plaintext fallback (purane DB rows)
-    try {
-      return await encryptChatText(key, text);
-    } catch (e) {
-      console.error('encrypt failed:', e);
-      return text;
-    }
+    return text;
   }
 
-  /** DB rows ke encrypted text decrypt karo (frontend ko hamesha plaintext mile). */
+  /** v4: E2E encryption HATA DIYA — rows wese hi wapas. */
   private async decryptRows(chatId: string, rows: DbMessage[]): Promise<DbMessage[]> {
-    const needs = rows.some((r) => typeof r.text === 'string' && r.text.startsWith(ENC_PREFIX));
-    if (!needs) return rows;
-    const key = await this.getChatKey(chatId);
-    if (!key) return rows;
-    return Promise.all(
-      rows.map(async (r) => {
-        if (typeof r.text !== 'string' || !r.text.startsWith(ENC_PREFIX)) return r;
-        try {
-          return { ...r, text: await decryptChatText(key, r.text) };
-        } catch {
-          return r; // decrypt fail → raw dikhao, crash nahi
-        }
-      })
-    );
+    return rows;
   }
 
   async isE2EEnabled(chatId: string): Promise<boolean> {

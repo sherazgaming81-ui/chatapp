@@ -3,7 +3,7 @@
 // Kaam: (1) app shell cache karna, (2) navigations/static ke liye cache-first +
 // network fallback, (3) push notifications dikhana, (4) notification click par "/" kholna.
 
-const CACHE_VERSION = "chat-v3"; // v3: naya favicon/branding — purana cache (purana "N" favicon) saaf ho jayega
+const CACHE_VERSION = "chat-v4"; // v4: network-first navigations — har reload par taza UI
 const CACHE_NAME = `chat-cache-${CACHE_VERSION}`;
 const APP_SHELL = ["/"];
 
@@ -29,7 +29,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Fetch: same-origin GET requests ke liye cache-first, warna network
+// Fetch: navigations ke liye NETWORK-FIRST (hamesha taza HTML), static assets ke liye cache-first
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -37,12 +37,28 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // Navigation (HTML pages): pehle network try karo, fail ho to cache
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((cached) => cached || caches.match("/")))
+    );
+    return;
+  }
+
+  // Static assets (JS/CSS/images): cache-first (inme hash hota hai, safe hain)
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req)
         .then((res) => {
-          // Sirf valid responses cache karo
           if (res && res.status === 200) {
             const copy = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
@@ -50,8 +66,6 @@ self.addEventListener("fetch", (event) => {
           return res;
         })
         .catch(() => {
-          // Offline ho aur navigation ho to cached "/" dikhao
-          if (req.mode === "navigate") return caches.match("/");
           throw new Error("offline");
         });
     })

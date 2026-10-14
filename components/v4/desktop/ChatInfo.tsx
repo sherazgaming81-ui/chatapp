@@ -174,14 +174,6 @@ function MainView(props: {
         )}
       </div>
 
-      {/* E2E note */}
-      <button className="mx-6 mb-2 flex items-start gap-3 bg-[#1f2c34] rounded-xl p-3.5 text-left w-[calc(100%-48px)]">
-        <Icon d={ICONS.lock} size={19} className="text-[#ffd279] shrink-0 mt-0.5" />
-        <span className="text-[12.5px] text-[#8696a0] leading-relaxed">
-          Messages end-to-end encrypted hain. {e2e === false ? 'Is chat me encryption off hai.' : 'ChatsApp ke bahar koi inhe parh nahi sakta.'}
-        </span>
-      </button>
-
       {/* quick toggles */}
       <div className="py-2">
         <div className="flex items-center gap-4 px-6 py-3">

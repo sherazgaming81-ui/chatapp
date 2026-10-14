@@ -39,7 +39,7 @@ export default function Welcome({ onNewChat }: { onNewChat(): void }) {
 
       <div className="mt-12 flex items-center gap-2 text-[#8696a0]">
         <Icon d={ICONS.lock} size={15} />
-        <p className="text-[13px]">End-to-end encrypted — aapki baatein sirf aapki</p>
+        <p className="text-[13px]">Aapki baatein sirf aapki — private aur mehfooz</p>
       </div>
     </div>
   );
