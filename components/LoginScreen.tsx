@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { backend, isDemoMode } from '@/lib/backend';
+
+/** Google OAuth redirect ka watchdog — itne ms me page na badle to redirect fail. */
+const REDIRECT_TIMEOUT_MS = 15000;
 
 function GoogleIcon() {
   return (
@@ -17,13 +20,42 @@ function GoogleIcon() {
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const timerRef = useRef<number | null>(null);
+
+  // Unmount par watchdog saaf (redirect hone par page waise hi chali jati hai).
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const login = async () => {
     setLoading(true);
     setError('');
+    // Safety: agar Google redirect na ho (popup/redirect block, WebView,
+    // in-app browser), to 15s baad loading reset + hint. Redirect hone par
+    // page navigate ho jati hai aur ye timer kabhi fire nahi hota.
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      setLoading(false);
+      setError(
+        'Google login page nahi khul saki. Chrome browser me kholein, popup/redirect block check karein, phir dobara try karein.'
+      );
+    }, REDIRECT_TIMEOUT_MS);
     try {
       await backend.signInWithGoogle();
+      if (isDemoMode) {
+        // Demo me koi redirect nahi hota — login foran ho jata hai.
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        setLoading(false);
+      }
+      // Asli backend: signInWithGoogle redirect karta hai; page navigate
+      // ho jayegi. Agar yahan ruke rahe to watchdog upar error dikhayega.
     } catch {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
       setError('Login nahi ho saka. Dobara try karein.');
       setLoading(false);
     }

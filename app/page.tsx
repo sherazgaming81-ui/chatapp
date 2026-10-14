@@ -1,11 +1,9 @@
 'use client';
 
 // v5 entry — device ke hisab se v5 mobile ya v5 desktop shell.
-// Mobile flow: LoadingScreen (7s premium) → [UpdatePage agar version badla]
-//   → Login (agar logout) → Onboarding (agar pehli dafa) → GroupChat.
-// Desktop flow: LoadingScreen (7s premium — mobile wali EXACT SAME animation)
-//   → DesktopShell (apna auth/login khud sambhalta hai).
-// LoadingScreen components/v5/shared me hai — dono platforms ek hi component.
+// Shared flow (mobile + desktop DONO): LoadingScreen (7s premium)
+//   → Login (agar logout) → UpdatePage (agar version badla, ek dafa)
+//   → Onboarding (agar pehli dafa) → GroupChat / DesktopShell.
 // PWAInit app/layout.tsx me hai (wahi rehta hai).
 
 import { useEffect, useState } from 'react';
@@ -20,7 +18,6 @@ import {
   GroupChat,
   UpdatePage,
   shouldShowUpdate,
-  isOnboardingDone,
   markVersionSeen,
 } from '@/components/v5/mobile';
 import DesktopShell from '@/components/v5/desktop/DesktopShell';
@@ -113,12 +110,10 @@ export default function Home() {
     return <LoadingScreen onDone={() => setBooted(true)} />;
   }
 
-  if (kind === 'desktop') {
-    // DesktopShell apna auth + LoginScreen khud sambhalta hai.
-    return <DesktopShell />;
-  }
-
-  // ---- mobile v5 flow ----
+  // ---- shared gates (mobile + desktop dono): pehle login, phir update
+  // tour (sirf version bump par, ek dafa), phir onboarding (sirf naye
+  // user ke liye) — uske BAAD main UI. Desktop pehle inhen bypass karke
+  // seedha DesktopShell me chala jata tha (koi onboarding/update nahi).
   if (!authReady) return <BootSplash />;
   if (!user) return <LoginScreen />;
   if (showUpdate) {
@@ -126,6 +121,10 @@ export default function Home() {
   }
   if (!onbDone) {
     return <Onboarding user={user} onDone={() => setOnbDone(true)} />;
+  }
+
+  if (kind === 'desktop') {
+    return <DesktopShell />;
   }
   return <GroupChat />;
 }

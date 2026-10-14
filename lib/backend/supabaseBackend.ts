@@ -567,11 +567,17 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   }
 
   async signInWithGoogle(): Promise<void> {
-    const { error } = await this.sb.auth.signInWithOAuth({
+    // skipBrowserRedirect: redirect hum khud karte hain taake "URL na mile
+    // ya redirect block ho" ki surat me caller ko wazeh error mile
+    // (warna LoginScreen "Login ho raha hai..." par atak sakta hai).
+    const { data, error } = await this.sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
     });
     if (error) throw error;
+    const url = data?.url;
+    if (!url) throw new Error('Google login URL nahi mil saka. Dobara try karein.');
+    window.location.assign(url);
   }
 
   async signOut(): Promise<void> {

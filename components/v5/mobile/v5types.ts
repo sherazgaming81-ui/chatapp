@@ -56,7 +56,7 @@ export type { Chat, ChatMessage, SendInput, UserProfile };
 export const MAIN_GROUP_NAME = 'Madrasa Group';
 export const OWNER_EMAIL = 'sherazgaming81@gmail.com';
 export const OWNER_DISPLAY_NAME = 'sheraz';
-export const APP_VERSION = '5.0';
+export const APP_VERSION = '6.0';
 
 export const ONBOARDING_KEY = 'v5_onboarding_complete';
 export const VERSION_KEY = 'v5_app_version';
