@@ -1,11 +1,17 @@
 // PWAInit — service worker register karta hai aur naye version ka banner dikhata hai.
 // Usage: root layout me ek dafa mount karein:  <PWAInit />
-// Props: koi nahi. Banner text Hinglish me hai: "Naya version aaya — Refresh karein".
-// Refresh button par click karne se window.location.reload() hota hai.
+// Props: koi nahi.
+// v6: AGGRESSIVE AUTO CACHE-BUST — har app load par /version.json fetch hota hai.
+// Agar deploy ka version localStorage se alag ho to: SW ko foran update() karke
+// AUTO-RELOAD (user ko refresh/hard-reset ki zaroorat nahi). Reload-loop se
+// bachne ke liye sessionStorage guard hai.
 
 'use client';
 
 import { useEffect, useState } from 'react';
+
+const APP_VERSION_KEY = 'chatsapp_version';
+const RELOADED_THIS_SESSION_KEY = 'chatsapp_version_reloaded';
 
 export default function PWAInit() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -40,6 +46,85 @@ export default function PWAInit() {
 
     return () => {
       registration = null;
+    };
+  }, []);
+
+  // ---- v6: aggressive auto cache-bust (koi manual refresh nahi chahiye) ----
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+
+    (async () => {
+      // Deploy ka version marker — SW isko hamesha network se lata hai (no cache).
+      let remote: string | null = null;
+      try {
+        const res = await fetch('/version.json', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data: unknown = await res.json();
+        remote =
+          typeof data === 'object' &&
+          data !== null &&
+          'version' in data &&
+          typeof (data as { version: unknown }).version === 'string'
+            ? (data as { version: string }).version
+            : null;
+      } catch {
+        return; // offline ya fetch fail — chupchaap skip
+      }
+      if (!remote || cancelled) return;
+
+      let local: string | null = null;
+      try {
+        local = window.localStorage.getItem(APP_VERSION_KEY);
+      } catch {
+        /* storage unavailable */
+      }
+
+      if (!local) {
+        // Pehli dafa — bas note kar lo, reload nahi.
+        try {
+          window.localStorage.setItem(APP_VERSION_KEY, remote);
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      if (local === remote) return; // same version — kuch nahi karna
+
+      // NAYA VERSION: pehle SW ko foran update karne ko kaho…
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.update().catch(() => undefined)));
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        window.localStorage.setItem(APP_VERSION_KEY, remote);
+      } catch {
+        /* ignore */
+      }
+
+      // …phir AUTO-RELOAD (session guard: ek session me ek hi dafa).
+      let alreadyReloaded = false;
+      try {
+        alreadyReloaded = window.sessionStorage.getItem(RELOADED_THIS_SESSION_KEY) === '1';
+      } catch {
+        /* ignore */
+      }
+      if (!alreadyReloaded && !cancelled) {
+        try {
+          window.sessionStorage.setItem(RELOADED_THIS_SESSION_KEY, '1');
+        } catch {
+          /* ignore */
+        }
+        window.location.reload();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 

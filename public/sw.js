@@ -3,7 +3,7 @@
 // Kaam: (1) app shell cache karna, (2) navigations/static ke liye cache-first +
 // network fallback, (3) push notifications dikhana, (4) notification click par "/" kholna.
 
-const CACHE_VERSION = "chat-v4"; // v4: network-first navigations — har reload par taza UI
+const CACHE_VERSION = "chat-v6"; // v6: aggressive auto cache-bust — version.json mismatch par auto-reload
 const CACHE_NAME = `chat-cache-${CACHE_VERSION}`;
 const APP_SHELL = ["/"];
 
@@ -36,6 +36,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // v6: version.json hamesha NETWORK se — version check kabhi stale na ho.
+  // (Yahi file PWAInit ko batati hai ke naya deploy aaya hai.)
+  if (url.pathname === "/version.json") {
+    event.respondWith(fetch(req));
+    return;
+  }
 
   // Navigation (HTML pages): pehle network try karo, fail ho to cache
   if (req.mode === "navigate") {

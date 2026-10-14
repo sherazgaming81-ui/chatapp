@@ -3,7 +3,9 @@
 // v5 entry — device ke hisab se v5 mobile ya v5 desktop shell.
 // Mobile flow: LoadingScreen (7s premium) → [UpdatePage agar version badla]
 //   → Login (agar logout) → Onboarding (agar pehli dafa) → GroupChat.
-// Desktop: DesktopShell (apna auth/login khud sambhalta hai).
+// Desktop flow: LoadingScreen (7s premium — mobile wali EXACT SAME animation)
+//   → DesktopShell (apna auth/login khud sambhalta hai).
+// LoadingScreen components/v5/shared me hai — dono platforms ek hi component.
 // PWAInit app/layout.tsx me hai (wahi rehta hai).
 
 import { useEffect, useState } from 'react';
@@ -12,8 +14,8 @@ import { backend } from '@/lib/backend';
 import { OWNER_EMAIL } from '@/lib/backend/supabaseBackend';
 import type { UserProfile } from '@/lib/backend/types';
 import LoginScreen from '@/components/LoginScreen';
+import { LoadingScreen } from '@/components/v5/shared';
 import {
-  LoadingScreen,
   Onboarding,
   GroupChat,
   UpdatePage,
@@ -106,15 +108,17 @@ export default function Home() {
 
   if (!kind) return <BootSplash />;
 
+  // v6: mobile + desktop DONO ke liye EXACT SAME 7s premium loading animation.
+  if (!booted) {
+    return <LoadingScreen onDone={() => setBooted(true)} />;
+  }
+
   if (kind === 'desktop') {
     // DesktopShell apna auth + LoginScreen khud sambhalta hai.
     return <DesktopShell />;
   }
 
   // ---- mobile v5 flow ----
-  if (!booted) {
-    return <LoadingScreen onDone={() => setBooted(true)} />;
-  }
   if (!authReady) return <BootSplash />;
   if (!user) return <LoginScreen />;
   if (showUpdate) {
