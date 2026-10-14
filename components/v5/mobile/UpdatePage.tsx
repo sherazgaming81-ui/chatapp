@@ -23,39 +23,39 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     icon: <UsersIcon size={44} color="#00e6a8" />,
-    title: 'Sirf Ek Group',
-    desc: 'Personal chats khatam — ab sab dost sirf "Madrasa Group" me. Koi uljhan nahi, sab ek jagah.',
-  },
-  {
-    icon: <CrownIcon size={44} color="#f6c344" />,
-    title: 'Owner & Member Badges',
-    desc: 'sheraz ke naam ke sath golden Owner badge, baqi sab ke sath Member badge. Sab wazeh!',
+    title: 'Naya Group Banao',
+    desc: 'Owner ke liye naya "Naya Group" button — group banao, members add karo, sab kuch dashboard se.',
   },
   {
     icon: <SparkleIcon size={44} color="#53bdeb" />,
-    title: '7-Second Premium Loading',
-    desc: 'Bilkul nayi cinematic loading animation — logo draw, bubbles, ticks aur tagline ke sath.',
+    title: 'Asli Tez Speed',
+    desc: 'Messages ab secondon me nahi, pal bhar me pahunchte hain — bilkul foran, koi intezar nahi.',
   },
   {
-    icon: <SlashIcon size={44} color="#00e6a8" />,
-    title: 'Owner Commands',
-    desc: 'Owner ke liye naye commands: /mute, /unmute aur /announce — seedha message box se.',
+    icon: <CrownIcon size={44} color="#f6c344" />,
+    title: 'Login Kabhi Nahi Atkega',
+    desc: 'Google login ka hang fix ho gaya — ab ek tap par seedha andar, koi atakna nahi.',
   },
   {
     icon: <MicIcon size={44} color="#f15c6d" />,
-    title: 'Smart Voice Notes',
-    desc: 'Record karo, pehle suno, phir bhejo ✓ ya delete karo 🗑 — WhatsApp jaisa mukammal tajurba.',
+    title: 'App Install Karo',
+    desc: 'Onboarding ke baad app install ka option — phone me rakho, tez chalao.',
+  },
+  {
+    icon: <SlashIcon size={44} color="#00e6a8" />,
+    title: 'Fresh Start',
+    desc: 'Sab kuch naye sire se — purane accounts saaf, naya nizam, nayi raftaar.',
   },
 ];
 
 const CHANGES = [
-  'Personal/DM chats hata diye — sirf Madrasa Group',
-  'Mute system: live countdown timer ke sath',
-  '"Delete for everyone" — koi nishan nahi chhorta',
-  'Nayi onboarding: naam, photo aur guided tour',
-  '7-second premium loading animation',
-  'Naye members auto-join hote hain',
-  'Tez tareen — reload ki zaroorat nahi',
+  'Owner group creation: "Naya Group" button dashboard + mobile me',
+  'Login hang fix — 15-sec safety ke sath',
+  'Onboarding ab mobile AUR desktop dono par',
+  'Update page trigger fix — har version par dikhega',
+  'Speed: receiver par zero database queries',
+  'PWA install flow onboarding ke baad',
+  'Auto cache-bust — koi manual refresh nahi',
 ];
 
 const LAST_STEP = FEATURES.length + 1; // 0..4 cards, 5 = kya badla, 6 = finale
