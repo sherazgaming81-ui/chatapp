@@ -141,15 +141,22 @@ export class SupabaseBackend implements ChatBackend {
       }
       this.meId = sessionUser.id;
       const meta = sessionUser.user_metadata || {};
-      const row: Partial<DbProfile> = {
-        id: sessionUser.id,
-        display_name: meta.full_name || meta.name || 'User',
-        email: sessionUser.email || '',
-        photo_url: meta.avatar_url || meta.picture || '',
-        online: true,
-        last_seen: Date.now(),
-      };
-      await this.sb.from('profiles').upsert(row, { onConflict: 'id' });
+      // Sirf pehli dafa profile banao; baad me Google data se OVERWRITE mat karo
+      // (warna user ka custom naam/photo reset ho jayega)
+      const { data: existing } = await this.sb.from('profiles').select('id').eq('id', sessionUser.id).maybeSingle();
+      if (!existing) {
+        const row: Partial<DbProfile> = {
+          id: sessionUser.id,
+          display_name: meta.full_name || meta.name || 'User',
+          email: sessionUser.email || '',
+          photo_url: meta.avatar_url || meta.picture || '',
+          online: true,
+          last_seen: Date.now(),
+        };
+        await this.sb.from('profiles').insert(row);
+      } else {
+        await this.sb.from('profiles').update({ online: true, last_seen: Date.now() }).eq('id', sessionUser.id);
+      }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
       this.startPresence();
       if (alive) cb(prof ? toUserProfile(prof as DbProfile) : null);
