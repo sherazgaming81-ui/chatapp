@@ -18,8 +18,8 @@ import type { Chat, ChatMessage, UserProfile } from '@/lib/backend/types';
 import { Ticks } from '@/components/Ticks';
 import Avatar from '@/components/Avatar';
 import {
-  Icon, ICONS, Modal, Popover, MenuItem, backendV5, v5call, callV5,
-  fmtDayHinglish, fmtCountdown, RoleBadge, type Role, type GroupTheme,
+  Icon, ICONS, Modal, Popover, MenuItem, runOwnerCommand, useMemberRoles,
+  fmtDayHinglish, fmtCountdown, RoleBadge, type GroupTheme,
 } from './common';
 
 const SENDER_COLORS = ['#00a884', '#53bdeb', '#ff9f1c', '#ec4899', '#7f66ff', '#f15c6d', '#ab9df2'];
@@ -57,11 +57,10 @@ function msgPreview(m: ChatMessage): string {
 // ---------- owner commands (command palette) ----------
 
 const COMMANDS: { cmd: string; desc: string; needsMember?: boolean; needsText?: boolean }[] = [
-  { cmd: '/mute', desc: 'Member ko mute karo (waqt ke saath)', needsMember: true },
+  { cmd: '/mute', desc: 'Member ko mute karo — misal: /mute @ahmed 10m', needsMember: true },
   { cmd: '/unmute', desc: 'Mute hatao', needsMember: true },
   { cmd: '/warn', desc: 'Member ko warning do', needsMember: true },
   { cmd: '/ban', desc: 'Member ko group se nikalo (ban)', needsMember: true },
-  { cmd: '/unban', desc: 'Ban hatao', needsMember: true },
   { cmd: '/lock', desc: 'Group lock — sirf owner likh sakega' },
   { cmd: '/unlock', desc: 'Group unlock karo' },
   { cmd: '/announce', desc: 'Announcement bhejo', needsText: true },
@@ -169,7 +168,7 @@ interface BubbleProps {
   m: ChatMessage;
   mine: boolean;
   chat: Chat;
-  role: Role;
+  role: string;
   amOwner: boolean;
   tail: boolean;
   onReply(m: ChatMessage): void;
@@ -226,8 +225,8 @@ function MessageBubble({ m, mine, chat, role, amOwner, tail, onReply }: BubblePr
             <RoleBadge role={role} small />
           </div>
         )}
-        {mine && role === 'owner' && (
-          <div className="flex justify-end mb-0.5"><RoleBadge role="owner" small /></div>
+        {mine && (role === 'Owner' || role === 'owner') && (
+          <div className="flex justify-end mb-0.5"><RoleBadge role="Owner" small /></div>
         )}
 
         {isPinned && (
@@ -483,10 +482,12 @@ function InputBar({ chat, me, amOwner, mutedUntil, replyTo, onClearReply, onOpti
   };
 
   const runCommand = async (cmdText: string) => {
-    const res = await v5call(() => callV5('executeCommand', chat.id, cmdText) as Promise<{ ok: boolean; message?: string } | string | void>);
-    if (res && typeof res === 'object' && 'message' in res && res.message) onToast(String(res.message));
-    else if (typeof res === 'string' && res) onToast(res);
-    else onToast('Command bhej di gayi');
+    try {
+      const res = await runOwnerCommand(chat.id, cmdText);
+      onToast(res.text || 'Ho gaya ✓');
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : 'Command nahi chali');
+    }
   };
 
   const send = async () => {
@@ -858,9 +859,20 @@ export default function Conversation({ chat, me, ownerId, amOwner, theme, mutedU
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
+  // backend roles (custom roles samet) — ek dafa per member cache
+  const senderIdsKey = useMemo(
+    () => [...new Set(allMessages.map((m) => m.senderId))].join(','),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages.length],
+  );
+  const roleMap = useMemberRoles(chat.id, senderIdsKey);
+
   const roleOf = useCallback(
-    (userId: string): Role => (ownerId != null && userId === ownerId ? 'owner' : 'member'),
-    [ownerId],
+    (userId: string): string => {
+      if (roleMap[userId]) return roleMap[userId];
+      return ownerId != null && userId === ownerId ? 'Owner' : 'Member';
+    },
+    [ownerId, roleMap],
   );
 
   const memberCount = chat.participants.length;

@@ -14,8 +14,8 @@ import { backend } from '@/lib/backend';
 import type { Chat, ChatMessage, UserProfile } from '@/lib/backend/types';
 import Avatar from '@/components/Avatar';
 import {
-  Icon, ICONS, SectionTitle, backendV5, v5call, callV5,
-  fmtCountdown, RoleBadge, type MutedUserInfo, type BannedUserInfo, type WarnInfo, type GroupStats,
+  Icon, ICONS, SectionTitle, backendV5, v5call, runOwnerCommand,
+  fmtCountdown, RoleBadge, type MutedUserInfo, type BannedUserInfo, type WarnInfo, type GroupStats, type CommandResult,
 } from './common';
 
 interface Props {
@@ -58,6 +58,10 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
 
   useEffect(() => {
     const unsub = backend.onMessages(chat.id, setMessages);
+    // backend /stats (mile to wahi, warna local compute)
+    runOwnerCommand(chat.id, '/stats')
+      .then((r: CommandResult) => { if (r.stats) setRemoteStats(r.stats); })
+      .catch(() => {});
     v5call(() => backendV5.getGroupStats!(chat.id)).then((s) => { if (s) setRemoteStats(s); });
     v5call(() => backendV5.getMutedUsers!(chat.id)).then((l) => { if (l) setMuted(l); });
     v5call(() => backendV5.getBannedUsers!(chat.id)).then((l) => { if (l) setBanned(l); });
@@ -107,12 +111,11 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
     if (confirmMsg && !confirm(confirmMsg)) return;
     setBusy(true);
     try {
-      const res = await v5call(() => callV5('executeCommand', chat.id, cmd) as Promise<{ ok: boolean; message?: string } | string | void>);
-      if (res && typeof res === 'object' && 'message' in res && res.message) showToast(String(res.message));
-      else showToast('Ho gaya ✓');
+      const res = await runOwnerCommand(chat.id, cmd);
+      showToast(res.text || 'Ho gaya ✓');
       if (cmd === '/lock') setLocked(true);
       if (cmd === '/unlock') setLocked(false);
-      if (cmd === '/clear') setMessages([]);
+      if (res.stats) setRemoteStats(res.stats);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Nahi ho saka');
     } finally {
@@ -123,10 +126,16 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
   const unmute = async (u: MutedUserInfo) => {
     setBusy(true);
     try {
-      if (backendV5.unmuteUser) await v5call(() => backendV5.unmuteUser!(chat.id, u.userId));
-      else await v5call(() => callV5('executeCommand', chat.id, `/unmute @${u.displayName}`) as Promise<unknown>);
+      if (backendV5.unmuteUser) {
+        await v5call(() => backendV5.unmuteUser!(chat.id, u.userId));
+        showToast(`${u.displayName} ka mute hat gaya`);
+      } else {
+        const res = await runOwnerCommand(chat.id, `/unmute @${u.displayName}`);
+        showToast(res.text || `${u.displayName} ka mute hat gaya`);
+      }
       setMuted((l) => l.filter((x) => x.userId !== u.userId));
-      showToast(`${u.displayName} ka mute hat gaya`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Unmute nahi ho saka');
     } finally { setBusy(false); }
   };
 
@@ -134,10 +143,16 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
     if (!confirm(`${u.displayName} ka ban hatayein?`)) return;
     setBusy(true);
     try {
-      if (backendV5.unbanUser) await v5call(() => backendV5.unbanUser!(chat.id, u.userId));
-      else await v5call(() => callV5('executeCommand', chat.id, `/unban @${u.displayName}`) as Promise<unknown>);
+      if (backendV5.unbanUser) {
+        await v5call(() => backendV5.unbanUser!(chat.id, u.userId));
+      } else {
+        // backend me /unban command nahi hai — koshish par imandari se error
+        await runOwnerCommand(chat.id, `/unban @${u.displayName}`);
+      }
       setBanned((l) => l.filter((x) => x.userId !== u.userId));
-      showToast(`${u.displayName} wapas aa sakta hai`);
+      showToast(`${u.displayName} ka ban hat gaya`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Unban nahi ho saka');
     } finally { setBusy(false); }
   };
 
@@ -153,9 +168,17 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
     if (!slowUser || isNaN(secs) || secs < 0) { showToast('Member aur seconds sahi likhein'); return; }
     setBusy(true);
     try {
-      if (backendV5.setMemberSlowMode) await v5call(() => backendV5.setMemberSlowMode!(chat.id, slowUser, secs));
-      else await v5call(() => callV5('executeCommand', chat.id, `/slowmode @${members.find((m) => m.id === slowUser)?.name.replace(' (aap)', '')} ${secs}`) as Promise<unknown>);
-      showToast(secs === 0 ? 'Slow mode hat gaya' : `Slow mode: ${secs} sec`);
+      if (backendV5.setMemberSlowMode) {
+        await v5call(() => backendV5.setMemberSlowMode!(chat.id, slowUser, secs));
+        showToast(secs === 0 ? 'Slow mode hat gaya' : `Slow mode: ${secs} sec`);
+      } else {
+        // backend me per-member slow mode nahi — imandari se backend ka jawab
+        const mb = members.find((m) => m.id === slowUser);
+        const res = await runOwnerCommand(chat.id, `/slowmode @${mb?.name.replace(' (aap)', '')} ${secs}`);
+        showToast(res.text);
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Slow mode nahi laga');
     } finally { setBusy(false); }
   };
 
@@ -262,6 +285,9 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
             <p className="text-[13.5px] font-medium text-[#e9edef] mb-1 flex items-center gap-2">
               <Icon d={ICONS.mute} size={17} className="text-[#ffd447]" /> Muted · {muted.length}
             </p>
+            {typeof backendV5.getMutedUsers !== 'function' && (
+              <p className="text-[11.5px] text-[#8696a0] mb-1">List backend me nahi — /mute, /unmute commands se manage karein.</p>
+            )}
             {muted.length === 0 ? (
               <p className="text-[12.5px] text-[#8696a0] py-3">Koi muted nahi hai.</p>
             ) : (
@@ -286,6 +312,9 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
             <p className="text-[13.5px] font-medium text-[#e9edef] mb-1 flex items-center gap-2">
               <Icon d={ICONS.x} size={17} className="text-[#ea0038]" /> Banned · {banned.length}
             </p>
+            {typeof backendV5.getBannedUsers !== 'function' && (
+              <p className="text-[11.5px] text-[#8696a0] mb-1">List backend me nahi — /ban command se manage karein.</p>
+            )}
             {banned.length === 0 ? (
               <p className="text-[12.5px] text-[#8696a0] py-3">Koi banned nahi hai.</p>
             ) : (
@@ -307,6 +336,9 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
             <p className="text-[13.5px] font-medium text-[#e9edef] mb-1 flex items-center gap-2">
               <Icon d={ICONS.info} size={17} className="text-[#ff9f1c]" /> Warnings · {warnings.length}
             </p>
+            {typeof backendV5.getWarnings !== 'function' && (
+              <p className="text-[11.5px] text-[#8696a0] mb-1">List backend me nahi — /warn command se dein.</p>
+            )}
             {warnings.length === 0 ? (
               <p className="text-[12.5px] text-[#8696a0] py-3">Koi warning nahi hai.</p>
             ) : (

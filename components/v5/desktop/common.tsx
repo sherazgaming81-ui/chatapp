@@ -11,6 +11,7 @@
 
 import { backend } from '@/lib/backend';
 import type { Chat, ChatMessage } from '@/lib/backend/types';
+import { useEffect, useState } from 'react';
 
 export {
   Icon,
@@ -80,30 +81,49 @@ export interface GroupStats {
   topSenders: { userId: string; displayName: string; count: number }[];
 }
 
+export interface CommandResult {
+  ok: boolean;
+  text: string; // Hinglish confirmation
+  stats?: {
+    totalMessages: number;
+    activeMembers: number;
+    messagesToday: number;
+    topSenders: { userId: string; displayName: string; count: number }[];
+  };
+}
+
 /**
- * BackendV5 — v5 contract. Backend worker ye methods supabaseBackend me
- * add kar raha hai; UI sab ko optional treat karta hai taake build/test
- * kabhi na toote.
+ * BackendV5 — v5 contract (supabaseBackend me maujood methods).
+ * Jo methods (abhi) nahi hain wo optional hain — UI feature-detect karti hai.
  */
 export interface BackendV5 {
-  /** Kya current user group ka owner hai? */
-  isOwner?(): Promise<boolean>;
-  /** Current user ka role: 'owner' | 'member' */
-  getRole?(): Promise<string>;
-  /** Main group (Chat ya id). */
-  getMainGroup?(): Promise<Chat | string | null>;
-  /** Owner command chalao: /mute /ban /warn /lock /unlock /announce /clear /stats ... */
-  executeCommand?(chatId: string, command: string): Promise<{ ok: boolean; message?: string } | string | void>;
-  /** Current user muted hai? */
-  isMuted?(userId?: string): Promise<{ muted: boolean; until?: number; reason?: string } | boolean | null>;
-  /** Raw message payload subscription (typing/payload events). */
+  /** Sync boolean — kya current user owner hai. */
+  isOwner?(): boolean | Promise<boolean>;
+  /** Badge text: 'Owner' | custom role | 'Member'. */
+  getRole?(userId: string): Promise<string>;
+  /** Owner ka user id (profiles me email se). */
+  getOwnerId?(): Promise<string | null>;
+  /** Main group. */
+  getMainGroup?(): Promise<Chat | null>;
+  /**
+   * Owner command: executeCommand('mute', ['@ahmed','10m'], chatId).
+   * Commands: mute/timeout, unmute, ban, warn, lock, unlock, announce, clear, stats.
+   */
+  executeCommand?(command: string, args: string[], chatId: string): Promise<CommandResult>;
+  /** Mute status: { muted, remainingMs }. */
+  isMuted?(chatId: string, userId: string): Promise<{ muted: boolean; remainingMs: number }>;
+  /** Naam/userId se member resolve (fuzzy). */
+  resolveUserByName?(chatId: string, nameQuery: string): Promise<{ userId: string; displayName: string } | null>;
+  /** Custom role lagao/hatayo (owner). */
+  setUserRole?(userId: string, role: string): Promise<void>;
+  /** Raw message payload subscription (agar ho). */
   onMessagePayload?(chatId: string, cb: (payload: unknown) => void): () => void;
-  /** Online presence heartbeat. */
+  /** Online presence heartbeat (agar ho). */
   trackPresence?(): Promise<void>;
-  /** Group theme (group_themes table). */
+  /** Group theme (group_themes table; missing ho to localStorage fallback). */
   getGroupTheme?(chatId: string): Promise<GroupTheme | null>;
   setGroupTheme?(chatId: string, theme: GroupTheme): Promise<void>;
-  /** Moderation lists (owner). */
+  /** Moderation lists (owner) — missing hon to UI graceful empty state dikhaye. */
   getMutedUsers?(chatId: string): Promise<MutedUserInfo[]>;
   unmuteUser?(chatId: string, userId: string): Promise<void>;
   getBannedUsers?(chatId: string): Promise<BannedUserInfo[]>;
@@ -111,7 +131,6 @@ export interface BackendV5 {
   getWarnings?(chatId: string): Promise<WarnInfo[]>;
   clearWarning?(chatId: string, warnId: string): Promise<void>;
   setMemberSlowMode?(chatId: string, userId: string, seconds: number): Promise<void>;
-  getMemberSlowMode?(chatId: string, userId: string): Promise<number>;
   getGroupStats?(chatId: string): Promise<GroupStats | null>;
 }
 
@@ -133,7 +152,7 @@ export function callV5(key: keyof BackendV5, ...args: unknown[]): Promise<unknow
   return v5call(() => (fn as (...a: unknown[]) => Promise<unknown>)(...args));
 }
 
-/** Owner resolve: fixed email match, phir backend.isOwner(), phir adminIds[0]. */
+/** Owner resolve: fixed email -> backend.getOwnerId() -> isOwner()/getRole(). */
 export async function resolveOwnership(
   me: { id: string; email: string },
   chat: Chat | null,
@@ -141,19 +160,42 @@ export async function resolveOwnership(
   if (me.email.toLowerCase() === OWNER_EMAIL.toLowerCase()) {
     return { amOwner: true, ownerId: me.id };
   }
-  const flag = await v5call(() => backendV5.isOwner!());
-  if (flag) return { amOwner: true, ownerId: me.id };
-  const role = await v5call(() => backendV5.getRole!());
-  if (role === 'owner') return { amOwner: true, ownerId: me.id };
-  const adminId = chat?.adminIds?.[0] ?? null;
-  return { amOwner: false, ownerId: adminId };
+  const ownerId = await v5call(() => backendV5.getOwnerId!());
+  if (ownerId && ownerId === me.id) return { amOwner: true, ownerId };
+  const flag = await v5call(() => Promise.resolve(backendV5.isOwner!()));
+  if (flag === true) return { amOwner: true, ownerId: ownerId ?? me.id };
+  const role = await v5call(() => backendV5.getRole!(me.id));
+  if (role === 'Owner' || role === 'owner') return { amOwner: true, ownerId: me.id };
+  return { amOwner: false, ownerId: ownerId ?? chat?.adminIds?.[0] ?? null };
+}
+
+/**
+ * Owner command chalao: "/mute @ahmed 10m" -> executeCommand('mute', ['@ahmed','10m'], chatId).
+ * Backend ka CommandResult.text (Hinglish) wapas milta hai.
+ */
+export async function runOwnerCommand(chatId: string, fullText: string): Promise<CommandResult> {
+  const fn = backendV5.executeCommand;
+  if (typeof fn !== 'function') throw new Error('Commands backend me maujood nahi hain');
+  const parts = fullText.trim().split(/\s+/);
+  const command = (parts[0] || '').replace(/^\//, '');
+  const args = parts.slice(1);
+  if (!command) throw new Error('Koi command nahi likhi');
+  return fn.call(backendV5, command, args, chatId);
+}
+
+/** Mute status -> mute khatam hone ka waqt (epoch ms), ya null. */
+export async function getMuteUntil(chatId: string, userId: string): Promise<number | null> {
+  const r = await v5call(() => backendV5.isMuted!(chatId, userId));
+  if (r && r.muted && r.remainingMs > 0) return Date.now() + r.remainingMs;
+  return null;
 }
 
 export type Role = 'owner' | 'member';
 
-/** "Owner" (gold) / "Member" (gray) badge — naam badalne par bhi sahi. */
-export function RoleBadge({ role, small }: { role: Role; small?: boolean }) {
-  if (role === 'owner') {
+/** Badge — 'Owner' (gold), 'Member' (gray), ya custom role text. Naam badalne par bhi sahi. */
+export function RoleBadge({ role, small }: { role: string; small?: boolean }) {
+  const r = (role || '').toLowerCase();
+  if (r === 'owner') {
     return (
       <span
         className={`inline-flex items-center gap-1 rounded-full bg-[#ffd447]/15 text-[#ffd447] border border-[#ffd447]/30 font-medium whitespace-nowrap ${
@@ -168,14 +210,15 @@ export function RoleBadge({ role, small }: { role: Role; small?: boolean }) {
       </span>
     );
   }
+  const label = r === 'member' || !role ? 'Member' : role;
   return (
     <span
       className={`inline-flex items-center rounded-full bg-[#8696a0]/15 text-[#aebac1] border border-[#8696a0]/25 font-medium whitespace-nowrap ${
         small ? 'text-[9.5px] px-1.5 py-[1px]' : 'text-[10.5px] px-2 py-[2px]'
       }`}
-      title="Member"
+      title={label}
     >
-      Member
+      {label}
     </span>
   );
 }
@@ -190,6 +233,28 @@ export function fmtCountdown(until: number): string {
   const h = Math.floor(m / 60);
   const rm = m % 60;
   return rm ? `${h} ghante ${rm} min` : `${h} ghante`;
+}
+
+/** Member roles (Owner/Member/custom) — backend.getRole per user, cached. */
+export function useMemberRoles(chatId: string, userIdsKey: string): Record<string, string> {
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ids = [...new Set(userIdsKey.split(',').filter(Boolean))];
+    if (!ids.length || typeof backendV5.getRole !== 'function') return;
+    let on = true;
+    (async () => {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        ids.map(async (uid) => {
+          const r = await v5call(() => backendV5.getRole!(uid));
+          if (r) next[uid] = r;
+        }),
+      );
+      if (on) setRoles((prev) => ({ ...next, ...prev }));
+    })();
+    return () => { on = false; };
+  }, [chatId, userIdsKey]);
+  return roles;
 }
 
 /** v5 global styles (v4 keyframes ke upar). */

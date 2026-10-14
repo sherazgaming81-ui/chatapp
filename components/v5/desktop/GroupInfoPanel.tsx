@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { Chat, ChatMessage, UserProfile } from '@/lib/backend/types';
 import Avatar from '@/components/Avatar';
-import { Icon, ICONS, SectionTitle, backendV5, v5call, callV5, fmtSeenHinglish, RoleBadge, type Role } from './common';
+import { Icon, ICONS, SectionTitle, runOwnerCommand, useMemberRoles, fmtSeenHinglish, RoleBadge } from './common';
 
 interface Props {
   chat: Chat;
@@ -55,6 +55,9 @@ export default function GroupInfoPanel({ chat, me, ownerId, amOwner, onClose, on
     return unsub;
   }, [chat.id]);
 
+  const membersKey = useMemo(() => Object.keys(chat.participantProfiles || {}).join(','), [chat.participantProfiles]);
+  const roleMap = useMemberRoles(chat.id, membersKey);
+
   const members = useMemo(() => {
     const list = Object.entries(chat.participantProfiles || {}).map(([id, p]) => ({
       id,
@@ -62,11 +65,11 @@ export default function GroupInfoPanel({ chat, me, ownerId, amOwner, onClose, on
       photoURL: id === me.id ? me.photoURL : p.photoURL,
       online: !!p.online,
       lastSeen: p.lastSeen ?? 0,
-      role: (ownerId != null && id === ownerId ? 'owner' : 'member') as Role,
+      role: roleMap[id] || (ownerId != null && id === ownerId ? 'Owner' : 'Member'),
     }));
-    list.sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : a.name.localeCompare(b.name)));
+    list.sort((a, b) => (a.role === 'Owner' ? -1 : b.role === 'Owner' ? 1 : a.name.localeCompare(b.name)));
     return list;
-  }, [chat.participantProfiles, chat.participants, me, ownerId]);
+  }, [chat.participantProfiles, chat.participants, me, ownerId, roleMap]);
 
   const saveDesc = async () => {
     setEditingDesc(false);
@@ -82,17 +85,26 @@ export default function GroupInfoPanel({ chat, me, ownerId, amOwner, onClose, on
     setEditingRules(false);
   };
 
+  const [modMsg, setModMsg] = useState<string | null>(null);
+
   const modAction = async (action: string, userId: string, name: string) => {
     setActionBusy(userId + action);
     try {
-      await v5call(() => callV5('executeCommand', chat.id, `${action} @${name}`) as Promise<unknown>);
+      // mute ke liye default 10m — poora command input se bhi chal sakta hai
+      const full = action === '/mute' ? `/mute @${name} 10m` : `${action} @${name}`;
+      const res = await runOwnerCommand(chat.id, full);
+      setModMsg(res.text);
+      setTimeout(() => setModMsg(null), 3000);
+    } catch (e) {
+      setModMsg(e instanceof Error ? e.message : 'Nahi ho saka');
+      setTimeout(() => setModMsg(null), 3000);
     } finally {
       setActionBusy(null);
     }
   };
 
   return (
-    <aside className="w-[340px] xl:w-[380px] shrink-0 bg-[#111b21] border-l border-[#222d34] flex flex-col h-full animate-[v4slideL_.2s_ease-out] z-30">
+    <aside className="relative w-[340px] xl:w-[380px] shrink-0 bg-[#111b21] border-l border-[#222d34] flex flex-col h-full animate-[v4slideL_.2s_ease-out] z-30">
       <header className="h-[60px] shrink-0 bg-[#1f2c34] flex items-center gap-4 px-4">
         <button onClick={onClose} className="p-1.5 rounded-full text-[#8696a0] hover:bg-[#2a3942] hover:text-white transition" aria-label="Band karein">
           <Icon d={ICONS.x} size={20} />
@@ -160,7 +172,7 @@ export default function GroupInfoPanel({ chat, me, ownerId, amOwner, onClose, on
                   {mb.id === me.id ? 'Aap' : fmtSeenHinglish(mb.lastSeen, mb.online)}
                 </p>
               </div>
-              {amOwner && mb.role !== 'owner' && mb.id !== me.id && (
+              {amOwner && mb.role !== 'Owner' && mb.id !== me.id && (
                 <div className="hidden group-hover:flex items-center gap-1">
                   <button
                     title="Mute"
@@ -245,6 +257,12 @@ export default function GroupInfoPanel({ chat, me, ownerId, amOwner, onClose, on
           </div>
         )}
       </div>
+
+      {modMsg && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1f2c34] border border-[#2a3942] text-[#e9edef] text-[13px] rounded-full px-5 py-2.5 shadow-2xl animate-[v4pop_.18s_ease-out] max-w-[92%] truncate">
+          {modMsg}
+        </div>
+      )}
     </aside>
   );
 }

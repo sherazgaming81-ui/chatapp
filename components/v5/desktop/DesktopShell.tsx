@@ -17,7 +17,7 @@ import Avatar from '@/components/Avatar';
 import SettingsModal from '@/components/v4/desktop/SettingsModal';
 import {
   Icon, ICONS, V4Styles, V5Styles, Modal,
-  backendV5, v5call, resolveOwnership, MAIN_GROUP_NAME, type GroupTheme,
+  backendV5, v5call, resolveOwnership, getMuteUntil, MAIN_GROUP_NAME, type GroupTheme,
 } from './common';
 import { useGroupTheme } from './ThemePicker';
 import ThemePicker from './ThemePicker';
@@ -147,11 +147,9 @@ export default function DesktopShell() {
         setChat(direct as Chat);
         return;
       }
-      const directId = typeof direct === 'string' ? direct : null;
       if (cancelled) return;
       unsub = backend.onChats((list) => {
         const found =
-          (directId && list.find((c) => c.id === directId)) ||
           list.find((c) => c.isMainGroup) ||
           list.find((c) => c.type === 'group' && (c.name || '').toLowerCase().includes('madrasa')) ||
           list.find((c) => c.type === 'group');
@@ -174,21 +172,16 @@ export default function DesktopShell() {
     });
   }, [me, chat?.id, chat?.adminIds]);
 
-  // mute status (live countdown ke liye)
+  // mute status (live countdown ke liye) — backend.isMuted(chatId, userId)
   useEffect(() => {
-    if (!me) return;
+    if (!me || !chat) return;
     const check = async () => {
-      const r = await v5call(() => backendV5.isMuted!());
-      if (r && typeof r === 'object' && 'muted' in r) {
-        setMutedUntil(r.muted && r.until && r.until > Date.now() ? r.until : null);
-      } else {
-        setMutedUntil(null);
-      }
+      setMutedUntil(await getMuteUntil(chat.id, me.id));
     };
     check();
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
-  }, [me]);
+  }, [me, chat?.id]);
 
   if (!authChecked) {
     return (
