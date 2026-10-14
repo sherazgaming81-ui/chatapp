@@ -68,6 +68,7 @@ export default function Onboarding({ user, onDone }: { user: UserProfile; onDone
 
   function finish() {
     setOnboardingDone();
+    try { localStorage.setItem(`v5_onboarding_complete_${user.id}`, '1'); } catch { /* ignore */ }
     onDone();
   }
 

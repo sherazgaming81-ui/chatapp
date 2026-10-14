@@ -54,7 +54,7 @@ export default function Home() {
   const [booted, setBooted] = useState(false); // LoadingScreen mukammal
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [onbDone, setOnbDone] = useState<boolean>(() => isOnboardingDone());
+  const [onbDone, setOnbDone] = useState<boolean>(true); // user aane par per-user check hoga
   const [showUpdate, setShowUpdate] = useState<boolean>(() => shouldShowUpdate());
 
   useEffect(() => {
@@ -69,7 +69,18 @@ export default function Home() {
     const off = backend.onAuth(async (u) => {
       setUser(u);
       setAuthReady(true);
-      if (!u) return;
+      if (!u) {
+        setOnbDone(true); // logout par onboarding chhupao
+        return;
+      }
+      // Per-user onboarding check — har account ka apna flag.
+      try {
+        const done = localStorage.getItem(`v5_onboarding_complete_${u.id}`) === '1'
+          || localStorage.getItem('v5_onboarding_complete') === '1';
+        setOnbDone(done);
+      } catch {
+        setOnbDone(false);
+      }
       try {
         const forced = localStorage.getItem(FORCED_LOGOUT_KEY) === '1';
         const seen = localStorage.getItem(V5_SEEN_KEY);
