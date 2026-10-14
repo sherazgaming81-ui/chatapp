@@ -38,13 +38,13 @@ create policy "chatkeys members" on chat_keys for all to authenticated
   using (
     exists (
       select 1 from chat_participants cp
-      where cp.chat_id = chat_keys.chat_id and cp.user_id = auth.uid()::text
+      where cp.chat_id = chat_keys.chat_id and cp.user_id = auth.uid()
     )
   )
   with check (
     exists (
       select 1 from chat_participants cp
-      where cp.chat_id = chat_keys.chat_id and cp.user_id = auth.uid()::text
+      where cp.chat_id = chat_keys.chat_id and cp.user_id = auth.uid()
     )
   );
 
