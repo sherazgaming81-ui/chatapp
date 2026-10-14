@@ -21,6 +21,7 @@ import {
   markVersionSeen,
 } from '@/components/v5/mobile';
 import DesktopShell from '@/components/v5/desktop/DesktopShell';
+import PWAInstallPrompt, { hasPWAChoice } from '@/components/v5/shared/PWAInstallPrompt';
 
 const V5_SEEN_KEY = 'v5_seen';
 const V5_VERSION = '5.0';
@@ -55,6 +56,7 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [onbDone, setOnbDone] = useState<boolean>(true); // user aane par per-user check hoga
   const [showUpdate, setShowUpdate] = useState<boolean>(() => shouldShowUpdate());
+  const [pwaDone, setPwaDone] = useState<boolean>(true); // user aane par per-user check hoga
 
   useEffect(() => {
     const update = () => setKind(getDeviceKind());
@@ -70,6 +72,7 @@ export default function Home() {
       setAuthReady(true);
       if (!u) {
         setOnbDone(true); // logout par onboarding chhupao
+        setPwaDone(true); // logout par PWA prompt chhupao
         return;
       }
       // Per-user onboarding check — har account ka apna flag.
@@ -79,6 +82,12 @@ export default function Home() {
         setOnbDone(done);
       } catch {
         setOnbDone(false);
+      }
+      // Per-user PWA install prompt — sirf ek dafa per device.
+      try {
+        setPwaDone(hasPWAChoice());
+      } catch {
+        setPwaDone(true);
       }
       try {
         const forced = localStorage.getItem(FORCED_LOGOUT_KEY) === '1';
@@ -121,6 +130,10 @@ export default function Home() {
   }
   if (!onbDone) {
     return <Onboarding user={user} onDone={() => setOnbDone(true)} />;
+  }
+  // v6: onboarding ke BAAD PWA install prompt (ek dafa per device).
+  if (!pwaDone) {
+    return <PWAInstallPrompt onDone={() => setPwaDone(true)} />;
   }
 
   if (kind === 'desktop') {
