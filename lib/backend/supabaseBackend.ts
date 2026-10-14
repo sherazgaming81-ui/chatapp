@@ -118,6 +118,7 @@ export class SupabaseBackend implements ChatBackend {
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   private typingCache = new Map<string, Record<string, number>>();
   private chanSeq = 0;
+  private profileChan: RealtimeChannel | null = null;
 
   constructor() {
     this.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -159,6 +160,15 @@ export class SupabaseBackend implements ChatBackend {
       }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
       this.startPresence();
+      // Profile realtime: naam/photo/setting change ho to foran UI update (bina reload)
+      if (!this.profileChan) {
+        this.profileChan = this.track(
+          this.sb
+            .channel(`profile-${sessionUser.id}-${++this.chanSeq}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${sessionUser.id}` }, () => emit())
+            .subscribe()
+        );
+      }
       if (alive) cb(prof ? toUserProfile(prof as DbProfile) : null);
     };
     emit();
@@ -166,6 +176,11 @@ export class SupabaseBackend implements ChatBackend {
     return () => {
       alive = false;
       listener.subscription.unsubscribe();
+      if (this.profileChan) {
+        this.sb.removeChannel(this.profileChan);
+        this.channels = this.channels.filter((x) => x !== this.profileChan);
+        this.profileChan = null;
+      }
     };
   }
 
