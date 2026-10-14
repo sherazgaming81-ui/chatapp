@@ -205,29 +205,17 @@ export const InfoIcon = (p: P) => (
   </I>
 );
 
-/** ChatsApp logo — stroke-drawn chat bubble with lightning bolt (for logo-draw animation). */
+/** ChatsApp logo — official brand image (green bubble), corner radius 12. */
 export function ChatsAppLogo({ size = 88, className = '' }: { size?: number; className?: string }) {
   return (
-    <svg
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.png"
+      alt="ChatsApp"
       width={size}
       height={size}
-      viewBox="0 0 100 100"
-      fill="none"
-      className={`v5-logo-draw ${className}`}
-    >
-      <path
-        className="v5-draw-stroke"
-        d="M50 8c-24 0-40 15.5-40 36 0 11 5 20.6 12.8 27.2L20 88l16.4-7.3C40.6 82 45.2 82.5 50 82.5c24 0 40-15.5 40-36.5S74 8 50 8z"
-        stroke="#00a884"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        className="v5-logo-fill"
-        d="M55 30 38 52h10l-3 16 17-22H52l3-16z"
-        fill="#00a884"
-      />
-    </svg>
+      className={className}
+      style={{ borderRadius: 12, objectFit: 'cover' }}
+    />
   );
 }
