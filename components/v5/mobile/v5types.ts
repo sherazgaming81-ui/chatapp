@@ -49,6 +49,8 @@ export interface V5Backend extends ChatBackend {
     input: SendInput,
     sender: { id: string; displayName: string }
   ): { temp: ChatMessage; sent: Promise<void> };
+  /** v6: group me members add karo — owner ya admin. (createGroup ChatBackend se required hai) */
+  addGroupMembers?(chatId: string, userIds: string[]): Promise<void>;
 }
 
 export type { Chat, ChatMessage, SendInput, UserProfile };

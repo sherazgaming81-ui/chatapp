@@ -132,6 +132,10 @@ export interface BackendV5 {
   clearWarning?(chatId: string, warnId: string): Promise<void>;
   setMemberSlowMode?(chatId: string, userId: string, seconds: number): Promise<void>;
   getGroupStats?(chatId: string): Promise<GroupStats | null>;
+  /** v6: naya group banao — SIRF owner. Group id return kare. */
+  createGroup?(name: string, memberIds: string[]): Promise<string>;
+  /** v6: group me members add karo — owner ya admin. */
+  addGroupMembers?(chatId: string, userIds: string[]): Promise<void>;
 }
 
 export const backendV5 = backend as unknown as BackendV5;

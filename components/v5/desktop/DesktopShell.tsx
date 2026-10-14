@@ -9,7 +9,7 @@
  * - Home/welcome area: NamazWidget + QuranCard + HadeesCard (group ke bahar).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { Chat, UserProfile } from '@/lib/backend/types';
 import LoginScreen from '@/components/LoginScreen';
@@ -97,6 +97,9 @@ export default function DesktopShell() {
   const [authChecked, setAuthChecked] = useState(false);
   const [me, setMe] = useState<UserProfile | null>(null);
   const [chat, setChat] = useState<Chat | null>(null);
+  const [mainChat, setMainChat] = useState<Chat | null>(null); // v6: rail "Madrasa Group" hamesha yahin le jaye
+  const chatIdRef = useRef<string | null>(null);
+  chatIdRef.current = chat?.id ?? null;
   const [view, setView] = useState<View>('group');
   const [infoOpen, setInfoOpen] = useState(false);
   const [themesOpen, setThemesOpen] = useState(false);
@@ -136,25 +139,52 @@ export default function DesktopShell() {
   }, [me]);
 
   // main group resolve: getMainGroup() -> onChats (isMainGroup / naam) -> ensureMainGroup()
+  // v6: ek dafa resolve hone ke baad dobara chat reset NAHI hota (owner doosre
+  // group me ho to realtime event use wapas na khenche); khule chat ka fresh
+  // data zaroor update hota hai.
   useEffect(() => {
     if (!me) return;
     let cancelled = false;
     let unsub: (() => void) | null = null;
+    let initialized = false;
+    const pickMain = (list: Chat[]) =>
+      list.find((c) => c.isMainGroup) ||
+      list.find((c) => c.type === 'group' && (c.name || '').toLowerCase().includes('madrasa')) ||
+      list.find((c) => c.type === 'group');
     (async () => {
       const direct = await v5call(() => backendV5.getMainGroup!());
       if (cancelled) return;
       if (direct && typeof direct === 'object' && 'id' in direct) {
-        setChat(direct as Chat);
+        const c = direct as Chat;
+        setChat(c);
+        setMainChat(c);
+        initialized = true;
         return;
       }
       if (cancelled) return;
       unsub = backend.onChats((list) => {
-        const found =
-          list.find((c) => c.isMainGroup) ||
-          list.find((c) => c.type === 'group' && (c.name || '').toLowerCase().includes('madrasa')) ||
-          list.find((c) => c.type === 'group');
-        if (found) setChat(found);
-        else backend.ensureMainGroup().catch(() => {});
+        if (cancelled) return;
+        const found = pickMain(list);
+        if (!initialized) {
+          if (found) {
+            setChat(found);
+            setMainChat(found);
+            initialized = true;
+          } else {
+            backend.ensureMainGroup().catch(() => {});
+          }
+          return;
+        }
+        // pehle se koi group khula hai — sirf uska fresh data update karo
+        const cur = chatIdRef.current;
+        if (cur) {
+          const updated = list.find((c) => c.id === cur);
+          if (updated) setChat(updated);
+        } else if (found) {
+          setChat(found);
+        }
+        const main = list.find((c) => c.isMainGroup);
+        if (main) setMainChat(main);
       });
     })();
     return () => {
@@ -207,7 +237,7 @@ export default function DesktopShell() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="ChatsApp" className="w-11 h-11 rounded-2xl" />
           </button>
-          <RailBtn active={view === 'group'} title="Madrasa Group" onClick={() => setView('group')}>
+          <RailBtn active={view === 'group'} title="Madrasa Group" onClick={() => { if (mainChat) setChat(mainChat); setView('group'); }}>
             <Icon d={ICONS.groups} size={24} />
           </RailBtn>
           <RailBtn active={view === 'namaz'} title={next ? nextPrayerLabel(next) : 'Namaz timings'} badge={namazBadge} onClick={() => setView('namaz')}>
@@ -285,7 +315,12 @@ export default function DesktopShell() {
       )}
 
       {view === 'dashboard' && chat && amOwner && (
-        <OwnerDashboard chat={chat} me={me} ownerId={ownerId} />
+        <OwnerDashboard
+          chat={chat}
+          me={me}
+          ownerId={ownerId}
+          onOpenGroup={(c) => { setChat(c); setView('group'); }}
+        />
       )}
 
       {view === 'group' && (

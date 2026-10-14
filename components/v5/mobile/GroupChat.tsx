@@ -5,12 +5,14 @@ import { backend } from '@/lib/backend';
 import {
   BellOffIcon,
   CheckIcon,
+  ChevronRightIcon,
   CrownIcon,
   DoubleCheckIcon,
   ImageIcon,
   MicIcon,
   PauseIcon,
   PlayIcon,
+  PlusIcon,
   SendIcon,
   SlashIcon,
   TrashIcon,
@@ -68,6 +70,15 @@ export default function GroupChat() {
   const [toast, setToast] = useState<string | null>(null);
   const [sheetMsg, setSheetMsg] = useState<ChatMessage | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  // ---- v6: owner groups (naya group + members) ----
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [groups, setGroups] = useState<Chat[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [memberQuery, setMemberQuery] = useState('');
+  const [memberResults, setMemberResults] = useState<UserProfile[]>([]);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const msgsRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,6 +124,57 @@ export default function GroupChat() {
     setPendingIds(prev => { const n = new Set(prev); n.delete(tempId); return n; });
   }
 
+  // ---- v6: groups sheet khulne par live groups list ----
+  useEffect(() => {
+    if (!groupsOpen || !user) return;
+    const off = backend.onChats(list => setGroups(list.filter(c => c.type === 'group')));
+    return off;
+  }, [groupsOpen, user]);
+
+  // ---- v6: naya group banao (sirf owner) ----
+  async function createNewGroup() {
+    const nm = newGroupName.trim();
+    if (!nm) { showToast('Group ka naam likhein'); return; }
+    if (typeof b.createGroup !== 'function') { showToast('Backend me group creation nahi hai'); return; }
+    setCreating(true);
+    try {
+      await b.createGroup(nm, []);
+      setNewGroupName('');
+      showToast(`"${nm}" ban gaya ✓`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Group nahi ban saka');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function searchMembers(q: string) {
+    setMemberQuery(q);
+    if (q.trim().length < 2) { setMemberResults([]); return; }
+    try {
+      const res = await backend.searchUsers(q.trim());
+      const g = groups.find(x => x.id === expandedGroup);
+      const existing = new Set(g?.participants || []);
+      setMemberResults(res.filter(u => !existing.has(u.id)).slice(0, 8));
+    } catch {
+      setMemberResults([]);
+    }
+  }
+
+  async function addMember(g: Chat, u: UserProfile) {
+    if (typeof b.addGroupMembers !== 'function') { showToast('Backend me add members nahi hai'); return; }
+    setAddingId(u.id);
+    try {
+      await b.addGroupMembers(g.id, [u.id]);
+      setMemberResults(prev => prev.filter(x => x.id !== u.id));
+      showToast(`${u.displayName} group me add ho gaya ✓`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Add nahi ho saka');
+    } finally {
+      setAddingId(null);
+    }
+  }
+
   // ---- auth ----
   useEffect(() => {
     const off = backend.onAuth(u => setUser(u));
@@ -123,7 +185,6 @@ export default function GroupChat() {
   useEffect(() => {
     if (!user) return;
     let offMsgs: (() => void) | null = null;
-    let offPayload: (() => void) | null = null;
     let offPresence: (() => void) | null = null;
     let cancelled = false;
 
@@ -146,47 +207,35 @@ export default function GroupChat() {
           if (cancelled) return;
           const mine = user.id;
           const visible = list.filter(m => !m.deletedFor?.includes(mine));
+          // v6: real messages ke signatures — apna temp jiska real aa gaya, use hatao (duplicate nahi)
+          const realSigs = new Set(
+            visible.filter(m => m.senderId === mine).map(m => tempSig(m.senderId, m))
+          );
           setMessages(prev => {
-            // apne temp messages mehfooz rakho — real INSERT aane par swap honge
-            const temps = prev.filter(m => m.id.startsWith('tmp_') && pendingTemps.current.has(m.id));
+            const temps = prev.filter(m => {
+              if (!m.id.startsWith('tmp_')) return false;
+              const sig = pendingTemps.current.get(m.id);
+              if (!sig) return false;
+              if (realSigs.has(sig)) {
+                pendingTemps.current.delete(m.id); // real wala list me hai — temp gaya
+                return false;
+              }
+              return true;
+            });
             return [...visible, ...temps].sort((x, y) => x.createdAt - y.createdAt);
           });
-          // pending ids jo ab real list me hain, hata do
+          // pending ticks: jinka real message aa gaya, unka tick hat jaye
           setPendingIds(prev => {
-            const ids = new Set(list.map(m => m.id));
             const next = new Set(prev);
-            prev.forEach(p => { if (ids.has(p)) next.delete(p); });
+            prev.forEach(p => {
+              const sig = pendingTemps.current.get(p);
+              if (!sig || realSigs.has(sig)) next.delete(p);
+            });
             return next;
           });
         };
+        // v6: sirf onMessages (ab incremental + tez) — doosre payload channel ki zaroorat nahi
         offMsgs = backend.onMessages(id, merge);
-        offPayload = b.onMessagePayload(id, (msg, event) => {
-          if (cancelled) return;
-          if (event === 'DELETE') {
-            setMessages(prev => prev.filter(m => m.id !== msg.id));
-            return;
-          }
-          if (msg.deletedFor?.includes(user.id)) return;
-          // apna temp message ho to real se swap karo (duplicate nahi)
-          const sig = tempSig(msg.senderId, msg);
-          let swapTemp: string | null = null;
-          for (const [tid, tsig] of pendingTemps.current) {
-            if (tsig === sig) { swapTemp = tid; break; }
-          }
-          if (swapTemp) {
-            pendingTemps.current.delete(swapTemp);
-            const tid = swapTemp;
-            setPendingIds(prev => { const n = new Set(prev); n.delete(tid); return n; });
-            setMessages(prev => prev.map(m => (m.id === tid ? msg : m)));
-            return;
-          }
-          setMessages(prev => {
-            if (prev.some(m => m.id === msg.id)) {
-              return prev.map(m => (m.id === msg.id ? msg : m));
-            }
-            return [...prev, msg].sort((x, y) => x.createdAt - y.createdAt);
-          });
-        });
 
         const m = await refreshMute();
         if (!cancelled && m) setMute(m);
@@ -198,7 +247,6 @@ export default function GroupChat() {
     return () => {
       cancelled = true;
       offMsgs?.();
-      offPayload?.();
       offPresence?.();
     };
   }, [user, showToast, refreshMute]);
@@ -419,6 +467,12 @@ export default function GroupChat() {
             )}
           </div>
         </div>
+        {/* v6: sirf owner — naya group banao */}
+        {isOwner && (
+          <button className="v5-icon-btn" onClick={() => setGroupsOpen(true)} aria-label="Groups" title="Naya Group">
+            <PlusIcon size={24} />
+          </button>
+        )}
       </header>
 
       {/* ---- Mute banner ---- */}
@@ -565,6 +619,124 @@ export default function GroupChat() {
         style={{ display: 'none' }}
         onChange={handleImagePick}
       />
+
+      {/* ---- v6: Groups sheet (sirf owner) — naya group + members ---- */}
+      {groupsOpen && (
+        <div className="v5-sheet-backdrop" onClick={() => setGroupsOpen(false)}>
+          <div
+            className="v5-sheet"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '82dvh', display: 'flex', flexDirection: 'column' }}
+          >
+            <div className="v5-sheet-grab" />
+            <div style={{ padding: '4px 20px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 17, fontWeight: 700, color: '#e9edef', flex: 1 }}>Groups</span>
+              <button className="v5-icon-btn" style={{ width: 36, height: 36 }} onClick={() => setGroupsOpen(false)} aria-label="Band karo">
+                <XIcon size={20} />
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '0 16px 8px' }}>
+              {/* naya group */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') createNewGroup(); }}
+                  placeholder="Naye group ka naam…"
+                  maxLength={60}
+                  style={{
+                    flex: 1, background: '#0b141a', border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 12, padding: '10px 14px', fontSize: 15, color: '#e9edef', outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={createNewGroup}
+                  disabled={creating || !newGroupName.trim()}
+                  style={{
+                    background: '#00a884', color: '#06281f', fontWeight: 700, fontSize: 14,
+                    borderRadius: 12, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 6,
+                    opacity: creating || !newGroupName.trim() ? 0.5 : 1,
+                  }}
+                >
+                  <PlusIcon size={18} /> {creating ? '…' : 'Naya Group'}
+                </button>
+              </div>
+              {groups.length === 0 && (
+                <p style={{ color: '#8696a0', fontSize: 13.5, textAlign: 'center', padding: '18px 0' }}>
+                  Koi group nahi — upar se naya banayein.
+                </p>
+              )}
+              {groups.map(g => {
+                const expanded = expandedGroup === g.id;
+                const memberList = Object.entries(g.participantProfiles || {}).map(([id, p]) => ({
+                  id, name: p.displayName || 'Koi', isMe: id === user.id,
+                }));
+                return (
+                  <div key={g.id} style={{ background: '#0b141a', borderRadius: 14, marginBottom: 8, overflow: 'hidden' }}>
+                    <button
+                      className="v5-sheet-item"
+                      style={{ minHeight: 0, padding: '12px 14px' }}
+                      onClick={() => { setExpandedGroup(expanded ? null : g.id); setMemberQuery(''); setMemberResults([]); }}
+                    >
+                      <span className="v5-avatar" style={{ width: 38, height: 38, fontSize: 16 }}>
+                        {(g.name || 'G').charAt(0).toUpperCase()}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#e9edef', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {g.name}
+                          {g.isMainGroup && (
+                            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(0,168,132,0.15)', color: '#00e6a8', borderRadius: 999, padding: '1px 8px', marginLeft: 8 }}>Main</span>
+                          )}
+                        </span>
+                        <span style={{ display: 'block', fontSize: 12, color: '#8696a0' }}>{g.participants.length} members</span>
+                      </span>
+                      <ChevronRightIcon size={20} />
+                    </button>
+                    {expanded && (
+                      <div style={{ padding: '4px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 0' }}>
+                          {memberList.map(m => (
+                            <span key={m.id} style={{ background: '#1f2c34', borderRadius: 999, padding: '5px 12px 5px 5px', fontSize: 12.5, color: '#d1d7db', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span className="v5-avatar" style={{ width: 22, height: 22, fontSize: 11 }}>{m.name.charAt(0).toUpperCase()}</span>
+                              {m.name}{m.isMe ? ' (aap)' : ''}
+                            </span>
+                          ))}
+                        </div>
+                        <input
+                          value={memberQuery}
+                          onChange={e => searchMembers(e.target.value)}
+                          placeholder="Naam likh kar member dhoondein…"
+                          style={{
+                            width: '100%', background: '#1f2c34', border: 'none',
+                            borderRadius: 10, padding: '9px 12px', fontSize: 14, color: '#e9edef', outline: 'none',
+                          }}
+                        />
+                        {memberResults.map(u => (
+                          <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 2px' }}>
+                            <span className="v5-avatar" style={{ width: 30, height: 30, fontSize: 13 }}>
+                              {(u.displayName || 'U').charAt(0).toUpperCase()}
+                            </span>
+                            <span style={{ flex: 1, fontSize: 14, color: '#e9edef', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {u.displayName}
+                            </span>
+                            <button
+                              onClick={() => addMember(g, u)}
+                              disabled={addingId === u.id}
+                              style={{ color: '#00e6a8', fontSize: 13.5, fontWeight: 600, opacity: addingId === u.id ? 0.5 : 1 }}
+                            >
+                              {addingId === u.id ? 'Add…' : '+ Add'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---- Delete action sheet ---- */}
       {sheetMsg && (

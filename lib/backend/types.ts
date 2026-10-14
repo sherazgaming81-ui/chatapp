@@ -172,6 +172,8 @@ export interface ChatBackend {
   searchUsers(query: string): Promise<UserProfile[]>;
   getOrCreateDirectChat(otherId: string): Promise<string>;
   createGroup(name: string, memberIds: string[]): Promise<string>;
+  /** v6: group me members add karo (owner/admin). Optional — sirf supabase backend me. */
+  addGroupMembers?(chatId: string, userIds: string[]): Promise<void>;
   uploadMedia(chatId: string, file: File): Promise<{ url: string; kind: 'image' | 'audio' }>;
   uploadFile(chatId: string, file: File): Promise<UploadResult>;
   /**

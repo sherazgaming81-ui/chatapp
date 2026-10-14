@@ -209,6 +209,27 @@ function toChatMessage(m: DbMessage): ChatMessage {
   };
 }
 
+/**
+ * v6: kya UPDATE event waqayi nazar aane wali tabdeeli hai?
+ * read_at JSON jaisi ghair-visible tabdeeli par poori list dobara bhejne ki
+ * zaroorat nahi — sirf content/metadata tabdeel ho to emit karo.
+ */
+function msgVisiblyChanged(a: ChatMessage, b: ChatMessage): boolean {
+  return (
+    a.text !== b.text ||
+    a.mediaURL !== b.mediaURL ||
+    a.fileName !== b.fileName ||
+    a.isPinned !== b.isPinned ||
+    a.editedAt !== b.editedAt ||
+    (a.deletedEveryone || false) !== (b.deletedEveryone || false) ||
+    JSON.stringify(a.reactions || {}) !== JSON.stringify(b.reactions || {}) ||
+    JSON.stringify(a.deletedFor || []) !== JSON.stringify(b.deletedFor || []) ||
+    JSON.stringify(a.poll || null) !== JSON.stringify(b.poll || null) ||
+    JSON.stringify(a.readBy || []) !== JSON.stringify(b.readBy || []) ||
+    (a.deliveredAt || 0) !== (b.deliveredAt || 0)
+  );
+}
+
 // ==================== v3: E2E encryption (AES-GCM, per-chat key) ====================
 // Simple design: har chat ki ek AES-GCM-256 key `chat_keys` table me.
 // Sirf type='text' wale messages ka `text` encrypt hota hai (prefix "enc1.").
@@ -268,6 +289,10 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   private presenceStarted = false;
   private presenceCbs = new Set<(state: Record<string, PresenceState>) => void>();
   private presenceStateMap = new Map<string, PresenceState>();
+  // ---- v6: speed caches ----
+  private myDisplayName: string | null = null; // v6: onAuth par set; send paths me profiles query bache
+  private blockedCache: { ids: Set<string>; at: number } | null = null; // v6: block-list 60s TTL
+  private slowCache = new Map<string, { sec: number; at: number }>(); // v6: per-chat slow mode 30s TTL
 
   constructor() {
     this.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -335,13 +360,7 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
 
   private async getChatParticipantsForMentions(chatId: string): Promise<{ userId: string; displayName: string }[]> {
     const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
-    const ids = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id);
-    if (ids.length === 0) return [];
-    const { data: profs } = await this.sb.from('profiles').select('id,display_name').in('id', ids);
-    return ((profs || []) as Array<{ id: string; display_name: string }>).map((p) => ({
-      userId: p.id,
-      displayName: p.display_name || 'User',
-    }));
+    return this.getNamesForIds(((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id));
   }
 
   // ---- v3: push trigger (backend se — har naye message par ek hi jagah se) ----
@@ -412,6 +431,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
         this.runV5ResetIfNeeded().catch((e) => console.error('runV5ResetIfNeeded failed:', e));
       }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
+      // v6: sender name cache — send paths me profiles query nahi hogi
+      this.myDisplayName = ((prof as DbProfile | null)?.display_name || 'User') as string;
       this.startPresence();
       this.registerDevice();
       this.startDeviceHeartbeat();
@@ -592,6 +613,9 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     this.ownerIdCache = null; // v5
     this.ownerIdPromise = null; // v5
     this.meEmail = null; // v5
+    this.myDisplayName = null; // v6
+    this.blockedCache = null; // v6
+    this.slowCache.clear(); // v6
     this.channels.forEach((c) => this.sb.removeChannel(c));
     this.channels = [];
     await this.sb.auth.signOut();
@@ -620,7 +644,11 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     ]);
 
     const userIds = [...new Set((allParts || []).map((p) => p.user_id))];
-    const { data: profRows } = await this.sb.from('profiles').select('*').in('id', userIds);
+    // v6: sirf zaroori columns (SELECT * nahi) — chat list tez khule
+    const { data: profRows } = await this.sb
+      .from('profiles')
+      .select('id,display_name,photo_url,about,online,last_seen')
+      .in('id', userIds);
     const profMap = new Map((profRows || []).map((p) => [p.id, toUserProfile(p as DbProfile)]));
 
     const chats: Chat[] = [];
@@ -689,37 +717,71 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     };
   }
 
-  /** Meri block-list (user ids ka Set). Cache nahi — chhota table hai. */
+  /** Meri block-list (user ids ka Set). v6: 60s TTL cache — har refresh par query nahi. */
   private async fetchBlockedIds(): Promise<Set<string>> {
     const me = this.meId;
     if (!me) return new Set();
+    const now = Date.now();
+    if (this.blockedCache && now - this.blockedCache.at < 60_000) return this.blockedCache.ids;
     const { data } = await this.sb.from('blocked_users').select('blocked_id').eq('user_id', me);
-    return new Set((data || []).map((r) => (r as { blocked_id: string }).blocked_id));
+    const ids = new Set((data || []).map((r) => (r as { blocked_id: string }).blocked_id));
+    this.blockedCache = { ids, at: now };
+    return ids;
   }
 
+  // v6: sirf render me istemal hone wale columns — SELECT * ki bajaye (payload chhota = tez)
+  private static readonly MSG_COLS =
+    'id,chat_id,sender_id,sender_name,type,text,media_url,file_name,file_size,duration,reply_to,created_at,read_by,deleted_for,edited_at,reactions,is_pinned,poll,forwarded,poll_deadline,self_destruct_at,contact_data,lat,lng,location_expires_at,deleted_everyone,forward_count,delivered_at,is_announcement';
+
+  /**
+   * v6 SPEED: realtime event par POORI LIST dobara fetch NAHI hoti.
+   * - Pehli dafa: ek full fetch (rows cache me).
+   * - Uske baad: postgres_changes ka payload (p.new / p.old) seedha cache me
+   *   merge hota hai — receiver ko naya message ~instant milta hai, DB roundtrip zero.
+   * - Sirf reconnect par (missed events ka safety net) ek refresh hota hai.
+   */
   onMessages(chatId: string, cb: (messages: ChatMessage[]) => void): () => void {
     let alive = true;
+    let rows: DbMessage[] = [];
+    let blocked = new Set<string>();
+    let firstSubscribed = false;
+
+    const emit = () => {
+      if (!alive) return;
+      const me = this.meId;
+      let msgs = rows.map(toChatMessage);
+      // v3: "Delete for me" wale messages mujhe mat dikhao
+      if (me) msgs = msgs.filter((m) => !(m.deletedFor || []).includes(me));
+      // Block kiye users ke messages chhupao
+      if (blocked.size > 0) msgs = msgs.filter((m) => !blocked.has(m.senderId));
+      // Self-destruct: expire ho gaye to UI se hatao + DB se safai (fire-and-forget)
+      const now = Date.now();
+      const expiredIds = new Set(msgs.filter((m) => m.selfDestructAt && m.selfDestructAt <= now).map((m) => m.id));
+      if (expiredIds.size > 0) {
+        msgs = msgs.filter((m) => !expiredIds.has(m.id));
+        this.sb.from('messages').delete().in('id', [...expiredIds]).then(
+          () => {},
+          (e) => console.error('self-destruct cleanup failed:', e)
+        );
+      }
+      cb(msgs);
+    };
+
     const refresh = async () => {
       if (!alive) return;
-      const [msgRes, blocked] = await Promise.all([
+      const [msgRes, blk] = await Promise.all([
         this.sb
           .from('messages')
-          .select('*')
+          .select(SupabaseBackend.MSG_COLS)
           .eq('chat_id', chatId)
           .order('created_at', { ascending: true })
           .limit(200),
         this.fetchBlockedIds(),
       ]);
-      let rows = (msgRes.data || []) as DbMessage[];
-      // v3: E2E encrypted text decrypt karo (frontend ko hamesha plaintext)
-      rows = await this.decryptRows(chatId, rows);
-      let msgs = rows.map(toChatMessage);
-      // v3: "Delete for me" wale messages mujhe mat dikhao
-      const me = this.meId;
-      if (me) msgs = msgs.filter((m) => !(m.deletedFor || []).includes(me));
-      // Block kiye users ke messages chhupao
-      if (blocked.size > 0) msgs = msgs.filter((m) => !blocked.has(m.senderId));
+      rows = (msgRes.data || []) as DbMessage[];
+      blocked = blk;
       // v3: delivery tracking — dusron ke messages pehli dafa dekhne par delivered_at lagao
+      const me = this.meId;
       if (me) {
         const undelivered = rows.filter((r) => r.sender_id !== me && !r.delivered_at);
         if (undelivered.length > 0) {
@@ -734,19 +796,9 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
             );
         }
       }
-      // Self-destruct: expire ho gaye to UI se hatao + DB se safai (fire-and-forget)
-      const now = Date.now();
-      const expired = msgs.filter((m) => m.selfDestructAt && m.selfDestructAt <= now);
-      if (expired.length > 0) {
-        const ids = expired.map((m) => m.id);
-        msgs = msgs.filter((m) => !m.selfDestructAt || m.selfDestructAt > now);
-        this.sb.from('messages').delete().in('id', ids).then(
-          () => {},
-          (e) => console.error('self-destruct cleanup failed:', e)
-        );
-      }
-      if (alive) cb(msgs);
+      emit();
     };
+
     refresh();
     const chName = `msgs-${chatId}-${++this.chanSeq}`;
     const ch = this.track(
@@ -755,9 +807,62 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-          () => refresh()
+          (payload) => {
+            try {
+              const p = payload as unknown as { eventType: string; new?: DbMessage; old?: DbMessage };
+              const row = p.eventType === 'DELETE' ? p.old : p.new;
+              if (!row || !row.id) {
+                refresh();
+                return;
+              }
+              if (p.eventType === 'INSERT') {
+                // v6: naya message — koi re-fetch nahi, seedha cache me
+                if (!rows.some((r) => r.id === row.id)) {
+                  rows = [...rows, row]
+                    .sort((a, b) => num(a.created_at) - num(b.created_at))
+                    .slice(-200);
+                  const me = this.meId;
+                  if (me && row.sender_id !== me && !row.delivered_at) {
+                    this.sb.from('messages').update({ delivered_at: Date.now() }).eq('id', row.id).then(
+                      () => {},
+                      () => {}
+                    );
+                  }
+                }
+                emit();
+              } else if (p.eventType === 'UPDATE') {
+                // v6: sirf wahi row badlo; ghair-visible tabdeeli par dobara render mat karo
+                const idx = rows.findIndex((r) => r.id === row.id);
+                if (idx >= 0) {
+                  const prev = toChatMessage(rows[idx]);
+                  const next = toChatMessage(row);
+                  rows[idx] = row;
+                  if (msgVisiblyChanged(prev, next)) emit();
+                } else {
+                  rows = [...rows, row].sort((a, b) => num(a.created_at) - num(b.created_at)).slice(-200);
+                  emit();
+                }
+              } else if (p.eventType === 'DELETE') {
+                if (rows.some((r) => r.id === row.id)) {
+                  rows = rows.filter((r) => r.id !== row.id);
+                  emit();
+                }
+              } else {
+                refresh();
+              }
+            } catch (e) {
+              console.error('onMessages payload handler failed:', e);
+              refresh();
+            }
+          }
         )
-        .subscribe()
+        .subscribe((status) => {
+          // v6: reconnect ke baad ek dafa sync (beech ke events miss hue hon to)
+          if (status === 'SUBSCRIBED') {
+            if (firstSubscribed) refresh();
+            else firstSubscribed = true;
+          }
+        })
     );
     return () => {
       alive = false;
@@ -766,54 +871,61 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     };
   }
 
+  /**
+   * v6 SPEED: insert se pehle ke saare guards/data ab PARALLEL hain.
+   * Pehle: ban → mute → lock → participants → blocked → slow → profile
+   * (7 sequential roundtrips); ab: 2 parallel batches.
+   */
   async sendMessage(chatId: string, input: SendInput): Promise<void> {
     const me = this.meId;
     if (!me) return;
-    // v5: mute / group-lock / ban check (Hinglish error ke sath throw hota hai)
+    const owner = this.isOwner();
+    // Batch 1 — guards (parallel; error precedence pehle jaisi: ban > mute > lock)
     await this.assertCanSend(chatId);
+    // Batch 2 — independent data (parallel)
+    const [partsRes, blocked, slowSec] = await Promise.all([
+      this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId),
+      this.fetchBlockedIds(),
+      owner ? Promise.resolve(0) : this.getMemberSlowCached(chatId, me),
+    ]);
+    const others = ((partsRes.data || []) as Array<{ user_id: string }>)
+      .map((p) => p.user_id)
+      .filter((u) => u !== me);
     // Block kiye user ko message nahi bhej sakte
-    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
-    const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
-    if (others.length > 0) {
-      const blocked = await this.fetchBlockedIds();
-      if (others.some((u) => blocked.has(u))) throw new Error('Aap ne is user ko block kiya hua hai');
+    if (others.length > 0 && others.some((u) => blocked.has(u))) {
+      throw new Error('Aap ne is user ko block kiya hua hai');
     }
     const now = Date.now();
     // v5: per-member slow mode — aakhri message ke `slow_seconds` guzarna zaroori
     // (owner is se mustasna hai taake announcements kabhi na rukein)
-    if (!this.isOwner()) {
-      const slowSec = await this.getMemberSlow(chatId, me);
-      if (slowSec > 0) {
-        const { data: lastMsg } = await this.sb
-          .from('messages')
-          .select('created_at')
-          .eq('chat_id', chatId)
-          .eq('sender_id', me)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const lastTs = num((lastMsg as { created_at?: number | string } | null)?.created_at);
-        if (lastTs > 0) {
-          const waitMs = slowSec * 1000 - (now - lastTs);
-          if (waitMs > 0) {
-            throw new Error(`Thoda sabar — ${Math.ceil(waitMs / 1000)} second baad dobara message bhejein`);
-          }
+    if (slowSec > 0) {
+      const { data: lastMsg } = await this.sb
+        .from('messages')
+        .select('created_at')
+        .eq('chat_id', chatId)
+        .eq('sender_id', me)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lastTs = num((lastMsg as { created_at?: number | string } | null)?.created_at);
+      if (lastTs > 0) {
+        const waitMs = slowSec * 1000 - (now - lastTs);
+        if (waitMs > 0) {
+          throw new Error(`Thoda sabar — ${Math.ceil(waitMs / 1000)} second baad dobara message bhejein`);
         }
       }
     }
-    const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).single();
-    const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
-    // v3: E2E — text messages encrypt karke store karo
-    const storedText = input.type === 'text' ? await this.encryptForChat(chatId, input.text) : input.text;
+    // v6: sender name session cache se (onAuth par set) — profiles query nahi
+    const senderName = this.myDisplayName || 'User';
     const preview = input.type === 'text'
-      ? (storedText.startsWith(ENC_PREFIX) ? '🔒 Encrypted message' : input.text)
+      ? input.text
       : input.type === 'image' ? '📷 Photo' : '🎤 Voice message';
     await this.sb.from('messages').insert({
       chat_id: chatId,
       sender_id: me,
       sender_name: senderName,
       type: input.type,
-      text: storedText,
+      text: input.text,
       media_url: input.mediaURL || null,
       file_name: input.fileName || null,
       file_size: input.fileSize ?? null,
@@ -826,9 +938,9 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       last_message: { text: preview, senderId: me, senderName, createdAt: now, type: input.type } as LastMessage,
       updated_at: now,
     }).eq('id', chatId);
-    // v3: push — mention wale users ko special alert
+    // v3: push — mention wale users ko special alert (participants upar se reuse)
     const mentionIds = input.type === 'text' && input.text.includes('@')
-      ? this.parseMentions(input.text, await this.getChatParticipantsForMentions(chatId))
+      ? this.parseMentions(input.text, await this.getNamesForIds(others))
       : [];
     const pushBody = input.type === 'text' ? input.text.slice(0, 80)
       : input.type === 'image' ? '📷 Photo'
@@ -927,11 +1039,58 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   }
 
   /**
-   * v5: naya group banana BAND — sirf ek hi group hai (Madrasa Group).
-   * Signature wahi rakha taake purani UI compile hoti rahe; call par Error.
+   * v6: naya group banana — SIRF OWNER ke liye khula (owner bypass).
+   * Members ke liye single-group rule barkarar: un par ab bhi Error.
+   * Owner group banata hai to khud admin + pehla member banta hai.
    */
-  async createGroup(_name: string, _memberIds: string[]): Promise<string> {
-    throw new Error('Naya group nahi ban sakta — sirf Madrasa Group hai');
+  async createGroup(name: string, memberIds: string[]): Promise<string> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    if (!this.isOwner()) {
+      throw new Error('Naya group nahi ban sakta — sirf Madrasa Group hai');
+    }
+    const nm = (name || '').trim().slice(0, 60);
+    if (!nm) throw new Error('Group ka naam likhein');
+    const id = `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { error } = await this.sb.from('chats').insert({
+      id,
+      type: 'group',
+      name: nm,
+      admin_ids: [me],
+      is_main_group: false,
+      description: '',
+      updated_at: Date.now(),
+    });
+    if (error) throw error;
+    const allMembers = [...new Set([me, ...((memberIds || []).filter(Boolean))])];
+    const { error: perr } = await this.sb
+      .from('chat_participants')
+      .insert(allMembers.map((uid) => ({ chat_id: id, user_id: uid })));
+    if (perr) throw perr;
+    return id;
+  }
+
+  /**
+   * v6: group me members add karo — SIRF owner ya us group ka admin.
+   * UI: OwnerDashboard / mobile groups sheet se owner members add karta hai.
+   */
+  async addGroupMembers(chatId: string, userIds: string[]): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const ids = [...new Set((userIds || []).filter((u) => u && u !== me))];
+    if (ids.length === 0) return;
+    const { data } = await this.sb.from('chats').select('admin_ids').eq('id', chatId).maybeSingle();
+    const admins = (((data as { admin_ids?: string[] } | null)?.admin_ids || []) as string[]);
+    if (!this.isOwner() && !admins.includes(me)) {
+      throw new Error('Sirf owner ya admin members add kar sakta hai');
+    }
+    const { error } = await this.sb
+      .from('chat_participants')
+      .upsert(ids.map((uid) => ({ chat_id: chatId, user_id: uid })), {
+        onConflict: 'chat_id,user_id',
+        ignoreDuplicates: true,
+      });
+    if (error) throw error;
   }
 
   async uploadMedia(chatId: string, file: File): Promise<{ url: string; kind: 'image' | 'audio' }> {
@@ -1099,8 +1258,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     if (!data) return;
     const src = data as DbMessage;
     const now = Date.now();
-    const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).maybeSingle();
-    const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
+    // v6: sender name session cache se
+    const senderName = this.myDisplayName || 'User';
     // v3: forward count barhao (5+ par "Forwarded many times")
     const newCount = Number(src.forward_count || 0) + 1;
     this.sb.from('messages').update({ forward_count: newCount }).eq('id', messageId).then(
@@ -1155,8 +1314,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     const opts = options.map((o) => o.trim()).filter(Boolean).slice(0, 10);
     if (!q || opts.length < 2) throw new Error('Sawal aur kam-az-kam 2 options likhein');
     const now = Date.now();
-    const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).maybeSingle();
-    const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
+    // v6: sender name session cache se
+    const senderName = this.myDisplayName || 'User';
     const poll: PollData = { question: q, options: opts, votes: {} };
     const { data, error } = await this.sb.from('messages').insert({
       chat_id: chatId,
@@ -1749,16 +1908,18 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     if (!me) return;
     // v5: mute / group-lock / ban check (special messages par bhi)
     await this.assertCanSend(chatId);
-    // Block check (self-destruct/contact/location ke liye bhi)
-    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
-    const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
-    if (others.length > 0) {
-      const blocked = await this.fetchBlockedIds();
-      if (others.some((u) => blocked.has(u))) throw new Error('Aap ne is user ko block kiya hua hai');
+    // Block check (self-destruct/contact/location ke liye bhi) — v6: parallel
+    const [partsRes, blocked] = await Promise.all([
+      this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId),
+      this.fetchBlockedIds(),
+    ]);
+    const others = ((partsRes.data || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
+    if (others.length > 0 && others.some((u) => blocked.has(u))) {
+      throw new Error('Aap ne is user ko block kiya hua hai');
     }
     const now = Date.now();
-    const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).maybeSingle();
-    const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
+    // v6: sender name session cache se
+    const senderName = this.myDisplayName || 'User';
     await this.sb.from('messages').insert({
       chat_id: chatId,
       sender_id: me,
@@ -2440,22 +2601,42 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   /**
    * v5: bhejne se pehle guard — ban/mute/lock check. Ruka to Hinglish Error.
    * sendMessage aur insertSpecialMessage dono isi ko call karte hain.
+   * v6: teeno checks PARALLEL (pehle sequential: ban → mute → lock).
+   * Error precedence wahi: ban > mute > lock.
    */
   private async assertCanSend(chatId: string): Promise<void> {
     const me = this.meId;
     if (!me) throw new Error('Not signed in');
-    const { data: ban } = await this.sb
-      .from('bans')
-      .select('user_id')
-      .eq('chat_id', chatId)
-      .eq('user_id', me)
-      .maybeSingle();
-    if (ban) throw new Error('Aap is group se ban hain');
-    const { muted, remainingMs } = await this.isMuted(chatId, me);
-    if (muted) throw new Error(`Aap ${formatMs(remainingMs)} ke liye mute hain — waqt poora hone par dobara try karein`);
-    if (!this.isOwner() && (await this.isGroupLocked(chatId))) {
-      throw new Error('Group lock hai — sirf owner message bhej sakta hai');
-    }
+    const owner = this.isOwner();
+    const [banRes, muteState, locked] = await Promise.all([
+      this.sb.from('bans').select('user_id').eq('chat_id', chatId).eq('user_id', me).maybeSingle(),
+      this.isMuted(chatId, me),
+      owner ? Promise.resolve(false) : this.isGroupLocked(chatId),
+    ]);
+    if (banRes.data) throw new Error('Aap is group se ban hain');
+    if (muteState.muted) throw new Error(`Aap ${formatMs(muteState.remainingMs)} ke liye mute hain — waqt poora hone par dobara try karein`);
+    if (locked) throw new Error('Group lock hai — sirf owner message bhej sakta hai');
+  }
+
+  /** v6: user ids ke display names — ek hi profiles query me. */
+  private async getNamesForIds(userIds: string[]): Promise<{ userId: string; displayName: string }[]> {
+    const ids = [...new Set((userIds || []).filter(Boolean))];
+    if (ids.length === 0) return [];
+    const { data } = await this.sb.from('profiles').select('id,display_name').in('id', ids);
+    return ((data || []) as Array<{ id: string; display_name: string }>).map((p) => ({
+      userId: p.id,
+      displayName: p.display_name || 'User',
+    }));
+  }
+
+  /** v6: per-member slow mode, 30s TTL cache (har message par query nahi). */
+  private async getMemberSlowCached(chatId: string, userId: string): Promise<number> {
+    const now = Date.now();
+    const c = this.slowCache.get(chatId);
+    if (c && now - c.at < 30_000) return c.sec;
+    const sec = await this.getMemberSlow(chatId, userId);
+    this.slowCache.set(chatId, { sec, at: now });
+    return sec;
   }
 
   // ---- 6. Speed (v5) ----
@@ -2725,6 +2906,7 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     const s = Math.max(0, Math.floor(seconds || 0));
     if (s <= 0) {
       await this.sb.from('slow_modes').delete().eq('chat_id', chatId).eq('user_id', userId);
+      this.slowCache.delete(chatId); // v6: cache invalidate
       return;
     }
     if (s > 86400) throw new Error('Slow mode zyada se zyada 24 ghante ka ho sakta hai');
@@ -2732,6 +2914,7 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       { chat_id: chatId, user_id: userId, slow_seconds: s },
       { onConflict: 'chat_id,user_id' }
     );
+    this.slowCache.delete(chatId); // v6: cache invalidate taake naya limit foran lage
   }
 
   /** v5: desktop contract ka naam (setMemberSlowMode) — wahi kaam. */

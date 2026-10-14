@@ -22,6 +22,8 @@ interface Props {
   chat: Chat;
   me: UserProfile;
   ownerId: string | null;
+  /** v6: group kholo (dashboard se naye group me jao) */
+  onOpenGroup?: (chat: Chat) => void;
 }
 
 function StatCard({ icon, label, value, tint }: { icon: string; label: string; value: string | number; tint: string }) {
@@ -38,7 +40,7 @@ function StatCard({ icon, label, value, tint }: { icon: string; label: string; v
   );
 }
 
-export default function OwnerDashboard({ chat, me, ownerId }: Props) {
+export default function OwnerDashboard({ chat, me, ownerId, onOpenGroup }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [remoteStats, setRemoteStats] = useState<GroupStats | null>(null);
   const [muted, setMuted] = useState<MutedUserInfo[]>([]);
@@ -53,8 +55,60 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
   const [pollQ, setPollQ] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
   const [, tick] = useState(0);
+  // ---- v6: groups (naya group + members) ----
+  const [groups, setGroups] = useState<Chat[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [memberQuery, setMemberQuery] = useState('');
+  const [memberResults, setMemberResults] = useState<UserProfile[]>([]);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
+
+  // v6: groups list (live) — naya group bante hi yahan nazar aayega
+  useEffect(() => {
+    const unsub = backend.onChats((list) => {
+      setGroups(list.filter((c) => c.type === 'group'));
+    });
+    return unsub;
+  }, []);
+
+  const createNewGroup = async () => {
+    const nm = newGroupName.trim();
+    if (!nm) { showToast('Group ka naam likhein'); return; }
+    setCreating(true);
+    try {
+      await backend.createGroup(nm, []);
+      setNewGroupName('');
+      showToast(`"${nm}" ban gaya ✓ — neeche list me kholein`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Group nahi ban saka');
+    } finally { setCreating(false); }
+  };
+
+  const searchMembers = async (q: string) => {
+    setMemberQuery(q);
+    if (q.trim().length < 2) { setMemberResults([]); return; }
+    try {
+      const res = await backend.searchUsers(q.trim());
+      const g = groups.find((x) => x.id === expandedGroup);
+      const existing = new Set(g?.participants || []);
+      setMemberResults(res.filter((u) => !existing.has(u.id)).slice(0, 8));
+    } catch { setMemberResults([]); }
+  };
+
+  const addMember = async (g: Chat, u: UserProfile) => {
+    if (!backend.addGroupMembers) { showToast('Backend me add members nahi hai'); return; }
+    setAddingId(u.id);
+    try {
+      await backend.addGroupMembers(g.id, [u.id]);
+      setMemberResults((l) => l.filter((x) => x.id !== u.id));
+      showToast(`${u.displayName} group me add ho gaya ✓`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Add nahi ho saka');
+    } finally { setAddingId(null); }
+  };
 
   useEffect(() => {
     const unsub = backend.onMessages(chat.id, setMessages);
@@ -209,6 +263,110 @@ export default function OwnerDashboard({ chat, me, ownerId }: Props) {
             </h1>
             <p className="text-[13px] text-[#8696a0]">Madrasa Group ka poora control</p>
           </div>
+        </div>
+
+        {/* v6: groups — naya group banao, list dekho, members add karo (sirf owner) */}
+        <SectionTitle>Groups</SectionTitle>
+        <div className="bg-[#111b21] border border-[#222d34] rounded-2xl p-4 space-y-3">
+          <div className="flex gap-2">
+            <input
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') createNewGroup(); }}
+              placeholder="Naye group ka naam likhein…"
+              maxLength={60}
+              className="flex-1 bg-[#1f2c34] rounded-xl px-4 py-2.5 text-[13.5px] text-[#e9edef] outline-none focus:ring-1 focus:ring-[#00a884]"
+            />
+            <button
+              onClick={createNewGroup}
+              disabled={creating || !newGroupName.trim()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00a884] hover:bg-[#06cf9c] text-white text-[13.5px] font-medium transition disabled:opacity-50"
+            >
+              <Icon d={ICONS.plus} size={17} /> {creating ? 'Ban raha hai…' : 'Naya Group'}
+            </button>
+          </div>
+          {groups.length === 0 ? (
+            <p className="text-[12.5px] text-[#8696a0] py-2">Koi group nahi mila — upar se naya banayein.</p>
+          ) : (
+            <div className="space-y-2">
+              {groups.map((g) => {
+                const expanded = expandedGroup === g.id;
+                const memberList = Object.entries(g.participantProfiles || {}).map(([id, p]) => ({
+                  id,
+                  name: p.displayName || 'Koi',
+                  photoURL: p.photoURL,
+                  isMe: id === me.id,
+                }));
+                return (
+                  <div key={g.id} className="bg-[#1f2c34]/50 rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <Avatar name={g.name} photoURL={g.photoURL} size={38} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13.5px] font-medium text-[#e9edef] truncate flex items-center gap-2">
+                          {g.name}
+                          {g.isMainGroup && (
+                            <span className="text-[10px] font-semibold bg-[#00a884]/15 text-[#00a884] rounded-full px-2 py-[1px]">Main</span>
+                          )}
+                        </p>
+                        <p className="text-[11.5px] text-[#8696a0]">{g.participants.length} members</p>
+                      </div>
+                      {onOpenGroup && (
+                        <button
+                          onClick={() => onOpenGroup(g)}
+                          className="text-[12px] font-medium text-[#00a884] hover:underline px-1"
+                        >
+                          Kholo
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setExpandedGroup(expanded ? null : g.id); setMemberQuery(''); setMemberResults([]); }}
+                        className="text-[12px] font-medium text-[#8696a0] hover:text-[#e9edef] px-1"
+                      >
+                        {expanded ? 'Band karo' : 'Members'}
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="px-3 pb-3 pt-1 border-t border-[#222d34]/60">
+                        <div className="flex flex-wrap gap-1.5 py-2">
+                          {memberList.map((m) => (
+                            <span key={m.id} className="flex items-center gap-1.5 bg-[#0b141a] rounded-full pl-1 pr-2.5 py-1">
+                              <Avatar name={m.name} photoURL={m.photoURL} size={22} />
+                              <span className="text-[11.5px] text-[#d1d7db] max-w-[120px] truncate">{m.name}{m.isMe ? ' (aap)' : ''}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            value={memberQuery}
+                            onChange={(e) => searchMembers(e.target.value)}
+                            placeholder="Naam likh kar member dhoondein…"
+                            className="flex-1 bg-[#0b141a] rounded-xl px-3 py-2 text-[12.5px] text-[#e9edef] outline-none focus:ring-1 focus:ring-[#00a884]"
+                          />
+                        </div>
+                        {memberResults.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {memberResults.map((u) => (
+                              <div key={u.id} className="flex items-center gap-2.5 bg-[#0b141a] rounded-xl px-3 py-2">
+                                <Avatar name={u.displayName} photoURL={u.photoURL} size={28} />
+                                <p className="flex-1 text-[12.5px] text-[#e9edef] truncate">{u.displayName}</p>
+                                <button
+                                  onClick={() => addMember(g, u)}
+                                  disabled={addingId === u.id}
+                                  className="flex items-center gap-1 text-[12px] font-medium text-[#00a884] hover:underline disabled:opacity-50"
+                                >
+                                  <Icon d={ICONS.userPlus} size={14} /> {addingId === u.id ? 'Add…' : 'Add'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* stats */}
