@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { ChatMessage, SendInput } from '@/lib/backend/types';
+import { avatarColor } from '@/lib/format';
 import { Icon, ICONS, Popover, Modal, backendV2, v2call } from './common';
 
 interface Props {
@@ -171,18 +172,8 @@ export default function MessageInput({ chatId, replyTo, onClearReply, enterToSen
 
   return (
     <div className="bg-[var(--v2-panel)] shrink-0 relative">
-      {/* reply preview */}
-      {replyTo && (
-        <div className="flex items-center gap-2 px-4 pt-2 animate-[v2fade_.15s_ease-out]">
-          <div className="flex-1 bg-[var(--v2-panel2)] border-l-[3px] border-[var(--v2-accent)] rounded-md px-3 py-1.5 min-w-0">
-            <p className="text-[12px] font-semibold text-[var(--v2-accent)]">{replyTo.senderName}</p>
-            <p className="text-[12.5px] text-[var(--v2-muted)] truncate">{replyTo.text?.slice(0, 120) || `[${replyTo.type}]`}</p>
-          </div>
-          <button onClick={onClearReply} className="p-1.5 text-[var(--v2-muted)] hover:text-[var(--v2-text)]">
-            <Icon d={ICONS.x} size={18} />
-          </button>
-        </div>
-      )}
+      {/* reply preview — khubsurat card */}
+      {replyTo && <ReplyCard replyTo={replyTo} onClear={onClearReply} />}
 
       <div className="flex items-end gap-1 px-3 py-2.5">
         {recording ? (
@@ -282,6 +273,44 @@ export default function MessageInput({ chatId, replyTo, onClearReply, enterToSen
       </div>
 
       {pollOpen && <PollComposer chatId={chatId} onClose={() => setPollOpen(false)} onDone={() => { setPollOpen(false); onSent(); }} />}
+    </div>
+  );
+}
+
+function ReplyCard({ replyTo, onClear }: { replyTo: ChatMessage; onClear(): void }) {
+  const senderColor = avatarColor(replyTo.senderName || '?');
+  const kindLabel =
+    replyTo.type === 'image' ? '📷 Photo'
+    : replyTo.type === 'audio' ? '🎤 Voice message'
+    : replyTo.type === 'file' ? `📎 ${replyTo.fileName || 'Document'}`
+    : replyTo.type === 'poll' ? `📊 ${replyTo.poll?.question || 'Poll'}`
+    : null;
+  return (
+    <div className="px-4 pt-2.5 animate-[v2fadeup_.2s_ease-out]">
+      <div className="relative flex items-stretch gap-0 rounded-xl overflow-hidden border border-[var(--v2-border)] bg-[var(--v2-panel2)] shadow-sm">
+        <span className="w-1 shrink-0" style={{ background: senderColor }} />
+        {replyTo.type === 'image' && replyTo.mediaURL && (
+          <img src={replyTo.mediaURL} alt="" className="w-14 h-14 object-cover m-2 rounded-lg shrink-0" />
+        )}
+        <div className="flex-1 min-w-0 py-2 pl-1 pr-2">
+          <p className="text-[12px] font-bold truncate" style={{ color: senderColor }}>
+            {replyTo.senderName}
+          </p>
+          <p className="text-[12.5px] text-[var(--v2-muted)] truncate mt-0.5">
+            {kindLabel ?? replyTo.text?.slice(0, 120) ?? ''}
+          </p>
+          {replyTo.type === 'text' && replyTo.text && replyTo.text.length > 120 && (
+            <p className="text-[12.5px] text-[var(--v2-muted)] truncate opacity-70">{replyTo.text.slice(120, 200)}</p>
+          )}
+        </div>
+        <button
+          onClick={onClear}
+          className="self-start m-1.5 p-1.5 rounded-full text-[var(--v2-muted)] hover:bg-[var(--v2-hover)] hover:text-[var(--v2-text)] transition shrink-0"
+          title="Reply hatayein"
+        >
+          <Icon d={ICONS.x} size={16} />
+        </button>
+      </div>
     </div>
   );
 }

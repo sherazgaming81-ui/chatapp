@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Avatar from '@/components/Avatar';
 import { backend } from '@/lib/backend';
 import type { BackendV2, BlockedUser } from '@/lib/v2/types';
 import type { PrivacyLevel, UserProfile } from '@/lib/backend/types';
 import BottomSheet, { SheetRow } from './BottomSheet';
+import ProfilePicButton from '../shared/ProfilePicButton';
+import { tapHaptic } from '../shared/haptics';
 import { chatDisplayName } from './ChatList';
 
 const backendV2 = backend as unknown as BackendV2;
@@ -78,6 +79,8 @@ export default function SettingsScreen({
   onUnlockChat,
   night,
   onNight,
+  compact,
+  onCompact,
   onSignOut,
 }: {
   user: UserProfile;
@@ -90,6 +93,8 @@ export default function SettingsScreen({
   onUnlockChat: (id: string) => void;
   night: NightSchedule;
   onNight: (n: NightSchedule) => void;
+  compact: boolean;
+  onCompact: (v: boolean) => void;
   onSignOut: () => void;
 }) {
   const [editing, setEditing] = useState<'name' | 'about' | null>(null);
@@ -106,7 +111,6 @@ export default function SettingsScreen({
   const [showBackup, setShowBackup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const photoInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setName(user.displayName); setAbout(user.about || ''); setPrivacy(user.privacy || { lastSeen: 'everyone', photo: 'everyone', online: 'everyone' }); setDisappearing(user.disappearingAfter || 0); }, [user]);
@@ -127,18 +131,19 @@ export default function SettingsScreen({
     setTimeout(() => setMsg(''), 2500);
   };
 
-  const changePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
+  const uploadPhoto = async (f: File) => {
     setSaving(true);
     try {
       const { url } = await backend.uploadMedia('profile-photos', f);
       await backend.updateProfile({ photoURL: url });
       setMsg('Photo badal gayi ✓');
-    } catch { setMsg('Photo upload nahi ho saki'); }
-    setSaving(false);
-    setTimeout(() => setMsg(''), 2500);
+    } catch {
+      setMsg('Photo upload nahi ho saki');
+      throw new Error('upload failed');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMsg(''), 2500);
+    }
   };
 
   const setPriv = async (key: 'lastSeen' | 'photo' | 'online', val: PrivacyLevel) => {
@@ -204,11 +209,12 @@ export default function SettingsScreen({
     <div className="h-full overflow-y-auto pb-8">
       {/* Profile card */}
       <div className="mx-3 mt-2 mb-5 bg-[var(--mv2-sheet)] rounded-2xl p-5 flex items-center gap-4">
-        <button onClick={() => photoInput.current?.click()} className="relative shrink-0" aria-label="Profile photo badlein">
-          <Avatar name={user.displayName} photoURL={user.photoURL} size={72} />
-          <span className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[var(--mv2-accent)] text-white flex items-center justify-center text-[16px]">📷</span>
-        </button>
-        <input ref={photoInput} type="file" accept="image/*" className="hidden" onChange={changePhoto} />
+        <ProfilePicButton
+          name={user.displayName}
+          photoURL={user.photoURL}
+          size={76}
+          onUpload={uploadPhoto}
+        />
         <div className="flex-1 min-w-0">
           {editing === 'name' ? (
             <div className="flex gap-2">
@@ -258,6 +264,16 @@ export default function SettingsScreen({
             ))}
           </div>
         } />
+        <div className="px-4 py-3 flex items-center justify-between border-t border-[var(--mv2-divider)]">
+          <span>
+            <span className="block text-[15.5px] text-[var(--mv2-text)]">Compact mode</span>
+            <span className="block text-[13px] text-[var(--mv2-muted)]">Zyada chats ek screen par</span>
+          </span>
+          <button onClick={() => { onCompact(!compact); tapHaptic(); }} aria-label="Compact mode"
+            className={`w-[52px] h-8 rounded-full p-1 transition-colors ${compact ? 'bg-[var(--mv2-accent)]' : 'bg-[var(--mv2-divider)]'}`}>
+            <span className={`block w-6 h-6 rounded-full bg-white shadow transition-transform ${compact ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
         <div className="px-4 py-3 flex items-center justify-between">
           <span>
             <span className="block text-[15.5px] text-[var(--mv2-text)]">Night schedule</span>

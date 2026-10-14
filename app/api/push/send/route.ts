@@ -103,6 +103,20 @@ async function sendWebPush(
   return res.status;
 }
 
+// ---- v3: duplicate-send protection ----
+// Frontend (purana triggerPush) aur backend dono se push aa sakta hai —
+// 45 second ke andar same chatId+title+body dobara aaye to skip karo.
+const recentSends = new Map<string, number>();
+function isDuplicate(key: string): boolean {
+  const now = Date.now();
+  for (const [k, t] of recentSends) {
+    if (now - t > 45000) recentSends.delete(k);
+  }
+  if (recentSends.has(key)) return true;
+  recentSends.set(key, now);
+  return false;
+}
+
 // ---- route ----
 export async function POST(req: NextRequest) {
   try {
@@ -110,8 +124,12 @@ export async function POST(req: NextRequest) {
     const token = auth.replace(/^Bearer\s+/i, '');
     if (!token) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-    const { chatId, title, body: text } = await req.json();
+    const { chatId, title, body: text, mentions } = await req.json();
     if (!chatId) return NextResponse.json({ error: 'chatId required' }, { status: 400 });
+
+    // Duplicate trigger (frontend + backend dono) se bacho
+    const dedupKey = `${chatId}|${title || ''}|${text || ''}`;
+    if (isDuplicate(dedupKey)) return NextResponse.json({ sent: 0, deduped: true });
 
     const sb = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -135,11 +153,25 @@ export async function POST(req: NextRequest) {
     const mutedSet = new Set(((settings || []) as Array<{ user_id: string; muted: boolean }>).filter((s) => s.muted).map((s) => s.user_id));
     const targets = recipients.filter((id) => !mutedSet.has(id));
 
-    const { data: subs } = await sb.from('push_subscriptions').select('endpoint,keys').in('user_id', targets);
-    const list = (subs || []) as Array<{ endpoint: string; keys: { p256dh: string; auth: string } }>;
+    const { data: subs } = await sb.from('push_subscriptions').select('endpoint,keys,user_id').in('user_id', targets);
+    const list = (subs || []) as Array<{ endpoint: string; keys: { p256dh: string; auth: string }; user_id: string }>;
 
-    const payload = JSON.stringify({ title: title || 'Chat', body: text || 'Naya message', chatId });
-    const results = await Promise.allSettled(list.map((s) => sendWebPush(s, payload)));
+    // v3: mention alerts — mentioned users ko special payload
+    const mentionSet = new Set(Array.isArray(mentions) ? (mentions as string[]).filter((id) => targets.includes(id)) : []);
+    const baseTitle = title || 'Chat';
+    const baseBody = text || 'Naya message';
+    const results = await Promise.allSettled(
+      list.map((s) => {
+        const isMentioned = mentionSet.has(s.user_id);
+        const payload = JSON.stringify({
+          title: isMentioned ? `📣 ${baseTitle} ne aapko mention kiya` : baseTitle,
+          body: baseBody,
+          chatId,
+          tag: isMentioned ? `mention-${chatId}` : `msg-${chatId}`,
+        });
+        return sendWebPush(s, payload);
+      })
+    );
 
     // 404/410 wali dead subscriptions saaf karo
     const dead: string[] = [];
@@ -154,6 +186,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sent, total: list.length });
   } catch (e) {
     console.error('push send failed:', e);
-    return NextResponse.json({ error: 'failed' }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'failed';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

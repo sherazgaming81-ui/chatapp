@@ -127,12 +127,13 @@ export default function Sidebar({ me, chats, selectedId, onSelect, onOpenSetting
             {query ? 'Koi chat nahi mili.' : tab === 'groups' ? 'Abhi koi group nahi hai.' : 'Abhi koi chat nahi. Nayi chat shuru karein!'}
           </div>
         )}
-        {rows.map((c) => (
+        {rows.map((c, i) => (
           <ChatRow
             key={c.id}
             chat={c}
             meId={me.id}
             selected={c.id === selectedId}
+            index={i}
             onSelect={() => onSelect(c.id)}
           />
         ))}
@@ -155,7 +156,7 @@ function MenuItem({ label, icon, onClick }: { label: string; icon: string; onCli
   );
 }
 
-function ChatRow({ chat, meId, selected, onSelect }: { chat: Chat; meId: string; selected: boolean; onSelect(): void }) {
+function ChatRow({ chat, meId, selected, index, onSelect }: { chat: Chat; meId: string; selected: boolean; index: number; onSelect(): void }) {
   const lm = chat.lastMessage;
   const preview = lm
     ? lm.type === 'image'
@@ -173,9 +174,10 @@ function ChatRow({ chat, meId, selected, onSelect }: { chat: Chat; meId: string;
   return (
     <button
       onClick={onSelect}
-      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors relative ${
+      className={`v2rowin w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors relative ${
         selected ? 'bg-[var(--v2-active)]' : 'hover:bg-[var(--v2-hover)]'
       }`}
+      style={{ animationDelay: `${Math.min(index, 14) * 30}ms` }}
     >
       <Avatar name={chat.name} photoURL={chat.photoURL} size={48} />
       <div className="flex-1 min-w-0">

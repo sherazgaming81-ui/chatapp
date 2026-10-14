@@ -12,6 +12,12 @@ import BottomSheet, { SheetRow } from './BottomSheet';
 import MicButton, { VoicePlayer } from './VoiceRecorder';
 import CameraCapture from './CameraCapture';
 import StickerPicker from './StickerPicker';
+import PhotoEditor from './PhotoEditor';
+import VideoTrimmer from './VideoTrimmer';
+import EmptyArt from '../shared/EmptyArt';
+import TypingDots from '../shared/TypingDots';
+import { extractUrls, LinkPreviewCard } from '../shared/LinkPreview';
+import { sendHaptic, tapHaptic } from '../shared/haptics';
 import { chatDisplayName, chatPhoto } from './ChatList';
 
 const backendV2 = backend as unknown as BackendV2;
@@ -32,7 +38,25 @@ function msgTick(m: ChatMessage, chat: Chat): 'sent' | 'delivered' | 'read' {
 
 function bubblePreview(m: ChatMessage): string {
   if (m.text) return m.text.slice(0, 60);
+  if (m.type === 'image' && m.mediaURL && /\.(webm|mp4|mov)(\?|$)/i.test(m.mediaURL)) return '🎬 Video';
   return m.type === 'image' ? '📷 Photo' : m.type === 'audio' ? '🎤 Voice' : m.type === 'poll' ? '📊 Poll' : '📎 File';
+}
+
+/** Search ka lafz yellow highlight karein */
+function hi(text: string, q: string): React.ReactNode {
+  const query = q.trim().toLowerCase();
+  if (!query || !text) return text;
+  const out: React.ReactNode[] = [];
+  let rest = text;
+  let k = 0;
+  while (rest) {
+    const idx = rest.toLowerCase().indexOf(query);
+    if (idx < 0) { out.push(rest); break; }
+    if (idx > 0) out.push(rest.slice(0, idx));
+    out.push(<mark key={k++} className="mv2-hl">{rest.slice(idx, idx + query.length)}</mark>);
+    rest = rest.slice(idx + query.length);
+  }
+  return <>{out}</>;
 }
 
 export default function ChatScreen({
@@ -77,6 +101,9 @@ export default function ChatScreen({
   const [searchQ, setSearchQ] = useState('');
   const [searchHits, setSearchHits] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
+  const [pendingPhoto, setPendingPhoto] = useState<{ file: File; caption: string } | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<File | null>(null);
+  const [lastSendAt, setLastSendAt] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,11 +126,18 @@ export default function ChatScreen({
     return unsub;
   }, [chat.id, me]);
 
+  // FIX (problem 4): messages hamesha created_at ascending hon — naya message neeche.
+  // Backend sort karta hai, phir bhi defensive sort taake koi edge-case upar na dhakele.
+  const sorted = useMemo(
+    () => [...messages].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+    [messages]
+  );
+
   // Mark read when new incoming arrives
   useEffect(() => {
-    const last = messages[messages.length - 1];
+    const last = sorted[sorted.length - 1];
     if (last && last.senderId !== me) backend.markRead(chat.id).catch(() => {});
-  }, [messages, chat.id, me]);
+  }, [sorted, chat.id, me]);
 
   // Mute state
   useEffect(() => {
@@ -128,7 +162,7 @@ export default function ChatScreen({
   }, [chat.typing, chat.participantProfiles, me]);
 
   const subtitle = typingNames.length > 0
-    ? `${typingNames.join(', ')} likh raha hai...`
+    ? `${typingNames.join(', ')} likh raha hai…`
     : chat.type === 'group'
       ? `${chat.participants.length} members`
       : otherId
@@ -137,6 +171,9 @@ export default function ChatScreen({
           : fmtLastSeen(chat.participantProfiles[otherId]?.lastSeen || 0, false)
         : '';
 
+  // Compose-time link preview (pehla URL)
+  const composeUrl = useMemo(() => extractUrls(input)[0] || null, [input]);
+
   // Scroll handling
   const scrollBottom = (smooth = true) => {
     const el = listRef.current;
@@ -144,7 +181,7 @@ export default function ChatScreen({
   };
   useEffect(() => {
     if (nearBottom.current) scrollBottom(false);
-  }, [messages.length]);
+  }, [sorted.length, typingNames.length]);
 
   const onInput = (v: string) => {
     setInput(v);
@@ -172,6 +209,8 @@ export default function ChatScreen({
     try {
       await backend.sendMessage(chat.id, { type: 'text', text, replyTo: rp });
       clearDraft();
+      setLastSendAt(Date.now());
+      sendHaptic();
     } catch { setInput(text); }
     setSending(false);
   };
@@ -198,10 +237,29 @@ export default function ChatScreen({
 
   const sendCameraPhoto = async (file: File, caption: string) => {
     setShowCamera(false);
+    // Camera ke baad WA-style editor khulta hai (crop/text/doodle)
+    setPendingPhoto({ file, caption });
+  };
+
+  const sendEditedPhoto = async (file: File, caption: string) => {
+    setPendingPhoto(null);
     try {
       const up = await backend.uploadMedia(chat.id, file);
       await backend.sendMessage(chat.id, { type: 'image', text: caption, mediaURL: up.url, replyTo });
       setReplyTo(null);
+      setLastSendAt(Date.now());
+      sendHaptic();
+    } catch { /* ignore */ }
+  };
+
+  const sendTrimmedVideo = async (file: File) => {
+    setPendingVideo(null);
+    try {
+      const up = await backend.uploadMedia(chat.id, file);
+      await backend.sendMessage(chat.id, { type: 'image', text: '', mediaURL: up.url, replyTo });
+      setReplyTo(null);
+      setLastSendAt(Date.now());
+      sendHaptic();
     } catch { /* ignore */ }
   };
 
@@ -210,11 +268,9 @@ export default function ChatScreen({
     e.target.value = '';
     if (!f) return;
     setShowAttach(false);
-    try {
-      const up = await backend.uploadMedia(chat.id, f);
-      await backend.sendMessage(chat.id, { type: f.type.startsWith('video') ? 'image' : 'image', text: '', mediaURL: up.url, replyTo });
-      setReplyTo(null);
-    } catch { /* ignore */ }
+    // Video → trimmer, Photo → editor (WhatsApp flow)
+    if (f.type.startsWith('video/')) setPendingVideo(f);
+    else setPendingPhoto({ file: f, caption: '' });
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,7 +367,16 @@ export default function ChatScreen({
             <Avatar name={title} photoURL={chatPhoto(chat, me)} size={42} />
             <span className="min-w-0">
               <span className="block font-semibold text-[16px] text-[var(--mv2-text)] truncate">{title}</span>
-              <span className="block text-[12px] text-[var(--mv2-muted)] truncate">{subtitle}</span>
+              <span className="flex items-center gap-1.5 text-[12px] text-[var(--mv2-muted)] truncate">
+                {typingNames.length > 0 ? (
+                  <>
+                    <span className="text-[var(--mv2-accent)] font-medium truncate">{typingNames.join(', ')}</span>
+                    <TypingDots size={5} color="var(--mv2-accent)" />
+                  </>
+                ) : (
+                  subtitle
+                )}
+              </span>
             </span>
           </button>
           <button onClick={() => { setSearching((s) => !s); setSearchQ(''); }} aria-label="Search" className="w-11 h-11 flex items-center justify-center text-[var(--mv2-muted)]">
@@ -352,10 +417,11 @@ export default function ChatScreen({
         }}
         className={`flex-1 overflow-y-auto px-3 py-2 mv2-wall-${wallpaperId}`}
       >
-        {messages.map((m, i) => {
-          const prev = messages[i - 1];
+        {sorted.map((m, i) => {
+          const prev = sorted[i - 1];
           const showDay = !prev || fmtDateDivider(prev.createdAt) !== fmtDateDivider(m.createdAt);
           const mine = m.senderId === me;
+          const fresh = mine && lastSendAt > 0 && (m.createdAt || 0) >= lastSendAt - 2000;
           return (
             <div key={m.id}>
               {showDay && (
@@ -370,6 +436,8 @@ export default function ChatScreen({
                 m={m}
                 mine={mine}
                 chat={chat}
+                highlight={searching ? searchQ : ''}
+                fresh={fresh}
                 onReply={() => doReply(m)}
                 onLongPress={() => openActions(m)}
                 onVote={(idx) => vote(m, idx)}
@@ -377,12 +445,19 @@ export default function ChatScreen({
             </div>
           );
         })}
-        {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center px-10">
-            <div className="w-20 h-20 rounded-full bg-[var(--mv2-accent-soft)] flex items-center justify-center mb-4">
-              <Avatar name={title} photoURL={chatPhoto(chat, me)} size={56} />
+        {/* WhatsApp-style typing bubble */}
+        {typingNames.length > 0 && (
+          <div className="flex justify-start mb-1.5 mv2-fade-anim">
+            <div className="bg-[var(--mv2-bubble-in)] rounded-xl rounded-tl-sm px-4 py-3.5 shadow-sm">
+              <TypingDots />
             </div>
-            <p className="text-[var(--mv2-muted)] text-[14px]">Pehla message bhejein — baat shuru karein 👋</p>
+          </div>
+        )}
+        {sorted.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-10">
+            <EmptyArt size={150} className="mb-5 opacity-90" />
+            <p className="text-[15px] font-semibold text-[var(--mv2-text)] mb-1">Abhi khaali hai</p>
+            <p className="text-[var(--mv2-muted)] text-[14px]">Pehla message bhejein — baat shuru karein</p>
           </div>
         )}
       </div>
@@ -407,6 +482,13 @@ export default function ChatScreen({
           onStickerSend={sendSticker}
           onClose={() => setShowPicker(false)}
         />
+      )}
+
+      {/* Link preview — likhte waqt (WA style) */}
+      {composeUrl && (
+        <div className="px-3 pb-1.5 mv2-fade-anim">
+          <LinkPreviewCard url={composeUrl} compact />
+        </div>
       )}
 
       {/* Input bar */}
@@ -452,7 +534,7 @@ export default function ChatScreen({
         </div>
       </div>
 
-      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onGallery} />
+      <input ref={galleryRef} type="file" accept="image/*,video/*" className="hidden" onChange={onGallery} />
       <input ref={fileRef} type="file" className="hidden" onChange={onFile} />
 
       {/* Attach sheet */}
@@ -512,6 +594,18 @@ export default function ChatScreen({
             <p className="mt-3 text-[18px] font-semibold text-[var(--mv2-text)]">{title}</p>
             <p className="text-[13px] text-[var(--mv2-muted)]">{subtitle}</p>
             {chat.description && <p className="text-[14px] text-[var(--mv2-muted)] mt-2 text-center">{chat.description}</p>}
+            {/* Msg counter + status chips */}
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <span className="px-3 py-1.5 rounded-full bg-[var(--mv2-accent-soft)] text-[var(--mv2-accent)] text-[13px] font-semibold">
+                💬 {sorted.length} messages
+              </span>
+              {muted && (
+                <span className="px-3 py-1.5 rounded-full bg-[var(--mv2-input)] text-[var(--mv2-muted)] text-[13px] font-medium">🔕 Muted</span>
+              )}
+              {isChatLocked(chat.id) && (
+                <span className="px-3 py-1.5 rounded-full bg-[var(--mv2-input)] text-[var(--mv2-muted)] text-[13px] font-medium">🔒 Locked</span>
+              )}
+            </div>
           </div>
           {chat.type === 'group' && (
             <>
@@ -587,15 +681,35 @@ export default function ChatScreen({
 
       {/* Camera overlay */}
       {showCamera && <CameraCapture onClose={() => setShowCamera(false)} onSend={sendCameraPhoto} />}
+
+      {/* Photo editor (WA style) */}
+      {pendingPhoto && (
+        <PhotoEditor
+          file={pendingPhoto.file}
+          initialCaption={pendingPhoto.caption}
+          onClose={() => setPendingPhoto(null)}
+          onSend={sendEditedPhoto}
+        />
+      )}
+
+      {/* Video trimmer (WA style) */}
+      {pendingVideo && (
+        <VideoTrimmer
+          file={pendingVideo}
+          onClose={() => setPendingVideo(null)}
+          onSend={sendTrimmedVideo}
+        />
+      )}
     </div>
   );
 }
 
 /** Single message row: swipe-to-reply + long-press */
 function MessageRow({
-  m, mine, chat, onReply, onLongPress, onVote, ref,
+  m, mine, chat, highlight, fresh, onReply, onLongPress, onVote, ref,
 }: {
   m: ChatMessage; mine: boolean; chat: Chat;
+  highlight: string; fresh: boolean;
   onReply: () => void; onLongPress: () => void; onVote: (idx: number) => void;
   ref: (el: HTMLDivElement | null) => void;
 }) {
@@ -634,7 +748,7 @@ function MessageRow({
   return (
     <div
       ref={ref}
-      className={`flex ${mine ? 'justify-end' : 'justify-start'} mb-1.5 mv2-msg-anim`}
+      className={`flex ${mine ? 'justify-end' : 'justify-start'} mb-1.5 ${fresh ? 'mv2-send-anim' : 'mv2-msg-anim'}`}
       onTouchStart={touchStart}
       onTouchMove={touchMove}
       onTouchEnd={touchEnd}
@@ -656,7 +770,7 @@ function MessageRow({
           </div>
         )}
         {m.forwarded && <p className={`text-[11px] italic mb-0.5 ${mine ? 'text-white/70' : 'text-[var(--mv2-muted)]'}`}>↪ Forwarded</p>}
-        <MessageBody m={m} mine={mine} onVote={onVote} />
+        <MessageBody m={m} mine={mine} highlight={highlight} onVote={onVote} />
         <div className={`flex items-center justify-end gap-1 mt-0.5 ${mine ? '' : ''}`}>
           {m.editedAt && <span className={`text-[10px] ${mine ? 'text-white/60' : 'text-[var(--mv2-muted)]'}`}>edited</span>}
           <span className={`text-[10.5px] ${mine ? 'text-white/70' : 'text-[var(--mv2-muted)]'}`}>{fmtTime(m.createdAt)}</span>
@@ -667,14 +781,20 @@ function MessageRow({
   );
 }
 
-function MessageBody({ m, mine, onVote }: { m: ChatMessage; mine: boolean; onVote: (idx: number) => void }) {
+function MessageBody({ m, mine, highlight, onVote }: { m: ChatMessage; mine: boolean; highlight: string; onVote: (idx: number) => void }) {
   const textCls = `text-[15.5px] leading-[1.4] whitespace-pre-wrap break-words ${mine ? 'text-white' : 'text-[var(--mv2-text)]'}`;
+  const hl = (t: string) => (highlight ? hi(t, highlight) : t);
+  const isVideo = !!m.mediaURL && /\.(webm|mp4|mov)(\?|$)/i.test(m.mediaURL);
 
   if (m.type === 'image' && m.mediaURL) {
     return (
       <div className="mb-1">
-        <img src={m.mediaURL} alt="" className="rounded-lg max-h-64 w-full object-cover" loading="lazy" />
-        {m.text && <p className={textCls + ' mt-1'}>{m.text}</p>}
+        {isVideo ? (
+          <video src={m.mediaURL} controls playsInline preload="metadata" className="rounded-lg max-h-64 w-full bg-black" />
+        ) : (
+          <img src={m.mediaURL} alt="" className="rounded-lg max-h-64 w-full object-cover" loading="lazy" />
+        )}
+        {m.text && <p className={textCls + ' mt-1'}>{hl(m.text)}</p>}
       </div>
     );
   }
@@ -694,8 +814,7 @@ function MessageBody({ m, mine, onVote }: { m: ChatMessage; mine: boolean; onVot
       </a>
     );
   }
-  if (m.type === 'poll' && m.poll) {
-    const total = Object.values(m.poll.votes || {}).reduce((a, v) => a + v.length, 0);
+  if (m.type === 'poll' && m.poll) {    const total = Object.values(m.poll.votes || {}).reduce((a, v) => a + v.length, 0);
     return (
       <div className="min-w-[210px] py-1">
         <p className={`text-[15px] font-semibold mb-2 ${mine ? 'text-white' : 'text-[var(--mv2-text)]'}`}>📊 {m.poll.question}</p>
@@ -716,5 +835,11 @@ function MessageBody({ m, mine, onVote }: { m: ChatMessage; mine: boolean; onVot
       </div>
     );
   }
-  return <p className={textCls}>{m.text}</p>;
+  const firstUrl = m.type === 'text' ? extractUrls(m.text)[0] : undefined;
+  return (
+    <>
+      <p className={textCls}>{hl(m.text)}</p>
+      {firstUrl && <LinkPreviewCard url={firstUrl} mine={mine} compact />}
+    </>
+  );
 }

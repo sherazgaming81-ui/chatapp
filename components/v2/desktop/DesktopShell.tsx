@@ -22,7 +22,43 @@ import { Icon, ICONS } from './common';
 
 export type ThemeMode = 'auto' | 'light' | 'dark';
 export type BubbleStyle = 'default' | 'rounded';
-export type WallpaperKind = 'doodle' | 'plain';
+/** purani 'doodle'|'plain' values backward-compatible hain — ab gallery ids bhi aa sakti hain */
+export type WallpaperKind = string;
+export type MessageFont = 'system' | 'serif' | 'rounded' | 'mono';
+
+export const FONT_STACKS: Record<MessageFont, string> = {
+  system: `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`,
+  serif: `Georgia, 'Times New Roman', serif`,
+  rounded: `'Segoe UI Rounded', 'SF Pro Rounded', ui-rounded, system-ui, sans-serif`,
+  mono: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`,
+};
+
+export const FONT_LABELS: { v: MessageFont; name: string; sample: string }[] = [
+  { v: 'system', name: 'System', sample: 'Assalam o Alaikum!' },
+  { v: 'serif', name: 'Serif', sample: 'Assalam o Alaikum!' },
+  { v: 'rounded', name: 'Rounded', sample: 'Assalam o Alaikum!' },
+  { v: 'mono', name: 'Mono', sample: 'Assalam o Alaikum!' },
+];
+
+export interface WallpaperDef {
+  id: string;
+  name: string;
+  sub: string;
+  light: string; // light theme background CSS
+  dark: string; // dark theme background CSS
+}
+
+/** Wallpaper gallery — tayyar wallpapers (koi external image nahi, sab CSS). */
+export const WALLPAPERS: WallpaperDef[] = [
+  { id: 'doodle', name: 'Doodle', sub: 'WhatsApp jaisa pattern', light: '', dark: '' },
+  { id: 'plain', name: 'Plain', sub: 'Saaf solid background', light: '', dark: '' },
+  { id: 'ocean', name: 'Ocean', sub: 'Gehra neela', light: 'linear-gradient(135deg,#bfe3f2 0%,#8fc3e0 100%)', dark: 'linear-gradient(135deg,#10293d 0%,#0b141a 100%)' },
+  { id: 'sunset', name: 'Sunset', sub: 'Naranji shaam', light: 'linear-gradient(135deg,#ffd9a8 0%,#ff9d9e 100%)', dark: 'linear-gradient(135deg,#472a18 0%,#191009 100%)' },
+  { id: 'forest', name: 'Forest', sub: 'Hara bharra', light: 'linear-gradient(135deg,#c4e6c4 0%,#93cf93 100%)', dark: 'linear-gradient(135deg,#152b1b 0%,#0b141a 100%)' },
+  { id: 'lavender', name: 'Lavender', sub: 'Halka purple', light: 'linear-gradient(135deg,#e2d3f7 0%,#bda3e8 100%)', dark: 'linear-gradient(135deg,#2b2040 0%,#120e1a 100%)' },
+  { id: 'peach', name: 'Peach', sub: 'Naram gulabi', light: 'linear-gradient(135deg,#ffe7d6 0%,#ffcbb3 100%)', dark: 'linear-gradient(135deg,#3f251d 0%,#190f0c 100%)' },
+  { id: 'midnight', name: 'Midnight', sub: 'Raat ka neela', light: 'linear-gradient(135deg,#31405e 0%,#1b2436 100%)', dark: 'linear-gradient(135deg,#0d1622 0%,#05090f 100%)' },
+];
 
 export interface DesktopPrefs {
   theme: ThemeMode;
@@ -30,6 +66,7 @@ export interface DesktopPrefs {
   nightEnd: string; // "06:00"
   wallpaper: WallpaperKind;
   bubbleStyle: BubbleStyle;
+  messageFont: MessageFont;
   enterToSend: boolean;
 }
 
@@ -41,6 +78,7 @@ const DEFAULT_PREFS: DesktopPrefs = {
   nightEnd: '06:00',
   wallpaper: 'doodle',
   bubbleStyle: 'default',
+  messageFont: 'system',
   enterToSend: true,
 };
 
@@ -75,9 +113,23 @@ const DARK_DOODLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 const LIGHT_DOODLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%23d1c7b7' stroke-opacity='0.7' stroke-width='1'%3E%3Ccircle cx='20' cy='20' r='6'/%3E%3Cpath d='M60 30l8 8M68 30l-8 8'/%3E%3Crect x='90' y='70' width='10' height='10' rx='2'/%3E%3Cpath d='M15 90q8-10 16 0'/%3E%3C/g%3E%3C/svg%3E")`;
 
 function V2Styles() {
+  const galleryCss = WALLPAPERS.filter((w) => w.light)
+    .map(
+      (w) => `
+      .v2root[data-wallpaper="${w.id}"][data-theme="light"] .v2wallpaper { background: ${w.light}; }
+      .v2root[data-wallpaper="${w.id}"][data-theme="dark"] .v2wallpaper { background: ${w.dark}; }`,
+    )
+    .join('\n');
   return (
     <style>{`
-      .v2root { --v2-accent: #00a884; --v2-accent-soft: rgba(0,168,132,.12); --v2-danger-bg: rgba(234,0,56,.08); }
+      .v2root { --v2-accent: #00a884; --v2-accent-soft: rgba(0,168,132,.12); --v2-danger-bg: rgba(234,0,56,.08); --v2-msgfont: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        /* shared (mobile) components desktop par sahi rang me dikhein */
+        --mv2-accent: var(--v2-accent); --mv2-accent-soft: var(--v2-accent-soft);
+        --mv2-danger: #ea0038; --mv2-muted: var(--v2-muted); --mv2-text: var(--v2-text); }
+      @keyframes mv2spin { to { transform: rotate(360deg); } }
+      .v2root .mv2-spin { animation: mv2spin .8s linear infinite; }
+      @keyframes mv2shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+      .v2root .mv2-shake { animation: mv2shake .3s ease-in-out 2; }
       .v2root[data-theme="dark"] {
         --v2-bg: #0b141a; --v2-panel: #111b21; --v2-panel2: #1f2c34; --v2-panel3: #2a3942;
         --v2-text: #e9edef; --v2-text2: #d1d7db; --v2-muted: #8696a0;
@@ -97,6 +149,12 @@ function V2Styles() {
       .v2root[data-wallpaper="doodle"][data-theme="dark"] .v2wallpaper { background-color: var(--v2-wallpaper); background-image: ${DARK_DOODLE}; }
       .v2root[data-wallpaper="doodle"][data-theme="light"] .v2wallpaper { background-color: var(--v2-wallpaper); background-image: ${LIGHT_DOODLE}; }
       .v2root[data-wallpaper="plain"] .v2wallpaper { background-color: var(--v2-wallpaper); background-image: none; }
+      ${galleryCss}
+      /* chat list entrance animation */
+      @keyframes v2rowin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      .v2rowin { animation: v2rowin .28s cubic-bezier(.2,.7,.3,1) both; }
+      @keyframes v2fadeup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .v2fadeup { animation: v2fadeup .22s ease-out both; }
       .v2scroll::-webkit-scrollbar { width: 6px; height: 6px; }
       .v2scroll::-webkit-scrollbar-thumb { background: var(--v2-panel3); border-radius: 3px; }
       .v2scroll::-webkit-scrollbar-track { background: transparent; }
@@ -218,6 +276,7 @@ export default function DesktopShell() {
             infoOpen={infoOpen}
             onOpenInfo={openInfo}
             bubbleStyle={prefs.bubbleStyle}
+            messageFont={prefs.messageFont}
             enterToSend={prefs.enterToSend}
             jumpTo={jumpTo}
             onJumpHandled={() => setJumpTo(null)}

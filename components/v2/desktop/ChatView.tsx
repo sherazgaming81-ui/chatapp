@@ -7,15 +7,20 @@
  * · voice player · multi-select mode · message info popover · scroll-to-bottom.
  */
 
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { backend } from '@/lib/backend';
 import type { Chat, ChatMessage, ReaderInfo, UserProfile } from '@/lib/backend/types';
 import Avatar from '@/components/Avatar';
 import { Ticks } from '@/components/Ticks';
 import { fmtDateDivider, fmtLastSeen, fmtTime } from '@/lib/format';
 import { Icon, ICONS, Popover, Modal, v2call, backendV2 } from './common';
-import type { BubbleStyle } from './DesktopShell';
+import type { BubbleStyle, MessageFont } from './DesktopShell';
+import { FONT_STACKS } from './DesktopShell';
 import MessageInput from './MessageInput';
+import MessageMenu, { type MenuAction } from './MessageMenu';
+import DeleteDialog, { canDeleteForEveryone } from './DeleteDialog';
+import DocumentPreview from './DocumentPreview';
+import PhotoViewer from './PhotoViewer';
 
 interface Props {
   chat: Chat;
@@ -24,6 +29,7 @@ interface Props {
   infoOpen: boolean;
   onOpenInfo(): void;
   bubbleStyle: BubbleStyle;
+  messageFont: MessageFont;
   enterToSend: boolean;
   jumpTo: { id: string; at: number } | null;
   onJumpHandled(): void;
@@ -31,8 +37,41 @@ interface Props {
 
 const QUICK_EMOJIS = ['❤️', '😂', '😮', '😢', '🙏', '👍'];
 
+// ---------- per-chat theme (har chat ka apna rang) ----------
+const CHAT_THEME_KEY = 'v2-chat-themes';
+
+export function getChatTheme(chatId: string): string | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(CHAT_THEME_KEY) || '{}');
+    return typeof all[chatId] === 'string' ? all[chatId] : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setChatTheme(chatId: string, color: string | null) {
+  try {
+    const all = JSON.parse(localStorage.getItem(CHAT_THEME_KEY) || '{}');
+    if (color) all[chatId] = color;
+    else delete all[chatId];
+    localStorage.setItem(CHAT_THEME_KEY, JSON.stringify(all));
+  } catch {}
+  window.dispatchEvent(new CustomEvent('v2-chat-theme', { detail: { chatId, color } }));
+}
+
+export const CHAT_THEME_COLORS = [
+  { name: 'Default', value: '' },
+  { name: 'Teal', value: '#00a884' },
+  { name: 'Blue', value: '#34b7f1' },
+  { name: 'Purple', value: '#7f66ff' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Orange', value: '#ff9f1c' },
+  { name: 'Red', value: '#ea0038' },
+  { name: 'Green', value: '#22c55e' },
+];
+
 export default function ChatView({
-  chat, chats, me, infoOpen, onOpenInfo, bubbleStyle, enterToSend, jumpTo, onJumpHandled,
+  chat, chats, me, infoOpen, onOpenInfo, bubbleStyle, messageFont, enterToSend, jumpTo, onJumpHandled,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pinned, setPinned] = useState<ChatMessage[]>([]);
@@ -46,12 +85,32 @@ export default function ChatView({
   const [infoMsg, setInfoMsg] = useState<ChatMessage | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingText, setTypingText] = useState('');
+  const [chatAccent, setChatAccent] = useState<string | null>(() => getChatTheme(chat.id));
+  const [bulkDelOpen, setBulkDelOpen] = useState(false);
+
+  // per-chat theme: doosri jagah (InfoPanel) se badle to yahan reflect ho
+  useEffect(() => {
+    setChatAccent(getChatTheme(chat.id));
+    const onTheme = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.chatId === chat.id) setChatAccent(d.color || null);
+    };
+    window.addEventListener('v2-chat-theme', onTheme);
+    return () => window.removeEventListener('v2-chat-theme', onTheme);
+  }, [chat.id]);
 
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  useEffect(() => backend.onMessages(chat.id, setMessages), [chat.id]);
+  // FIX (problem 5): "mere liye delete" kiye messages chhupao — mobile yehi filter lagata hai
+  useEffect(
+    () =>
+      backend.onMessages(chat.id, (msgs) =>
+        setMessages(msgs.filter((m) => !(m.deletedFor || []).includes(me.id))),
+      ),
+    [chat.id, me.id],
+  );
   useEffect(() => {
     backend.getPinnedMessages(chat.id).then(setPinned).catch(() => setPinned([]));
   }, [chat.id]);
@@ -146,10 +205,28 @@ export default function ChatView({
     }
   };
 
+  // bulk delete dialog ke liye: sab selected apne + time limit me hon to "sab ke liye" dikhe
+  const selectedMsgs = useMemo(() => messages.filter((m) => selected.has(m.id)), [messages, selected]);
+  const selectedAllowEveryone =
+    selectedMsgs.length > 0 &&
+    selectedMsgs.every((m) => canDeleteForEveryone(m.senderId, me.id, m.createdAt));
+  const selectedPreview =
+    selectedMsgs
+      .slice(0, 2)
+      .map((m) => (m.text || `[${m.type}]`).slice(0, 80))
+      .join(' · ') || '…';
+
   const isAdmin = (chat.adminIds || []).includes(me.id);
 
+  const rootStyle = {
+    ...(chatAccent
+      ? ({ '--v2-accent': chatAccent, '--v2-accent-soft': `${chatAccent}1f` } as React.CSSProperties)
+      : {}),
+    '--v2-msgfont': FONT_STACKS[messageFont] || FONT_STACKS.system,
+  } as React.CSSProperties;
+
   return (
-    <div className="flex flex-col h-full min-h-0 min-w-0">
+    <div className="flex flex-col h-full min-h-0 min-w-0" style={rootStyle}>
       {/* ===== Header ===== */}
       <header className="flex items-center gap-3 px-4 py-2 bg-[var(--v2-panel)] border-b border-[var(--v2-border)] shrink-0 z-20">
         <button onClick={onOpenInfo} className="flex items-center gap-3 min-w-0 flex-1 text-left group">
@@ -280,9 +357,10 @@ export default function ChatView({
           </div>
         )}
         {groupByDay(messages).map((day) => (
-          <div key={day.key}>
+          // Fragment: sticky date divider poore scroll container me chipka rahe (wrapper div ise rok deta tha)
+          <Fragment key={day.key}>
             <DayDivider label={day.label} />
-            {day.items.map((m) => (
+            {day.items.map((m, i) => (
               <MessageBubble
                 key={m.id}
                 ref={(el) => { if (el) msgRefs.current.set(m.id, el); else msgRefs.current.delete(m.id); }}
@@ -292,6 +370,7 @@ export default function ChatView({
                 chat={chat}
                 isAdmin={isAdmin}
                 bubbleStyle={bubbleStyle}
+                tail={i === day.items.length - 1 || day.items[i + 1].senderId !== m.senderId}
                 selectMode={selectMode}
                 selected={selected.has(m.id)}
                 onToggleSelect={() => toggleSelect(m.id)}
@@ -301,7 +380,7 @@ export default function ChatView({
                 onPinChanged={() => backend.getPinnedMessages(chat.id).then(setPinned).catch(() => {})}
               />
             ))}
-          </div>
+          </Fragment>
         ))}
         <div ref={bottomRef} />
       </div>
@@ -330,7 +409,7 @@ export default function ChatView({
             for (const id of selected) { try { await backend.starMessage(id, true); } catch {} }
             setSelectMode(false); setSelected(new Set());
           }} />
-          <SelBtn icon={ICONS.trash} label="Delete" danger disabled={selected.size === 0} onClick={() => bulkDelete(false)} />
+          <SelBtn icon={ICONS.trash} label="Delete" danger disabled={selected.size === 0} onClick={() => setBulkDelOpen(true)} />
         </div>
       )}
 
@@ -363,7 +442,30 @@ export default function ChatView({
 
       {infoMsg && <MessageInfoModal message={infoMsg} chat={chat} onClose={() => setInfoMsg(null)} />}
 
-      <style>{`.v2flash { animation: v2flash 1.6s ease-out; } @keyframes v2flash { 0%,60% { filter: brightness(1.6); } 100% { filter: none; } }`}</style>
+      {bulkDelOpen && (
+        <DeleteDialog
+          preview={selectedPreview}
+          count={selected.size}
+          allowForEveryone={selectedAllowEveryone}
+          onPick={(choice) => {
+            setBulkDelOpen(false);
+            bulkDelete(choice === 'everyone');
+          }}
+          onClose={() => setBulkDelOpen(false)}
+        />
+      )}
+
+      <style>{`
+        .v2flash { animation: v2flash 1.6s ease-out; }
+        @keyframes v2flash { 0%,60% { filter: brightness(1.6); } 100% { filter: none; } }
+        /* WhatsApp-style bubble tails (sirf group ke aakhri bubble par) */
+        .v2tail { position: relative; }
+        .v2tail-out::before, .v2tail-in::before { content: ""; position: absolute; top: -1px; width: 10px; height: 14px; }
+        .v2tail-out::before { right: -8px; background: var(--v2-bubble-out); clip-path: polygon(0 0, 100% 0, 8% 100%); }
+        .v2tail-in::before { left: -8px; background: var(--v2-bubble-in); clip-path: polygon(0 0, 100% 0, 92% 100%); }
+        /* message font (settings se) */
+        .v2msg { font-family: var(--v2-msgfont, inherit); }
+      `}</style>
     </div>
   );
 }
@@ -422,6 +524,7 @@ interface BubbleProps {
   chat: Chat;
   isAdmin: boolean;
   bubbleStyle: BubbleStyle;
+  tail: boolean;
   selectMode: boolean;
   selected: boolean;
   onToggleSelect(): void;
@@ -432,12 +535,14 @@ interface BubbleProps {
 }
 
 const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBubbleInner(
-  { message: m, mine, meId, chat, isAdmin, bubbleStyle, selectMode, selected, onToggleSelect, onReply, onInfo, onEnterSelect, onPinChanged }: BubbleProps,
+  { message: m, mine, meId, chat, isAdmin, bubbleStyle, tail, selectMode, selected, onToggleSelect, onReply, onInfo, onEnterSelect, onPinChanged }: BubbleProps,
   ref: React.Ref<HTMLDivElement>,
 ) {
   const [menu, setMenu] = useState(false);
   const [reactBar, setReactBar] = useState(false);
   const [imgOpen, setImgOpen] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
   const toggleReaction = (emoji: string) => {
     setReactBar(false);
@@ -445,7 +550,7 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
   };
 
   const doDelete = (forEveryone: boolean) => {
-    setMenu(false);
+    setDelOpen(false);
     backend.deleteMessage(chat.id, m.id, forEveryone).catch(() => {});
   };
 
@@ -460,7 +565,44 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
     backend.starMessage(m.id, true).catch(() => {});
   };
 
-  const shape = bubbleStyle === 'rounded' ? 'rounded-2xl' : mine ? 'rounded-xl rounded-br-[4px]' : 'rounded-xl rounded-bl-[4px]';
+  const doCopy = () => {
+    setMenu(false);
+    if (m.text) navigator.clipboard?.writeText(m.text).catch(() => {});
+  };
+
+  const pickMenu = (id: string) => {
+    setMenu(false);
+    if (id === 'reply') onReply();
+    else if (id === 'react') setReactBar(true);
+    else if (id === 'forward' || id === 'select') onEnterSelect();
+    else if (id === 'star') doStar();
+    else if (id === 'pin') doPin();
+    else if (id === 'info') onInfo();
+    else if (id === 'copy') doCopy();
+    else if (id === 'delete') setDelOpen(true);
+  };
+
+  const menuActions: MenuAction[] = [
+    { id: 'reply', label: 'Jawab dein', icon: 'reply', tint: 'var(--v2-accent)' },
+    { id: 'react', label: 'React karein', sub: 'Emoji se jawab', icon: 'emoji', tint: '#ff9f1c', dividerAfter: true },
+    { id: 'forward', label: 'Forward karein', icon: 'forward', tint: '#34b7f1' },
+    { id: 'star', label: 'Star karein', sub: 'Baad me dekhne ke liye', icon: 'star', tint: '#ff9f1c' },
+    ...(m.type === 'text' && m.text ? [{ id: 'copy', label: 'Copy karein', icon: 'file', tint: '#7f66ff' } as MenuAction] : []),
+    ...((isAdmin || mine) ? [{ id: 'pin', label: m.isPinned ? 'Unpin karein' : 'Pin karein', icon: 'pin', tint: '#00a884' } as MenuAction] : []),
+    ...(mine ? [{ id: 'info', label: 'Message info', sub: 'Delivered / read', icon: 'info', tint: '#7f66ff' } as MenuAction] : []),
+    { id: 'select', label: 'Select karein', icon: 'check', tint: 'var(--v2-muted)', dividerAfter: true },
+    { id: 'delete', label: 'Delete karein', sub: 'Mere liye ya sab ke liye', icon: 'trash', danger: true },
+  ];
+
+  // WhatsApp-style tails: 'default' me group ke aakhri bubble par nukili tail
+  const useTail = bubbleStyle === 'default' && tail && !selectMode;
+  const shape =
+    bubbleStyle === 'rounded'
+      ? 'rounded-2xl'
+      : mine
+        ? 'rounded-xl rounded-tr-[4px]'
+        : 'rounded-xl rounded-tl-[4px]';
+  const tailCls = useTail ? (mine ? 'v2tail v2tail-out' : 'v2tail v2tail-in') : '';
 
   return (
     <div ref={ref} className="flex mb-[3px] scroll-mt-24">
@@ -475,7 +617,7 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
         <div
           onClick={() => selectMode && onToggleSelect()}
           onContextMenu={(e) => { e.preventDefault(); if (!selectMode) setMenu(true); }}
-          className={`relative group px-2.5 pt-1.5 pb-1 ${shape} shadow-[var(--v2-shadow)] transition ${
+          className={`relative group px-2.5 pt-1.5 pb-1 ${shape} ${tailCls} shadow-[var(--v2-shadow)] transition ${
             mine ? 'bg-[var(--v2-bubble-out)]' : 'bg-[var(--v2-bubble-in)]'
           } ${selected ? 'ring-2 ring-[var(--v2-accent)]' : ''} ${selectMode ? 'cursor-pointer' : ''}`}
         >
@@ -499,7 +641,7 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
             </p>
           )}
 
-          <MsgBody m={m} meId={meId} chatId={chat.id} onImage={() => setImgOpen(true)} />
+          <MsgBody m={m} meId={meId} chatId={chat.id} onImage={() => setImgOpen(true)} onDoc={() => setDocOpen(true)} />
 
           {/* reactions display */}
           {m.reactions && Object.keys(m.reactions).length > 0 && (
@@ -554,25 +696,31 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
           )}
 
           {menu && (
-            <Popover onClose={() => setMenu(false)} className={mine ? 'right-0 top-8' : 'left-0 top-8'}>
-              <MenuRow icon={ICONS.reply} label="Jawab dein" onClick={() => { setMenu(false); onReply(); }} />
-              <MenuRow icon={ICONS.emoji} label="React karein" onClick={() => { setMenu(false); setReactBar(true); }} />
-              <MenuRow icon={ICONS.forward} label="Forward karein" onClick={() => { setMenu(false); onEnterSelect(); }} />
-              <MenuRow icon={ICONS.star} label="Star karein" onClick={doStar} />
-              {(isAdmin || mine) && <MenuRow icon={ICONS.pin} label={m.isPinned ? 'Unpin karein' : 'Pin karein'} onClick={doPin} />}
-              {mine && <MenuRow icon={ICONS.info} label="Message info" onClick={() => { setMenu(false); onInfo(); }} />}
-              <MenuRow icon={ICONS.check} label="Select karein" onClick={() => { setMenu(false); onEnterSelect(); }} />
-              <MenuRow icon={ICONS.trash} label="Delete karein" danger onClick={() => doDelete(false)} />
-              {mine && <MenuRow icon={ICONS.trash} label="Sab ke liye delete" danger onClick={() => doDelete(true)} />}
-            </Popover>
+            <MessageMenu actions={menuActions} mine={mine} onPick={pickMenu} onClose={() => setMenu(false)} />
+          )}
+
+          {delOpen && (
+            <DeleteDialog
+              preview={(m.text || `[${m.type}]`).slice(0, 120)}
+              allowForEveryone={canDeleteForEveryone(m.senderId, meId, m.createdAt)}
+              onPick={(choice) => doDelete(choice === 'everyone')}
+              onClose={() => setDelOpen(false)}
+            />
           )}
         </div>
       </div>
 
       {imgOpen && m.mediaURL && (
-        <Modal title="" onClose={() => setImgOpen(false)} wide>
-          <img src={m.mediaURL} alt="" className="w-full max-h-[70vh] object-contain bg-black" />
-        </Modal>
+        <PhotoViewer src={m.mediaURL} caption={m.text || m.senderName} onClose={() => setImgOpen(false)} />
+      )}
+
+      {docOpen && m.mediaURL && (
+        <DocumentPreview
+          url={m.mediaURL}
+          fileName={m.fileName || 'File'}
+          fileSize={m.fileSize}
+          onClose={() => setDocOpen(false)}
+        />
       )}
     </div>
   );
@@ -592,12 +740,12 @@ function MenuRow({ icon, label, danger, onClick }: { icon: string; label: string
   );
 }
 
-function MsgBody({ m, meId, chatId, onImage }: { m: ChatMessage; meId: string; chatId: string; onImage(): void }) {
+function MsgBody({ m, meId, chatId, onImage, onDoc }: { m: ChatMessage; meId: string; chatId: string; onImage(): void; onDoc(): void }) {
   if (m.type === 'image' && m.mediaURL) {
     return (
       <div className="mb-1 -mx-1 -mt-0.5">
         <img src={m.mediaURL} alt="" onClick={onImage} className="rounded-lg max-h-[320px] w-full object-cover cursor-zoom-in" loading="lazy" />
-        {m.text && <p className="text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words leading-snug mt-1 px-1">{m.text}</p>}
+        {m.text && <p className="v2msg text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words leading-snug mt-1 px-1">{m.text}</p>}
       </div>
     );
   }
@@ -605,30 +753,31 @@ function MsgBody({ m, meId, chatId, onImage }: { m: ChatMessage; meId: string; c
     return (
       <div className="py-0.5">
         <VoicePlayer url={m.mediaURL} duration={m.duration ?? 0} mine={false} />
-        {m.text && <p className="text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words mt-1">{m.text}</p>}
+        {m.text && <p className="v2msg text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words mt-1">{m.text}</p>}
       </div>
     );
   }
   if (m.type === 'file' && m.mediaURL) {
     return (
-      <a href={m.mediaURL} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 py-1 pr-1">
+      <button onClick={onDoc} className="flex items-center gap-2.5 py-1 pr-1 text-left w-full hover:opacity-90 transition" title="Preview dekhein">
         <span className="w-10 h-10 rounded-full bg-[var(--v2-panel3)] flex items-center justify-center shrink-0">
           <Icon d={ICONS.file} size={20} className="text-[var(--v2-muted)]" />
         </span>
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] text-[var(--v2-text)] truncate max-w-[200px]">{m.fileName || 'File'}</span>
           <span className="block text-[11.5px] text-[var(--v2-muted)]">
-            {m.fileSize ? `${(m.fileSize / 1024).toFixed(0)} KB` : ''} · Download
+            {m.fileSize ? `${(m.fileSize / 1024).toFixed(0)} KB` : ''} · Preview
           </span>
         </span>
-      </a>
+        <Icon d={ICONS.chevRight} size={16} className="text-[var(--v2-muted)] shrink-0" />
+      </button>
     );
   }
   if (m.type === 'poll' && m.poll) {
     return <PollView m={m} meId={meId} chatId={chatId} />;
   }
   return (
-    <p className="text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words leading-[1.45] px-0.5">
+    <p className="v2msg text-[14.2px] text-[var(--v2-text)] whitespace-pre-wrap break-words leading-[1.45] px-0.5">
       {m.text}
     </p>
   );

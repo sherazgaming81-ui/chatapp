@@ -14,7 +14,9 @@ import type { BlockedUser } from '@/lib/v2/types';
 import Avatar from '@/components/Avatar';
 import { fmtTime } from '@/lib/format';
 import { Icon, ICONS, RowBtn, SectionTitle, backendV2, v2call } from './common';
-import type { DesktopPrefs, ThemeMode, WallpaperKind, BubbleStyle } from './DesktopShell';
+import type { DesktopPrefs, ThemeMode, WallpaperKind, BubbleStyle, MessageFont } from './DesktopShell';
+import { WALLPAPERS, FONT_LABELS, FONT_STACKS } from './DesktopShell';
+import ProfilePicEditor from './ProfilePicEditor';
 
 interface Props {
   me: UserProfile;
@@ -24,7 +26,7 @@ interface Props {
   onClose(): void;
 }
 
-type Page = 'main' | 'profile' | 'theme' | 'wallpaper' | 'tones' | 'privacy' | 'blocked' | 'locked' | 'backup' | 'exportHtml';
+type Page = 'main' | 'profile' | 'theme' | 'wallpaper' | 'tones' | 'privacy' | 'checkup' | 'blocked' | 'locked' | 'backup' | 'exportHtml';
 
 export default function SettingsModal({ me, chats, prefs, onSavePrefs, onClose }: Props) {
   const [page, setPage] = useState<Page>('main');
@@ -51,6 +53,7 @@ export default function SettingsModal({ me, chats, prefs, onSavePrefs, onClose }
           {page === 'wallpaper' && <WallpaperPage prefs={prefs} onSavePrefs={onSavePrefs} />}
           {page === 'tones' && <TonesPage chats={chats} />}
           {page === 'privacy' && <PrivacyPage me={me} />}
+          {page === 'checkup' && <PrivacyCheckup me={me} go={setPage} />}
           {page === 'blocked' && <BlockedPage />}
           {page === 'locked' && <LockedPage chats={chats} />}
           {page === 'backup' && <BackupPage />}
@@ -64,8 +67,8 @@ export default function SettingsModal({ me, chats, prefs, onSavePrefs, onClose }
 function pageTitle(p: Page) {
   return {
     main: 'Settings', profile: 'Profile', theme: 'Theme', wallpaper: 'Chat wallpaper',
-    tones: 'Per-chat notification tone', privacy: 'Privacy', blocked: 'Blocked users',
-    locked: 'Locked chats', backup: 'Backup', exportHtml: 'Chat export (HTML)',
+    tones: 'Per-chat notification tone', privacy: 'Privacy', checkup: 'Privacy checkup',
+    blocked: 'Blocked users', locked: 'Locked chats', backup: 'Backup', exportHtml: 'Chat export (HTML)',
   }[p];
 }
 
@@ -85,6 +88,7 @@ function MainPage({ me, go, onClose }: { me: UserProfile; go(p: Page): void; onC
         <RowBtn icon="image" label="Chat wallpaper" sub="Doodle ya plain background" onClick={() => go('wallpaper')} />
         <RowBtn icon="bell" label="Per-chat notification tone" sub="Har chat ki alag tone" onClick={() => go('tones')} />
         <RowBtn icon="shield" label="Privacy" sub="Last seen, photo, online" onClick={() => go('privacy')} />
+        <RowBtn icon="check" label="Privacy checkup" sub="Step-by-step privacy wizard" onClick={() => go('checkup')} />
         <RowBtn icon="user" label="Blocked users" sub="Block list manage karein" onClick={() => go('blocked')} />
         <RowBtn icon="lock" label="Locked chats" sub="PIN se chat lock karein" onClick={() => go('locked')} />
         <RowBtn icon="download" label="Backup" sub="Export / import chats JSON" onClick={() => go('backup')} />
@@ -122,7 +126,7 @@ function ProfilePage({ me }: { me: UserProfile }) {
   return (
     <div className="p-5 animate-[v2fade_.15s_ease-out]">
       <div className="flex justify-center mb-5">
-        <Avatar name={name || me.displayName} photoURL={me.photoURL} size={110} />
+        <ProfilePicEditor name={name || me.displayName} photoURL={me.photoURL} size={110} />
       </div>
       <label className="block text-[12.5px] text-[var(--v2-muted)] mb-1.5">Naam</label>
       <input value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-[var(--v2-input)] rounded-lg px-3.5 py-2.5 text-[14.5px] outline-none mb-4" />
@@ -188,6 +192,28 @@ function ThemePage({ prefs, onSavePrefs }: { prefs: DesktopPrefs; onSavePrefs(p:
         Auto mode me {prefs.nightStart} se {prefs.nightEnd} tak dark theme rahega, baqi time light.
       </p>
 
+      <SectionTitle>Message font</SectionTitle>
+      <div className="grid grid-cols-2 gap-2 px-4 pb-2">
+        {FONT_LABELS.map((f: { v: MessageFont; name: string; sample: string }) => (
+          <button
+            key={f.v}
+            onClick={() => onSavePrefs({ messageFont: f.v })}
+            className={`rounded-xl border-2 px-3 py-3 text-left transition ${
+              prefs.messageFont === f.v
+                ? 'border-[var(--v2-accent)] bg-[var(--v2-accent-soft)]'
+                : 'border-[var(--v2-border)] hover:border-[var(--v2-muted)]'
+            }`}
+          >
+            <span className="block text-[12px] font-semibold text-[var(--v2-muted)] uppercase tracking-wide mb-1">
+              {f.name}
+            </span>
+            <span className="block text-[16px] text-[var(--v2-text)] truncate" style={{ fontFamily: FONT_STACKS[f.v] }}>
+              {f.sample}
+            </span>
+          </button>
+        ))}
+      </div>
+
       <SectionTitle>Message bubble style</SectionTitle>
       <div className="flex gap-2 px-4 pb-4">
         {(['default', 'rounded'] as BubbleStyle[]).map((b) => (
@@ -209,29 +235,49 @@ function ThemePage({ prefs, onSavePrefs }: { prefs: DesktopPrefs; onSavePrefs(p:
 // ================= wallpaper =================
 
 function WallpaperPage({ prefs, onSavePrefs }: { prefs: DesktopPrefs; onSavePrefs(p: Partial<DesktopPrefs>): void }) {
-  const kinds: { v: WallpaperKind; label: string; sub: string }[] = [
-    { v: 'doodle', label: 'Doodle', sub: 'WhatsApp jaisa pattern' },
-    { v: 'plain', label: 'Plain', sub: 'Saaf solid background' },
-  ];
+  const thumbStyle = (w: { id: string; light: string; dark: string }): React.CSSProperties | undefined => {
+    if (w.id === 'plain') return { background: 'var(--v2-wallpaper)' };
+    if (w.light) return { background: w.dark };
+    return undefined;
+  };
   return (
     <div className="p-4 animate-[v2fade_.15s_ease-out]">
       <div className="grid grid-cols-2 gap-3">
-        {kinds.map((k) => (
-          <button
-            key={k.v}
-            onClick={() => onSavePrefs({ wallpaper: k.v })}
-            className={`rounded-xl border-2 overflow-hidden transition ${prefs.wallpaper === k.v ? 'border-[var(--v2-accent)]' : 'border-[var(--v2-border)] hover:border-[var(--v2-muted)]'}`}
-          >
-            <span className={`block h-24 ${k.v === 'doodle' ? 'v2wallpaper' : ''}`} style={k.v === 'plain' ? { background: 'var(--v2-wallpaper)' } : undefined} />
-            <span className="block px-3 py-2.5 text-left">
-              <span className="block text-[14px] font-medium">{k.label}</span>
-              <span className="block text-[12px] text-[var(--v2-muted)]">{k.sub}</span>
-            </span>
-          </button>
-        ))}
+        {WALLPAPERS.map((w) => {
+          const active = prefs.wallpaper === w.id;
+          return (
+            <button
+              key={w.id}
+              onClick={() => onSavePrefs({ wallpaper: w.id as WallpaperKind })}
+              className={`rounded-xl border-2 overflow-hidden transition text-left ${
+                active ? 'border-[var(--v2-accent)]' : 'border-[var(--v2-border)] hover:border-[var(--v2-muted)]'
+              }`}
+            >
+              <span
+                className={`relative block h-24 ${w.id === 'doodle' ? 'v2wallpaper' : ''}`}
+                style={thumbStyle(w)}
+              >
+                {active && (
+                  <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[var(--v2-accent)] text-white flex items-center justify-center">
+                    <Icon d={ICONS.check} size={14} />
+                  </span>
+                )}
+                {/* mini chat preview */}
+                <span className="absolute bottom-2 left-2 right-8 flex flex-col gap-1 pointer-events-none">
+                  <span className="self-start bg-white/85 rounded-lg rounded-bl-[3px] px-2 py-1 text-[8px] text-gray-700 shadow">Salam!</span>
+                  <span className="self-end bg-[#d9fdd3] rounded-lg rounded-br-[3px] px-2 py-1 text-[8px] text-gray-700 shadow">Walaikum Assalam</span>
+                </span>
+              </span>
+              <span className="block px-3 py-2.5">
+                <span className={`block text-[14px] font-medium ${active ? 'text-[var(--v2-accent)]' : ''}`}>{w.name}</span>
+                <span className="block text-[12px] text-[var(--v2-muted)]">{w.sub}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
       <p className="text-[12.5px] text-[var(--v2-muted)] mt-4 leading-relaxed px-1">
-        Wallpaper chat background par lagega. Theme ke hisaab se rang khud adjust ho jayega.
+        Wallpaper chat background par lagega. Doodle/Plain theme ke hisaab se rang khud adjust kar lete hain.
       </p>
     </div>
   );
@@ -318,6 +364,173 @@ function PrivacyPage({ me }: { me: UserProfile }) {
           Save karein
         </button>
       </div>
+    </div>
+  );
+}
+
+// ================= privacy checkup (wizard) =================
+
+const CHECKUP_STEPS = ['Photo', 'Last seen', 'Profile photo', 'Online', 'Blocked', 'Done'] as const;
+
+function PrivacyCheckup({ me, go }: { me: UserProfile; go(p: Page): void }) {
+  const [step, setStep] = useState(0);
+  const [p, setP] = useState<PrivacySettings>(me.privacy ?? { lastSeen: 'everyone', photo: 'everyone', online: 'everyone' });
+  const [blockedCount, setBlockedCount] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    v2call(() => backendV2.getBlockedUsers()).then((l) => {
+      if (l) setBlockedCount(l.length);
+    });
+  }, []);
+
+  const savePrivacy = async () => {
+    setSaving(true);
+    try {
+      await backend.updatePrivacy(p);
+    } catch {}
+    setSaving(false);
+  };
+
+  const next = async () => {
+    if (step >= 1 && step <= 3) await savePrivacy();
+    setStep((s) => Math.min(s + 1, CHECKUP_STEPS.length - 1));
+  };
+  const back = () => setStep((s) => Math.max(s - 1, 0));
+
+  const Choice = ({ k, label, hint }: { k: keyof PrivacySettings; label: string; hint: string }) => (
+    <div className="bg-[var(--v2-panel2)] rounded-2xl p-5">
+      <p className="text-[15px] font-semibold mb-1">{label}</p>
+      <p className="text-[13px] text-[var(--v2-muted)] leading-relaxed mb-4">{hint}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {(['everyone', 'nobody'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setP((pp) => ({ ...pp, [k]: v }))}
+            className={`py-3 rounded-xl text-[14px] font-medium transition border-2 ${
+              p[k] === v
+                ? 'border-[var(--v2-accent)] bg-[var(--v2-accent-soft)] text-[var(--v2-accent)]'
+                : 'border-[var(--v2-border)] hover:border-[var(--v2-muted)]'
+            }`}
+          >
+            {v === 'everyone' ? 'Sab dekh sakte hain' : 'Koi nahi dekh sakta'}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-5 animate-[v2fade_.15s_ease-out]">
+      {/* progress */}
+      <div className="flex items-center gap-1.5 mb-1">
+        {CHECKUP_STEPS.map((s, i) => (
+          <div key={s} className="flex-1 flex flex-col gap-1.5">
+            <div className={`h-1.5 rounded-full transition ${i <= step ? 'bg-[var(--v2-accent)]' : 'bg-[var(--v2-panel3)]'}`} />
+          </div>
+        ))}
+      </div>
+      <p className="text-[12px] text-[var(--v2-muted)] mb-5">
+        Step {step + 1} / {CHECKUP_STEPS.length} · {CHECKUP_STEPS[step]}
+      </p>
+
+      {step === 0 && (
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-[var(--v2-accent-soft)] text-[var(--v2-accent)] flex items-center justify-center mx-auto mb-4">
+            <Icon d={ICONS.shield} size={30} />
+          </div>
+          <h3 className="text-[17px] font-semibold mb-2">Privacy checkup</h3>
+          <p className="text-[13.5px] text-[var(--v2-muted)] leading-relaxed max-w-[340px] mx-auto">
+            Kuch steps me apni saari privacy settings review karein — kaun aapko dekh sakta hai, kaun nahi.
+          </p>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="bg-[var(--v2-panel2)] rounded-2xl p-5">
+          <p className="text-[15px] font-semibold mb-1">Profile photo</p>
+          <p className="text-[13px] text-[var(--v2-muted)] leading-relaxed mb-4">
+            Apni photo lagayein ya change karein. Photo par click karke fullscreen dekh sakte hain.
+          </p>
+          <ProfilePicEditor compact name={me.displayName} photoURL={me.photoURL} size={64} />
+        </div>
+      )}
+
+      {step === 2 && <Choice k="lastSeen" label="Last seen" hint="Kaun dekh sakta hai ke aap aakhri baar kab online thay?" />}
+      {step === 3 && <Choice k="photo" label="Profile photo" hint="Kaun aapki profile photo dekh sakta hai?" />}
+      {step === 4 && <Choice k="online" label="Online status" hint="Kaun dekh sakta hai ke aap abhi online hain?" />}
+
+      {step === 5 && (
+        <div className="bg-[var(--v2-panel2)] rounded-2xl p-5 text-center">
+          <p className="text-[15px] font-semibold mb-1">Blocked users</p>
+          <p className="text-[13px] text-[var(--v2-muted)] leading-relaxed mb-4">
+            {blockedCount === null
+              ? 'Load ho raha hai…'
+              : blockedCount === 0
+                ? 'Aap ne kisi ko block nahi kiya.'
+                : `Aap ne ${blockedCount} user${blockedCount === 1 ? '' : 's'} ko block kiya hua hai.`}
+          </p>
+          <button
+            onClick={() => go('blocked')}
+            className="px-5 py-2.5 rounded-full bg-[var(--v2-accent-soft)] text-[var(--v2-accent)] text-[13.5px] font-medium hover:brightness-95 transition"
+          >
+            Block list dekhein
+          </button>
+        </div>
+      )}
+
+      {step === CHECKUP_STEPS.length - 1 && (
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-[var(--v2-accent)] text-white flex items-center justify-center mx-auto mb-4">
+            <Icon d={ICONS.check} size={30} />
+          </div>
+          <h3 className="text-[17px] font-semibold mb-2">Sab set hai!</h3>
+          <div className="text-left bg-[var(--v2-panel2)] rounded-2xl p-4 max-w-[340px] mx-auto">
+            <SummaryRow label="Last seen" value={p.lastSeen === 'everyone' ? 'Sab' : 'Koi nahi'} />
+            <SummaryRow label="Profile photo" value={p.photo === 'everyone' ? 'Sab' : 'Koi nahi'} />
+            <SummaryRow label="Online status" value={p.online === 'everyone' ? 'Sab' : 'Koi nahi'} />
+            <SummaryRow label="Blocked users" value={blockedCount === null ? '…' : String(blockedCount)} last />
+          </div>
+        </div>
+      )}
+
+      {/* nav */}
+      <div className="flex gap-2 mt-6">
+        {step > 0 && (
+          <button
+            onClick={back}
+            className="px-5 py-2.5 rounded-full bg-[var(--v2-input)] text-[14px] font-medium hover:bg-[var(--v2-active)] transition"
+          >
+            Wapas
+          </button>
+        )}
+        <div className="flex-1" />
+        {step < CHECKUP_STEPS.length - 1 ? (
+          <button
+            onClick={next}
+            disabled={saving}
+            className="px-7 py-2.5 rounded-full bg-[var(--v2-accent)] text-white text-[14px] font-medium hover:brightness-110 transition disabled:opacity-50"
+          >
+            {saving ? 'Save…' : step === 0 ? 'Shuru karein' : 'Aage'}
+          </button>
+        ) : (
+          <button
+            onClick={() => go('main')}
+            className="px-7 py-2.5 rounded-full bg-[var(--v2-accent)] text-white text-[14px] font-medium hover:brightness-110 transition"
+          >
+            Khatam
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between py-2 text-[13.5px] ${last ? '' : 'border-b border-[var(--v2-border)]'}`}>
+      <span className="text-[var(--v2-muted)]">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   );
 }

@@ -9,6 +9,7 @@ export interface UserProfile {
   coverURL?: string;
   privacy?: PrivacySettings;
   disappearingAfter?: number; // seconds, 0 = off (per-user setting)
+  hideForwardTag?: boolean; // v3: forwarded messages par "Forwarded" tag chhupao
 }
 
 export type MessageType = 'text' | 'image' | 'audio' | 'poll' | 'file' | 'contact' | 'location';
@@ -53,6 +54,35 @@ export interface ChatNotificationSettings {
   sound: string | null; // sound id, null = default
 }
 
+// ---- v3 additions ----
+
+/** Chat analytics ka natija */
+export interface ChatAnalytics {
+  chatId: string;
+  totalMessages: number;
+  perUser: { userId: string; displayName: string; count: number }[];
+  mostActiveHour: number; // 0-23, -1 agar koi message nahi
+  firstMessageAt: number; // epoch ms, 0 agar koi message nahi
+  lastMessageAt: number; // epoch ms, 0 agar koi message nahi
+}
+
+/** Message info — sent/delivered/read ke exact timestamps (WA style) */
+export interface MessageInfo {
+  messageId: string;
+  sentAt: number;
+  deliveredAt: number; // 0 = abhi deliver nahi hua
+  readAt: number; // 0 = abhi parha nahi gaya (pehle reader ka waqt)
+}
+
+/** Device manager entry */
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  lastActive: number;
+  createdAt: number;
+  isCurrent: boolean;
+}
+
 export interface ReplyRef {
   id: string;
   text: string;
@@ -86,6 +116,10 @@ export interface ChatMessage {
   lat?: number; // live location
   lng?: number;
   locationExpiresAt?: number; // epoch ms
+  // ---- v3 additions ----
+  deletedEveryone?: boolean; // true = sender ne "delete for everyone" kiya (placeholder dikhao)
+  forwardCount?: number; // kitni dafa forward hua (5+ par "Forwarded many times")
+  deliveredAt?: number; // epoch ms, kab deliver hua (pehli dafa kisi recipient ne dekha)
 }
 
 export interface LastMessage {
@@ -102,7 +136,7 @@ export interface Chat {
   name: string;
   photoURL: string;
   participants: string[];
-  participantProfiles: Record<string, { displayName: string; photoURL: string; online?: boolean; lastSeen?: number }>;
+  participantProfiles: Record<string, { displayName: string; photoURL: string; online?: boolean; lastSeen?: number; about?: string }>;
   lastMessage?: LastMessage | null;
   updatedAt: number;
   typing: Record<string, number>;
@@ -138,6 +172,12 @@ export interface ChatBackend {
   createGroup(name: string, memberIds: string[]): Promise<string>;
   uploadMedia(chatId: string, file: File): Promise<{ url: string; kind: 'image' | 'audio' }>;
   uploadFile(chatId: string, file: File): Promise<UploadResult>;
+  /**
+   * v3: WhatsApp-style delete.
+   * - forEveryone=false: "Delete for me" — hamesha allowed.
+   * - forEveryone=true: "Delete for everyone" — SIRF sender khud aur message 2 din
+   *   se purana na ho; warna Error throw hota hai (frontend "for me" par gir sakta hai).
+   */
   deleteMessage(chatId: string, messageId: string, forEveryone: boolean): Promise<void>;
 
   // ---- v1 additions (contract for all agents) ----

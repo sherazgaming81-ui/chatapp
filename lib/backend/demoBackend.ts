@@ -462,4 +462,21 @@ export class DemoBackend implements ChatBackend {
   async sendLiveLocation(): Promise<void> { throw new Error('v2 supported nahi'); }
   async updateLiveLocation(): Promise<void> {}
   async stopLiveLocation(): Promise<void> {}
+
+  // ---- v3 stubs (demo mode: no-op / not supported) ----
+  isUserOnline(lastSeen: number, onlineFlag: boolean): boolean { return !!onlineFlag && Date.now() - lastSeen < 120000; }
+  async getChatAnalytics(): Promise<import('./types').ChatAnalytics> { throw new Error('v3 supported nahi'); }
+  async getDevices(): Promise<import('./types').DeviceInfo[]> { return []; }
+  async revokeDevice(): Promise<void> {}
+  async getMessageReadList(): Promise<import('./types').ReaderInfo[]> { return []; }
+  async setHideForwardTag(): Promise<void> {}
+  async getHideForwardTag(): Promise<boolean> { return false; }
+  async getExpiringSoon(): Promise<import('./types').ChatMessage[]> { return []; }
+  async getMessageInfo(): Promise<import('./types').MessageInfo> { throw new Error('v3 supported nahi'); }
+  parseMentions(): string[] { return []; }
+  async autoArchiveInactive(): Promise<number> { return 0; }
+  buildLocalMessage(chatId: string, input: import('./types').SendInput, sender: { id: string; displayName: string }): import('./types').ChatMessage {
+    return { id: `tmp_${Date.now()}`, chatId, senderId: sender.id, senderName: sender.displayName, type: input.type, text: input.text, createdAt: Date.now(), readBy: [sender.id], deletedFor: [], reactions: {}, isPinned: false, poll: null, forwarded: false };
+  }
+  async isE2EEnabled(): Promise<boolean> { return false; }
 }

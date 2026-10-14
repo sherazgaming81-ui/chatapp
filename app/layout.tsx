@@ -8,8 +8,9 @@ export const metadata: Metadata = {
   description: "Chat karo doston se — WhatsApp jaisa messenger, sirf Google login ke saath",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.png",
-    apple: "/apple-touch-icon.png",
+    // ?v=3 cache-bust: purana "N" favicon browsers me cache ho chuka tha
+    icon: "/favicon.png?v=3",
+    apple: "/apple-touch-icon.png?v=3",
   },
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "ChatsApp" },
 };

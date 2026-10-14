@@ -86,6 +86,57 @@
 .mv2-msg-anim { animation: mv2-msg-in 0.16s ease-out; }
 .mv2-pop-anim { animation: mv2-pop 0.18s ease-out; }
 
+/* Send animation — naya message neeche se smooth aata hai */
+@keyframes mv2-send-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.94); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mv2-send-anim { animation: mv2-send-in 0.32s cubic-bezier(0.22, 0.9, 0.32, 1); }
+
+/* Typing dots — WhatsApp style animated "..." */
+.mv2-typing { display: inline-flex; align-items: center; gap: 4px; }
+.mv2-typing span {
+  width: var(--td-size, 7px);
+  height: var(--td-size, 7px);
+  border-radius: 9999px;
+  background: var(--td-color, var(--mv2-muted));
+  animation: mv2-typing-bounce 1.2s infinite ease-in-out;
+}
+.mv2-typing span:nth-child(2) { animation-delay: 0.15s; }
+.mv2-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes mv2-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* Search highlight — yellow mark */
+.mv2-hl {
+  background: rgba(255, 213, 79, 0.85);
+  color: #111b21;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* Spinner (upload progress ring) */
+@keyframes mv2-spin { to { transform: rotate(360deg); } }
+.mv2-spin { animation: mv2-spin 0.9s linear infinite; }
+
+/* Error shake */
+@keyframes mv2-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.mv2-shake { animation: mv2-shake 0.3s ease-in-out 2; }
+
+/* App tour step slide */
+@keyframes mv2-tour-in {
+  from { opacity: 0; transform: translateX(36px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.mv2-tour-slide { animation: mv2-tour-in 0.34s cubic-bezier(0.22, 0.9, 0.32, 1); }
+
 /* Hide scrollbars on horizontal chip rows */
 .mv2-no-scrollbar::-webkit-scrollbar { display: none; }
 .mv2-no-scrollbar { scrollbar-width: none; }

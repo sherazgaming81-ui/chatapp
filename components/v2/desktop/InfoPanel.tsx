@@ -14,6 +14,9 @@ import type { InviteLink, JoinRequest, PollAnalytics } from '@/lib/v2/types';
 import Avatar from '@/components/Avatar';
 import { fmtTime } from '@/lib/format';
 import { Icon, ICONS, RowBtn, SectionTitle, backendV2, v2call } from './common';
+import { CHAT_THEME_COLORS, getChatTheme, setChatTheme } from './ChatView';
+import PhotoViewer from './PhotoViewer';
+import DocumentPreview from './DocumentPreview';
 
 interface Props {
   chat: Chat;
@@ -25,7 +28,7 @@ interface Props {
 export default function InfoPanel({ chat, me, onClose, onJumpTo }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pinned, setPinned] = useState<ChatMessage[]>([]);
-  const [section, setSection] = useState<'main' | 'media' | 'polls' | 'invite' | 'requests' | 'ownership' | 'disappearing' | 'slowmode' | 'members'>('main');
+  const [section, setSection] = useState<'main' | 'media' | 'polls' | 'invite' | 'requests' | 'ownership' | 'disappearing' | 'slowmode' | 'members' | 'theme'>('main');
 
   useEffect(() => backend.onMessages(chat.id, setMessages), [chat.id]);
   useEffect(() => {
@@ -71,6 +74,7 @@ export default function InfoPanel({ chat, me, onClose, onJumpTo }: Props) {
         {section === 'disappearing' && <DisappearingSection me={me} />}
         {section === 'slowmode' && isGroup && <SlowModeSection chatId={chat.id} current={chat.slowModeSec ?? 0} isAdmin={isAdmin} />}
         {section === 'members' && isGroup && <MembersSection chat={chat} me={me} isAdmin={isAdmin} />}
+        {section === 'theme' && <ChatThemeSection chatId={chat.id} />}
       </div>
 
       {section !== 'main' && (
@@ -86,7 +90,7 @@ export default function InfoPanel({ chat, me, onClose, onJumpTo }: Props) {
 }
 
 function sectionTitle(s: string) {
-  return { media: 'Media & docs', polls: 'Polls', invite: 'Invite link', requests: 'Join requests', ownership: 'Ownership', disappearing: 'Disappearing messages', slowmode: 'Slow mode', members: 'Members' }[s] ?? s;
+  return { media: 'Media & docs', polls: 'Polls', invite: 'Invite link', requests: 'Join requests', ownership: 'Ownership', disappearing: 'Disappearing messages', slowmode: 'Slow mode', members: 'Members', theme: 'Chat theme' }[s] ?? s;
 }
 
 // ================= main =================
@@ -95,13 +99,14 @@ function MainSection(props: {
   chat: Chat; me: UserProfile; isGroup: boolean; isAdmin: boolean; isOwner: boolean;
   otherProf?: { displayName: string; photoURL: string; online?: boolean; lastSeen?: number };
   media: ChatMessage[]; docs: ChatMessage[]; polls: ChatMessage[]; pinned: ChatMessage[];
-  onJumpTo(id: string): void; go(s: 'media' | 'polls' | 'invite' | 'requests' | 'ownership' | 'disappearing' | 'slowmode' | 'members'): void;
+  onJumpTo(id: string): void; go(s: 'media' | 'polls' | 'invite' | 'requests' | 'ownership' | 'disappearing' | 'slowmode' | 'members' | 'theme'): void;
 }) {
   const { chat, me, isGroup, isAdmin, isOwner, otherProf, media, docs, polls, pinned, onJumpTo, go } = props;
   const [muted, setMuted] = useState(false);
   const [tone, setTone] = useState('default');
   const [descEdit, setDescEdit] = useState(false);
   const [desc, setDesc] = useState(chat.description || '');
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     backend.getChatNotificationSettings(chat.id).then((s) => setMuted(s.muted)).catch(() => {});
@@ -118,7 +123,21 @@ function MainSection(props: {
     <div className="animate-[v2fade_.18s_ease-out]">
       {/* profile hero */}
       <div className="flex flex-col items-center px-6 pt-6 pb-5 border-b border-[var(--v2-border)]">
-        <Avatar name={chat.name} photoURL={chat.photoURL} size={120} />
+        <button
+          onClick={() => chat.photoURL && setPhotoOpen(true)}
+          className="relative group"
+          title={chat.photoURL ? 'Fullscreen photo dekhein' : chat.name}
+        >
+          <Avatar name={chat.name} photoURL={chat.photoURL} size={120} />
+          {chat.photoURL && (
+            <span className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+              <Icon d={ICONS.search} size={26} />
+            </span>
+          )}
+        </button>
+        {photoOpen && chat.photoURL && (
+          <PhotoViewer src={chat.photoURL} caption={chat.name} onClose={() => setPhotoOpen(false)} />
+        )}
         <h3 className="text-[19px] font-medium mt-3 text-center break-words">{chat.name}</h3>
         {isGroup ? (
           <p className="text-[13px] text-[var(--v2-muted)] mt-1">{chat.participants.length} members</p>
@@ -219,6 +238,7 @@ function MainSection(props: {
 
       {/* sections */}
       <div className="py-1">
+        <RowBtn icon="sun" label="Chat theme" sub="Is chat ka apna rang" onClick={() => go('theme')} />
         {isGroup && <RowBtn icon="users" label="Members" sub={`${chat.participants.length} members`} onClick={() => go('members')} />}
         {polls.length > 0 && <RowBtn icon="poll" label="Polls" sub={`${polls.length} polls · analytics dekhein`} onClick={() => go('polls')} />}
         <RowBtn icon="timer" label="Disappearing messages" sub="Auto-delete timer" onClick={() => go('disappearing')} />
@@ -279,6 +299,7 @@ function BlockRow({ userId, name }: { userId: string; name: string }) {
 
 function MediaGrid({ media, docs }: { media: ChatMessage[]; docs: ChatMessage[] }) {
   const [tab, setTab] = useState<'media' | 'docs'>('media');
+  const [doc, setDoc] = useState<ChatMessage | null>(null);
   return (
     <div className="animate-[v2fade_.18s_ease-out]">
       <div className="flex gap-2 px-5 pt-4">
@@ -304,7 +325,7 @@ function MediaGrid({ media, docs }: { media: ChatMessage[]; docs: ChatMessage[] 
       ) : (
         <div className="p-3">
           {docs.map((m) => (
-            <a key={m.id} href={m.mediaURL} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--v2-hover)] transition">
+            <button key={m.id} onClick={() => setDoc(m)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--v2-hover)] transition text-left" title="Preview dekhein">
               <span className="w-10 h-10 rounded-full bg-[var(--v2-panel2)] flex items-center justify-center shrink-0">
                 <Icon d={ICONS.file} size={19} className="text-[var(--v2-muted)]" />
               </span>
@@ -312,11 +333,19 @@ function MediaGrid({ media, docs }: { media: ChatMessage[]; docs: ChatMessage[] 
                 <span className="block text-[13.5px] truncate">{m.fileName || 'Document'}</span>
                 <span className="block text-[12px] text-[var(--v2-muted)]">{m.senderName} · {fmtTime(m.createdAt)}</span>
               </span>
-              <Icon d={ICONS.download} size={17} className="text-[var(--v2-muted)] shrink-0" />
-            </a>
+              <Icon d={ICONS.search} size={17} className="text-[var(--v2-muted)] shrink-0" />
+            </button>
           ))}
           {docs.length === 0 && <EmptyNote text="Koi document nahi." />}
         </div>
+      )}
+      {doc?.mediaURL && (
+        <DocumentPreview
+          url={doc.mediaURL}
+          fileName={doc.fileName || 'Document'}
+          fileSize={doc.fileSize}
+          onClose={() => setDoc(null)}
+        />
       )}
     </div>
   );
@@ -628,63 +657,210 @@ function SlowModeSection({ chatId, current, isAdmin }: { chatId: string; current
   );
 }
 
-// ================= members =================
+// ================= chat theme (har chat ka apna rang) =================
+
+function ChatThemeSection({ chatId }: { chatId: string }) {
+  const [cur, setCur] = useState<string | null>(() => getChatTheme(chatId));
+  const [custom, setCustom] = useState(cur || '#00a884');
+
+  const pick = (color: string | null) => {
+    setCur(color);
+    setChatTheme(chatId, color);
+  };
+
+  return (
+    <div className="p-4 animate-[v2fade_.18s_ease-out]">
+      <p className="text-[13px] text-[var(--v2-muted)] leading-relaxed mb-4">
+        Sirf is chat ke liye accent rang chunein — buttons, ticks aur highlights isi rang me dikhenge.
+      </p>
+      <div className="grid grid-cols-4 gap-2.5 mb-4">
+        {CHAT_THEME_COLORS.map((c) => {
+          const active = c.value === '' ? cur === null : cur === c.value;
+          return (
+            <button
+              key={c.name}
+              onClick={() => pick(c.value || null)}
+              className="flex flex-col items-center gap-1.5 group"
+              title={c.name}
+            >
+              <span
+                className={`w-12 h-12 rounded-2xl transition ring-2 ring-offset-2 ring-offset-[var(--v2-panel)] ${
+                  active ? 'ring-[var(--v2-accent)] scale-105' : 'ring-transparent group-hover:scale-105'
+                }`}
+                style={{
+                  background: c.value === ''
+                    ? 'linear-gradient(135deg,#00a884 50%,#34b7f1 50%)'
+                    : c.value,
+                }}
+              >
+                {active && (
+                  <span className="w-full h-full flex items-center justify-center text-white">
+                    <Icon d={ICONS.check} size={18} />
+                  </span>
+                )}
+              </span>
+              <span className={`text-[11px] ${active ? 'text-[var(--v2-accent)] font-semibold' : 'text-[var(--v2-muted)]'}`}>
+                {c.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="bg-[var(--v2-panel2)] rounded-xl p-3.5 flex items-center gap-3">
+        <input
+          type="color"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+          title="Custom rang"
+        />
+        <div className="flex-1">
+          <p className="text-[13.5px] font-medium">Custom rang</p>
+          <p className="text-[12px] text-[var(--v2-muted)]">Apni pasand ka koi bhi rang</p>
+        </div>
+        <button
+          onClick={() => pick(custom)}
+          className="px-4 py-2 rounded-full bg-[var(--v2-accent)] text-white text-[13px] font-medium hover:brightness-110 transition"
+        >
+          Lagayein
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ================= members (premium list) =================
 
 function MembersSection({ chat, me, isAdmin }: { chat: Chat; me: UserProfile; isAdmin: boolean }) {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+
+  const sorted = useMemo(() => {
+    const rank = (uid: string) =>
+      uid === me.id ? 0 : (chat.adminIds || [])[0] === uid ? 1 : (chat.adminIds || []).includes(uid) ? 2 : 3;
+    return [...chat.participants].sort((a, b) => rank(a) - rank(b));
+  }, [chat.participants, chat.adminIds, me.id]);
+
+  const filtered = q.trim()
+    ? sorted.filter((uid) => {
+        const prof = chat.participantProfiles[uid];
+        const name = uid === me.id ? 'aap' : (prof?.displayName || '').toLowerCase();
+        return name.includes(q.trim().toLowerCase());
+      })
+    : sorted;
+
+  const admins = (chat.adminIds || []).length;
 
   return (
-    <div className="p-3 animate-[v2fade_.18s_ease-out]">
-      {chat.participants.map((uid) => {
-        const prof = chat.participantProfiles[uid];
-        const name = uid === me.id ? 'Aap' : prof?.displayName || uid.slice(0, 8);
-        const admin = (chat.adminIds || []).includes(uid);
-        return (
-          <div key={uid}>
-            <div className="flex items-center gap-3 px-2 py-2.5">
-              <Avatar name={name} photoURL={prof?.photoURL} size={42} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] truncate">{name}</p>
-                <p className="text-[12px] text-[var(--v2-muted)]">{admin ? 'Admin' : 'Member'}</p>
+    <div className="animate-[v2fade_.18s_ease-out]">
+      <div className="px-4 pt-3 pb-2 sticky top-0 bg-[var(--v2-panel)] z-10">
+        <div className="flex items-center gap-2 bg-[var(--v2-input)] rounded-full px-3.5 py-2">
+          <Icon d={ICONS.search} size={16} className="text-[var(--v2-muted)] shrink-0" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Members dhoondein…"
+            className="bg-transparent outline-none text-[13.5px] w-full text-[var(--v2-text)]"
+          />
+          {q && (
+            <button onClick={() => setQ('')} className="text-[var(--v2-muted)] hover:text-[var(--v2-text)]">
+              <Icon d={ICONS.x} size={15} />
+            </button>
+          )}
+        </div>
+        <p className="text-[12px] text-[var(--v2-muted)] mt-2 px-1">
+          {chat.participants.length} members · {admins} admin{admins === 1 ? '' : 's'}
+        </p>
+      </div>
+      <div className="px-2 pb-3">
+        {filtered.map((uid, idx) => {
+          const prof = chat.participantProfiles[uid];
+          const name = uid === me.id ? 'Aap' : prof?.displayName || uid.slice(0, 8);
+          const admin = (chat.adminIds || []).includes(uid);
+          const owner = (chat.adminIds || [])[0] === uid;
+          const online = !!prof?.online;
+          return (
+            <div key={uid} className="relative">
+              <div
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--v2-hover)] transition v2rowin"
+                style={{ animationDelay: `${Math.min(idx, 12) * 25}ms` }}
+              >
+                <span className="relative shrink-0">
+                  <Avatar name={name} photoURL={prof?.photoURL} size={44} />
+                  <span
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[var(--v2-panel)] ${
+                      online ? 'bg-[#25d366]' : 'bg-[var(--v2-panel3)]'
+                    }`}
+                    title={online ? 'Online' : 'Offline'}
+                  />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] truncate font-medium">{name}</p>
+                  <p className="text-[12px] text-[var(--v2-muted)] truncate">
+                    {prof?.about || (online ? 'Online' : 'Hey there!')}
+                  </p>
+                </div>
+                {owner && (
+                  <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#ff9f1c]/15 text-[#ff9f1c] text-[10.5px] font-bold shrink-0">
+                    <Icon d={ICONS.crown} size={12} /> OWNER
+                  </span>
+                )}
+                {!owner && admin && (
+                  <span className="px-2 py-1 rounded-full bg-[var(--v2-accent-soft)] text-[var(--v2-accent)] text-[10.5px] font-bold shrink-0">
+                    ADMIN
+                  </span>
+                )}
+                {isAdmin && uid !== me.id && (
+                  <button
+                    onClick={() => setMenuFor(menuFor === uid ? null : uid)}
+                    className="p-1.5 rounded-full text-[var(--v2-muted)] hover:bg-[var(--v2-active)] hover:text-[var(--v2-text)] transition shrink-0"
+                    title="Options"
+                  >
+                    <Icon d={ICONS.chevDown} size={17} />
+                  </button>
+                )}
               </div>
-              {isAdmin && uid !== me.id && (
-                <div className="flex gap-1 shrink-0">
+              {menuFor === uid && (
+                <div className="absolute right-3 top-12 z-20 bg-[var(--v2-panel)] border border-[var(--v2-border)] rounded-xl shadow-2xl py-1.5 min-w-[190px] animate-[v2pop_.15s_ease-out]">
                   {!admin && (
                     <button
-                      onClick={() => backend.makeAdmin(chat.id, uid).catch(() => {})}
-                      className="p-2 rounded-full hover:bg-[var(--v2-hover)] text-[var(--v2-muted)] hover:text-[var(--v2-accent)] transition"
-                      title="Admin banayein"
+                      onClick={() => { setMenuFor(null); backend.makeAdmin(chat.id, uid).catch(() => {}); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13.5px] hover:bg-[var(--v2-hover)] transition text-left"
                     >
-                      <Icon d={ICONS.crown} size={17} />
+                      <Icon d={ICONS.crown} size={16} className="text-[#ff9f1c]" /> Admin banayein
                     </button>
                   )}
                   <button
-                    onClick={() => setConfirmRemove(uid)}
-                    className="p-2 rounded-full hover:bg-[var(--v2-danger-bg)] text-[var(--v2-muted)] hover:text-[#ea0038] transition"
-                    title="Remove karein"
+                    onClick={() => { setMenuFor(null); setConfirmRemove(uid); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13.5px] text-[#ea0038] hover:bg-[#ea0038]/[0.07] transition text-left"
                   >
-                    <Icon d={ICONS.x} size={17} />
+                    <Icon d={ICONS.x} size={16} /> Remove karein
+                  </button>
+                </div>
+              )}
+              {confirmRemove === uid && (
+                <div className="bg-[var(--v2-panel2)] rounded-xl p-3.5 mb-1 mx-1 flex items-center gap-2 animate-[v2fade_.15s_ease-out]">
+                  <p className="text-[13px] flex-1"><b>{name}</b> ko remove karein?</p>
+                  <button
+                    onClick={() => { backend.removeMember(chat.id, uid).then(() => setConfirmRemove(null)).catch(() => setConfirmRemove(null)); }}
+                    className="px-3 py-1.5 rounded-full bg-[#ea0038] text-white text-[12.5px] font-medium"
+                  >
+                    Remove
+                  </button>
+                  <button onClick={() => setConfirmRemove(null)} className="px-3 py-1.5 rounded-full bg-[var(--v2-input)] text-[12.5px]">
+                    Cancel
                   </button>
                 </div>
               )}
             </div>
-            {confirmRemove === uid && (
-              <div className="bg-[var(--v2-panel2)] rounded-xl p-3.5 mb-2 ml-2 flex items-center gap-2">
-                <p className="text-[13px] flex-1"><b>{name}</b> ko remove karein?</p>
-                <button
-                  onClick={() => { backend.removeMember(chat.id, uid).then(() => setConfirmRemove(null)).catch(() => setConfirmRemove(null)); }}
-                  className="px-3 py-1.5 rounded-full bg-[#ea0038] text-white text-[12.5px] font-medium"
-                >
-                  Remove
-                </button>
-                <button onClick={() => setConfirmRemove(null)} className="px-3 py-1.5 rounded-full bg-[var(--v2-input)] text-[12.5px]">
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+        {filtered.length === 0 && (
+          <p className="text-center text-[13px] text-[var(--v2-muted)] py-8">Koi member nahi mila.</p>
+        )}
+      </div>
+      {menuFor && <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />}
     </div>
   );
 }

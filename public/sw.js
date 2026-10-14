@@ -3,7 +3,7 @@
 // Kaam: (1) app shell cache karna, (2) navigations/static ke liye cache-first +
 // network fallback, (3) push notifications dikhana, (4) notification click par "/" kholna.
 
-const CACHE_VERSION = "chat-v1";
+const CACHE_VERSION = "chat-v2";
 const CACHE_NAME = `chat-cache-${CACHE_VERSION}`;
 const APP_SHELL = ["/"];
 
@@ -67,19 +67,24 @@ self.addEventListener("push", (event) => {
     data = { body: event.data ? event.data.text() : "" };
   }
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Chat", {
-      body: data.body || "Naya message aaya hai",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: data.tag || "chat-message",
-    })
-  );
+  const title = data.title || "Chat";
+  const options = {
+    body: data.body || "Naya message aaya hai",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: data.tag || "chat-message",
+    renotify: true,
+    data: { chatId: data.chatId || null, url: "/" },
+    vibrate: [100, 50, 100],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Notification click: "/" wala tab focus karo ya naya kholo
+// Notification click: relevant tab focus karo, warna "/" kholo
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
@@ -89,7 +94,7 @@ self.addEventListener("notificationclick", (event) => {
             return client.focus();
           }
         }
-        if (self.clients.openWindow) return self.clients.openWindow("/");
+        if (self.clients.openWindow) return self.clients.openWindow(url);
       })
   );
 });

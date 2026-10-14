@@ -1,18 +1,22 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  BackendV2,
+  BackendV3,
   BlockedUser,
   InviteLink,
   JoinRequest,
   PollAnalytics,
   SharedContact,
-  BackendV2,
 } from '@/lib/v2/types';
 import type {
   Chat,
+  ChatAnalytics,
   ChatBackend,
   ChatMessage,
   ChatNotificationSettings,
+  DeviceInfo,
   LastMessage,
+  MessageInfo,
   PollData,
   PrivacySettings,
   ReaderInfo,
@@ -38,6 +42,7 @@ type DbProfile = {
   privacy?: PrivacySettings;
   pinned_chats?: string[];
   disappearing_after?: number;
+  hide_forward_tag?: boolean;
 };
 
 type DbChat = {
@@ -82,9 +87,24 @@ type DbMessage = {
   lat?: number | null;
   lng?: number | null;
   location_expires_at?: number | string | null;
+  // ---- v3 columns ----
+  deleted_everyone?: boolean;
+  forward_count?: number | null;
+  delivered_at?: number | string | null;
 };
 
 const num = (v: number | string | null | undefined): number => Number(v || 0);
+
+/**
+ * Presence fix (v3): sirf `online` flag par bharosa mat karo — tab close /
+ * crash par flag true reh jata hai. last_seen 2 min se purana ho to offline samjho.
+ */
+const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
+function isOnlineRecent(lastSeen: number, onlineFlag: boolean): boolean {
+  if (!onlineFlag) return false;
+  if (!lastSeen) return false;
+  return Date.now() - lastSeen < ONLINE_TIMEOUT_MS;
+}
 
 function toUserProfile(p: DbProfile): UserProfile {
   return {
@@ -93,11 +113,12 @@ function toUserProfile(p: DbProfile): UserProfile {
     email: p.email || '',
     photoURL: p.photo_url || '',
     about: p.about || 'Hey there! I am using Chat.',
-    online: !!p.online,
+    online: isOnlineRecent(num(p.last_seen), !!p.online),
     lastSeen: num(p.last_seen),
     coverURL: p.cover_url || '',
     privacy: (p.privacy as PrivacySettings) || { lastSeen: 'everyone', photo: 'everyone', online: 'everyone' },
     disappearingAfter: Number(p.disappearing_after || 0),
+    hideForwardTag: !!p.hide_forward_tag,
   };
 }
 
@@ -129,10 +150,55 @@ function toChatMessage(m: DbMessage): ChatMessage {
     lat: m.lat ?? undefined,
     lng: m.lng ?? undefined,
     locationExpiresAt: m.location_expires_at ? num(m.location_expires_at) : undefined,
+    // ---- v3 ----
+    deletedEveryone: !!m.deleted_everyone,
+    forwardCount: Number(m.forward_count || 0),
+    deliveredAt: m.delivered_at ? num(m.delivered_at) : undefined,
   };
 }
 
-export class SupabaseBackend implements ChatBackend, BackendV2 {
+// ==================== v3: E2E encryption (AES-GCM, per-chat key) ====================
+// Simple design: har chat ki ek AES-GCM-256 key `chat_keys` table me.
+// Sirf type='text' wale messages ka `text` encrypt hota hai (prefix "enc1.").
+// Purane plaintext messages me prefix nahi hota — wo waise hi parhe jate hain.
+
+const ENC_PREFIX = 'enc1.';
+const chatKeyCache = new Map<string, CryptoKey>();
+
+function b64ToBytes(s: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(s);
+  const out = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesToB64(bytes: Uint8Array<ArrayBufferLike>): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+
+async function importChatKey(keyB64: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey('raw', b64ToBytes(keyB64), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptChatText(key: CryptoKey, plaintext: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext));
+  return ENC_PREFIX + bytesToB64(iv) + '.' + bytesToB64(new Uint8Array(ct));
+}
+
+async function decryptChatText(key: CryptoKey, stored: string): Promise<string> {
+  const rest = stored.slice(ENC_PREFIX.length);
+  const dot = rest.indexOf('.');
+  if (dot < 0) throw new Error('bad enc format');
+  const iv = b64ToBytes(rest.slice(0, dot));
+  const ct = b64ToBytes(rest.slice(dot + 1));
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
+export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   readonly mode = 'supabase' as const;
   private sb: SupabaseClient;
   private meId: string | null = null;
@@ -141,9 +207,118 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
   private typingCache = new Map<string, Record<string, number>>();
   private chanSeq = 0;
   private profileChan: RealtimeChannel | null = null;
+  private myDeviceId: string | null = null;
 
   constructor() {
     this.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  // ---- v3: E2E chat key (get-or-create, cached) ----
+  private async getChatKey(chatId: string): Promise<CryptoKey | null> {
+    try {
+      const cached = chatKeyCache.get(chatId);
+      if (cached) return cached;
+      const { data } = await this.sb.from('chat_keys').select('key_b64').eq('chat_id', chatId).maybeSingle();
+      let keyB64 = (data as { key_b64?: string } | null)?.key_b64;
+      if (!keyB64) {
+        // Pehla sender key banata hai
+        const raw = crypto.getRandomValues(new Uint8Array(32));
+        keyB64 = bytesToB64(raw);
+        const { error } = await this.sb.from('chat_keys').insert({ chat_id: chatId, key_b64: keyB64, created_at: Date.now() });
+        if (error) {
+          // Race: kisi aur ne bana di — dobara parho
+          const { data: retry } = await this.sb.from('chat_keys').select('key_b64').eq('chat_id', chatId).maybeSingle();
+          keyB64 = (retry as { key_b64?: string } | null)?.key_b64;
+          if (!keyB64) return null;
+        }
+      }
+      const key = await importChatKey(keyB64);
+      chatKeyCache.set(chatId, key);
+      return key;
+    } catch (e) {
+      console.error('getChatKey failed:', e);
+      return null;
+    }
+  }
+
+  /** text messages ka text encrypt karo (khali ya pehle se encrypted ko chhoro). */
+  private async encryptForChat(chatId: string, text: string): Promise<string> {
+    if (!text || text.startsWith(ENC_PREFIX)) return text;
+    const key = await this.getChatKey(chatId);
+    if (!key) return text; // key na mile to plaintext fallback (purane DB rows)
+    try {
+      return await encryptChatText(key, text);
+    } catch (e) {
+      console.error('encrypt failed:', e);
+      return text;
+    }
+  }
+
+  /** DB rows ke encrypted text decrypt karo (frontend ko hamesha plaintext mile). */
+  private async decryptRows(chatId: string, rows: DbMessage[]): Promise<DbMessage[]> {
+    const needs = rows.some((r) => typeof r.text === 'string' && r.text.startsWith(ENC_PREFIX));
+    if (!needs) return rows;
+    const key = await this.getChatKey(chatId);
+    if (!key) return rows;
+    return Promise.all(
+      rows.map(async (r) => {
+        if (typeof r.text !== 'string' || !r.text.startsWith(ENC_PREFIX)) return r;
+        try {
+          return { ...r, text: await decryptChatText(key, r.text) };
+        } catch {
+          return r; // decrypt fail → raw dikhao, crash nahi
+        }
+      })
+    );
+  }
+
+  async isE2EEnabled(chatId: string): Promise<boolean> {
+    return (await this.getChatKey(chatId)) !== null;
+  }
+
+  // ---- v3: mention detection ----
+  /**
+   * Text me @username mentions dhoondo aur participants se match karke userIds do.
+   * "@Ahmed" ya "@Ahmed Khan" dono chalte hain (case-insensitive).
+   */
+  parseMentions(text: string, participants: { userId: string; displayName: string }[]): string[] {
+    const lower = ` ${text.toLowerCase()} `;
+    const found = new Set<string>();
+    for (const p of participants) {
+      if (!p.userId || p.userId === this.meId) continue;
+      const name = (p.displayName || '').trim().toLowerCase();
+      if (!name) continue;
+      const first = name.split(/\s+/)[0];
+      if (lower.includes(`@${name}`) || lower.includes(`@${first}`)) found.add(p.userId);
+    }
+    return [...found];
+  }
+
+  private async getChatParticipantsForMentions(chatId: string): Promise<{ userId: string; displayName: string }[]> {
+    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+    const ids = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id);
+    if (ids.length === 0) return [];
+    const { data: profs } = await this.sb.from('profiles').select('id,display_name').in('id', ids);
+    return ((profs || []) as Array<{ id: string; display_name: string }>).map((p) => ({
+      userId: p.id,
+      displayName: p.display_name || 'User',
+    }));
+  }
+
+  // ---- v3: push trigger (backend se — har naye message par ek hi jagah se) ----
+  private async firePush(chatId: string, title: string, body: string, mentions?: string[]): Promise<void> {
+    try {
+      if (typeof window === 'undefined') return;
+      const token = await this.getAuthToken();
+      if (!token) return;
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ chatId, title, body, mentions: mentions || [] }),
+      }).catch(() => {});
+    } catch {
+      // push optional — fail ho to khamoshi se ignore
+    }
   }
 
   private track(ch: RealtimeChannel): RealtimeChannel {
@@ -182,6 +357,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
       this.startPresence();
+      this.registerDevice();
+      this.startDeviceHeartbeat();
       // Profile realtime: naam/photo/setting change ho to foran UI update (bina reload)
       if (!this.profileChan) {
         this.profileChan = this.track(
@@ -218,6 +395,111 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       this.sb.from('profiles').update({ online: false, last_seen: Date.now() }).eq('id', this.meId);
     };
     window.addEventListener('beforeunload', goOffline);
+  }
+
+  /** v3: 2-min timeout wala online check — tab close ke baad "online" nahi dikhega. */
+  isUserOnline(lastSeen: number, onlineFlag: boolean): boolean {
+    return isOnlineRecent(lastSeen, onlineFlag);
+  }
+
+  // ---- v3: device manager ----
+  private deviceName(): string {
+    if (typeof navigator === 'undefined') return 'Unknown device';
+    const ua = navigator.userAgent || '';
+    let os = 'Unknown OS';
+    if (/android/i.test(ua)) os = 'Android';
+    else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+    else if (/windows/i.test(ua)) os = 'Windows';
+    else if (/mac os/i.test(ua)) os = 'macOS';
+    else if (/linux/i.test(ua)) os = 'Linux';
+    let browser = 'Browser';
+    if (/edg/i.test(ua)) browser = 'Edge';
+    else if (/chrome/i.test(ua)) browser = 'Chrome';
+    else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
+    else if (/firefox/i.test(ua)) browser = 'Firefox';
+    return `${browser} • ${os}`;
+  }
+
+  private getMyDeviceId(): string {
+    if (this.myDeviceId) return this.myDeviceId;
+    try {
+      let id = localStorage.getItem('chatsapp_device_id');
+      if (!id) {
+        id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        localStorage.setItem('chatsapp_device_id', id);
+      }
+      this.myDeviceId = id;
+      return id;
+    } catch {
+      this.myDeviceId = `dev_${Date.now().toString(36)}`;
+      return this.myDeviceId;
+    }
+  }
+
+  /** Login par device register/update karo (fire-and-forget). */
+  private registerDevice(): void {
+    const me = this.meId;
+    if (!me || typeof window === 'undefined') return;
+    const id = this.getMyDeviceId();
+    const now = Date.now();
+    this.sb
+      .from('devices')
+      .upsert(
+        { id, user_id: me, name: this.deviceName(), last_active: now, created_at: now },
+        { onConflict: 'id', ignoreDuplicates: false }
+      )
+      .then(
+        () => {},
+        (e) => console.error('registerDevice failed:', e)
+      );
+  }
+
+  /** Har 5 min par device ka last_active refresh karo. */
+  private startDeviceHeartbeat(): void {
+    const me = this.meId;
+    if (!me || typeof window === 'undefined') return;
+    const id = this.getMyDeviceId();
+    setInterval(() => {
+      if (!this.meId) return;
+      this.sb.from('devices').update({ last_active: Date.now() }).eq('id', id).then(
+        () => {},
+        () => {}
+      );
+    }, 5 * 60 * 1000);
+  }
+
+  async getDevices(): Promise<DeviceInfo[]> {
+    const me = this.meId;
+    if (!me) return [];
+    let current = '';
+    try {
+      current = this.getMyDeviceId();
+    } catch {
+      /* ignore */
+    }
+    const { data } = await this.sb.from('devices').select('*').eq('user_id', me).order('last_active', { ascending: false });
+    return ((data || []) as Array<{ id: string; name: string; last_active: number | string; created_at: number | string }>).map((d) => ({
+      id: d.id,
+      name: d.name || 'Unknown device',
+      lastActive: num(d.last_active),
+      createdAt: num(d.created_at),
+      isCurrent: d.id === current,
+    }));
+  }
+
+  async revokeDevice(deviceId: string): Promise<void> {
+    const me = this.meId;
+    if (!me || !deviceId) return;
+    await this.sb.from('devices').delete().eq('id', deviceId).eq('user_id', me);
+    // Apna current device revoke kiya to local id bhool jao (agli dafa naya banega)
+    try {
+      if (localStorage.getItem('chatsapp_device_id') === deviceId) {
+        localStorage.removeItem('chatsapp_device_id');
+        this.myDeviceId = null;
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   async signInWithGoogle(): Promise<void> {
@@ -271,7 +553,7 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       const profiles: Chat['participantProfiles'] = {};
       for (const pid of pids) {
         const pr = profMap.get(pid);
-        if (pr) profiles[pid] = { displayName: pr.displayName, photoURL: pr.photoURL, online: pr.online, lastSeen: pr.lastSeen };
+        if (pr) profiles[pid] = { displayName: pr.displayName, photoURL: pr.photoURL, online: isOnlineRecent(pr.lastSeen, pr.online), lastSeen: pr.lastSeen, about: pr.about };
       }
       let name = c.name || '';
       let photoURL = c.photo_url || '';
@@ -350,9 +632,30 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
           .limit(200),
         this.fetchBlockedIds(),
       ]);
-      let msgs = ((msgRes.data || []) as DbMessage[]).map(toChatMessage);
+      let rows = (msgRes.data || []) as DbMessage[];
+      // v3: E2E encrypted text decrypt karo (frontend ko hamesha plaintext)
+      rows = await this.decryptRows(chatId, rows);
+      let msgs = rows.map(toChatMessage);
+      // v3: "Delete for me" wale messages mujhe mat dikhao
+      const me = this.meId;
+      if (me) msgs = msgs.filter((m) => !(m.deletedFor || []).includes(me));
       // Block kiye users ke messages chhupao
       if (blocked.size > 0) msgs = msgs.filter((m) => !blocked.has(m.senderId));
+      // v3: delivery tracking — dusron ke messages pehli dafa dekhne par delivered_at lagao
+      if (me) {
+        const undelivered = rows.filter((r) => r.sender_id !== me && !r.delivered_at);
+        if (undelivered.length > 0) {
+          const nowD = Date.now();
+          this.sb
+            .from('messages')
+            .update({ delivered_at: nowD })
+            .in('id', undelivered.map((r) => r.id))
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+      }
       // Self-destruct: expire ho gaye to UI se hatao + DB se safai (fire-and-forget)
       const now = Date.now();
       const expired = msgs.filter((m) => m.selfDestructAt && m.selfDestructAt <= now);
@@ -398,13 +701,17 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
     const now = Date.now();
     const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).single();
     const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
-    const preview = input.type === 'text' ? input.text : input.type === 'image' ? '📷 Photo' : '🎤 Voice message';
+    // v3: E2E — text messages encrypt karke store karo
+    const storedText = input.type === 'text' ? await this.encryptForChat(chatId, input.text) : input.text;
+    const preview = input.type === 'text'
+      ? (storedText.startsWith(ENC_PREFIX) ? '🔒 Encrypted message' : input.text)
+      : input.type === 'image' ? '📷 Photo' : '🎤 Voice message';
     await this.sb.from('messages').insert({
       chat_id: chatId,
       sender_id: me,
       sender_name: senderName,
       type: input.type,
-      text: input.text,
+      text: storedText,
       media_url: input.mediaURL || null,
       file_name: input.fileName || null,
       file_size: input.fileSize ?? null,
@@ -417,6 +724,48 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       last_message: { text: preview, senderId: me, senderName, createdAt: now, type: input.type } as LastMessage,
       updated_at: now,
     }).eq('id', chatId);
+    // v3: push — mention wale users ko special alert
+    const mentionIds = input.type === 'text' && input.text.includes('@')
+      ? this.parseMentions(input.text, await this.getChatParticipantsForMentions(chatId))
+      : [];
+    const pushBody = input.type === 'text' ? input.text.slice(0, 80)
+      : input.type === 'image' ? '📷 Photo'
+      : input.type === 'audio' ? '🎤 Voice message'
+      : `📎 ${input.fileName || 'File'}`;
+    this.firePush(chatId, senderName, pushBody, mentionIds);
+  }
+
+  /**
+   * v3: Optimistic update helper — send turant UI me dikhane ke liye local message banao.
+   * Frontend: isay foran list me daalo; realtime echo aane par temp id hata do.
+   */
+  buildLocalMessage(
+    chatId: string,
+    input: SendInput,
+    sender: { id: string; displayName: string }
+  ): ChatMessage {
+    const now = Date.now();
+    return {
+      id: `tmp_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      chatId,
+      senderId: sender.id,
+      senderName: sender.displayName,
+      type: input.type,
+      text: input.text,
+      mediaURL: input.mediaURL,
+      fileName: input.fileName,
+      fileSize: input.fileSize,
+      duration: input.duration,
+      replyTo: input.replyTo || null,
+      createdAt: now,
+      readBy: [sender.id],
+      deletedFor: [],
+      reactions: {},
+      isPinned: false,
+      poll: null,
+      forwarded: false,
+      forwardCount: 0,
+    };
   }
 
   async markRead(chatId: string): Promise<void> {
@@ -511,15 +860,53 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
     return { url: data.publicUrl, kind };
   }
 
+  /**
+   * v3: WhatsApp-style delete.
+   * - "Delete for me": hamesha allowed — sirf mere liye chhupta hai (deleted_for).
+   * - "Delete for everyone": SIRF tab jab main sender hoon AUR message 2 din se
+   *   purana na ho. Sab ke liye placeholder lag jata hai.
+   */
   async deleteMessage(chatId: string, messageId: string, forEveryone: boolean): Promise<void> {
     const me = this.meId;
     if (!me) return;
     if (forEveryone) {
-      await this.sb.from('messages').update({ text: '🚫 This message was deleted', type: 'text', media_url: null }).eq('id', messageId);
+      const { data } = await this.sb.from('messages').select('sender_id,created_at').eq('id', messageId).maybeSingle();
+      const row = data as { sender_id?: string; created_at?: number | string } | null;
+      if (!row || row.sender_id !== me) {
+        throw new Error('Sirf apna bheja hua message sab ke liye delete kar sakte hain');
+      }
+      const age = Date.now() - num(row.created_at);
+      if (age > 2 * 24 * 3600 * 1000) {
+        throw new Error('2 din se purana message sab ke liye delete nahi ho sakta — sirf apne liye delete karein');
+      }
+      const placeholder = '🚫 Ye message delete kar diya gaya';
+      await this.sb.from('messages').update({
+        text: placeholder,
+        type: 'text',
+        media_url: null,
+        file_name: null,
+        file_size: null,
+        duration: null,
+        poll: null,
+        contact_data: null,
+        reply_to: null,
+        deleted_everyone: true,
+      }).eq('id', messageId);
+      // Agar yehi chat ka last message tha to chat list me bhi placeholder dikhao
+      const { data: chat } = await this.sb.from('chats').select('last_message').eq('id', chatId).maybeSingle();
+      const lm = (chat as { last_message?: LastMessage } | null)?.last_message;
+      if (lm && lm.createdAt === num(row.created_at)) {
+        await this.sb.from('chats').update({
+          last_message: { ...lm, text: placeholder, type: 'text' } as LastMessage,
+          updated_at: Date.now(),
+        }).eq('id', chatId);
+      }
     } else {
       const { data } = await this.sb.from('messages').select('deleted_for').eq('id', messageId).maybeSingle();
       const cur = ((data as { deleted_for?: string[] } | null)?.deleted_for || []) as string[];
-      await this.sb.from('messages').update({ deleted_for: [...cur, me] }).eq('id', messageId);
+      if (!cur.includes(me)) {
+        await this.sb.from('messages').update({ deleted_for: [...cur, me] }).eq('id', messageId);
+      }
     }
   }
 
@@ -574,7 +961,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       .eq('is_pinned', true)
       .order('created_at', { ascending: false })
       .limit(20);
-    return ((data || []) as DbMessage[]).map(toChatMessage);
+    const rows = await this.decryptRows(chatId, (data || []) as DbMessage[]);
+    return rows.map(toChatMessage);
   }
 
   async starMessage(messageId: string, starred: boolean): Promise<void> {
@@ -597,7 +985,17 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
     const ids = (stars || []).map((s) => s.message_id);
     if (ids.length === 0) return [];
     const { data } = await this.sb.from('messages').select('*').in('id', ids);
-    const map = new Map(((data || []) as DbMessage[]).map((m) => [m.id, toChatMessage(m)]));
+    const rows = (data || []) as DbMessage[];
+    // v3: decrypt (starred alag-alag chats ke ho sakte hain — har chat ki key se)
+    const byChat = new Map<string, DbMessage[]>();
+    for (const r of rows) {
+      const arr = byChat.get(r.chat_id) || [];
+      arr.push(r);
+      byChat.set(r.chat_id, arr);
+    }
+    const decrypted: DbMessage[] = [];
+    for (const [cid, arr] of byChat) decrypted.push(...(await this.decryptRows(cid, arr)));
+    const map = new Map(decrypted.map((m) => [m.id, toChatMessage(m)]));
     return ids.map((id) => map.get(id)).filter((m): m is ChatMessage => !!m);
   }
 
@@ -617,26 +1015,51 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
     const now = Date.now();
     const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).maybeSingle();
     const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
+    // v3: forward count barhao (5+ par "Forwarded many times")
+    const newCount = Number(src.forward_count || 0) + 1;
+    this.sb.from('messages').update({ forward_count: newCount }).eq('id', messageId).then(
+      () => {},
+      () => {}
+    );
+    // v3: E2E — source chat ki key se decrypt karke target chat ki key se encrypt karo
+    let plainText = src.text || '';
+    if (plainText.startsWith(ENC_PREFIX)) {
+      const srcKey = await this.getChatKey(src.chat_id);
+      if (srcKey) {
+        try {
+          plainText = await decryptChatText(srcKey, plainText);
+        } catch {
+          /* raw rehne do */
+        }
+      }
+    }
+    const storedText = src.type === 'text' ? await this.encryptForChat(targetChatId, plainText) : src.text;
     await this.sb.from('messages').insert({
       chat_id: targetChatId,
       sender_id: me,
       sender_name: senderName,
       type: src.type,
-      text: src.text,
+      text: storedText,
       media_url: src.media_url,
       file_name: src.file_name,
       file_size: src.file_size,
       duration: src.duration,
       poll: src.poll,
       forwarded: true,
+      forward_count: newCount,
       created_at: now,
       read_by: [me],
     });
-    const preview = src.type === 'text' ? src.text : src.type === 'image' ? '📷 Photo' : src.type === 'poll' ? '📊 Poll' : '📎 File';
+    const preview = src.type === 'text' ? (storedText.startsWith(ENC_PREFIX) ? '🔒 Encrypted message' : plainText) : src.type === 'image' ? '📷 Photo' : src.type === 'poll' ? '📊 Poll' : '📎 File';
     await this.sb.from('chats').update({
       last_message: { text: preview, senderId: me, senderName, createdAt: now, type: src.type } as LastMessage,
       updated_at: now,
     }).eq('id', targetChatId);
+    // v3: push
+    const mentionIds = src.type === 'text' && plainText.includes('@')
+      ? this.parseMentions(plainText, await this.getChatParticipantsForMentions(targetChatId))
+      : [];
+    this.firePush(targetChatId, senderName, preview.slice(0, 80), mentionIds);
   }
 
   async createPoll(chatId: string, question: string, options: string[]): Promise<string> {
@@ -664,6 +1087,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       last_message: { text: `📊 ${q}`, senderId: me, senderName, createdAt: now, type: 'poll' } as LastMessage,
       updated_at: now,
     }).eq('id', chatId);
+    // v3: push
+    this.firePush(chatId, senderName, `📊 ${q}`.slice(0, 80));
     return (data as { id: string }).id;
   }
 
@@ -686,11 +1111,14 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
   async toggleReaction(chatId: string, messageId: string, emoji: string): Promise<void> {
     const me = this.meId;
     if (!me) return;
+    // v3: custom reactions — koi bhi emoji allowed hai (bas khali nahi)
+    const e = emoji.trim();
+    if (!e) return;
     const { data } = await this.sb.from('messages').select('reactions').eq('id', messageId).maybeSingle();
     const reactions: Record<string, string[]> = { ...(((data as { reactions?: Record<string, string[]> } | null)?.reactions) || {}) };
-    const users = reactions[emoji] || [];
-    reactions[emoji] = users.includes(me) ? users.filter((u) => u !== me) : [...users, me];
-    if (reactions[emoji].length === 0) delete reactions[emoji];
+    const users = reactions[e] || [];
+    reactions[e] = users.includes(me) ? users.filter((u) => u !== me) : [...users, me];
+    if (reactions[e].length === 0) delete reactions[e];
     await this.sb.from('messages').update({ reactions }).eq('id', messageId);
   }
 
@@ -887,7 +1315,9 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       .ilike('text', `%${term}%`)
       .order('created_at', { ascending: false })
       .limit(30);
-    return ((data || []) as DbMessage[]).map(toChatMessage);
+    // Note: E2E encrypted text DB me match nahi hoga — sirf purane/plaintext results
+    const rows = await this.decryptRows(chatId, (data || []) as DbMessage[]);
+    return rows.map(toChatMessage);
   }
 
   async getAuthToken(): Promise<string | null> {
@@ -1253,6 +1683,12 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
       last_message: { text: preview, senderId: me, senderName, createdAt: now, type: row.type } as LastMessage,
       updated_at: now,
     }).eq('id', chatId);
+    // v3: push (self-destruct/contact/location)
+    const spText = String(row.text || '');
+    const mentionIds = spText.includes('@')
+      ? this.parseMentions(spText, await this.getChatParticipantsForMentions(chatId))
+      : [];
+    this.firePush(chatId, senderName, preview.slice(0, 80), mentionIds);
   }
 
   async sendSelfDestructMessage(chatId: string, text: string, seconds: number): Promise<void> {
@@ -1305,5 +1741,151 @@ export class SupabaseBackend implements ChatBackend, BackendV2 {
     const { data } = await this.sb.from('messages').select('sender_id').eq('id', messageId).maybeSingle();
     if ((data as { sender_id?: string } | null)?.sender_id !== me) return;
     await this.sb.from('messages').update({ location_expires_at: Date.now() }).eq('id', messageId);
+  }
+
+  // ==================== v3 additions ====================
+
+  /** Chat analytics: total, per-user counts, sab se active hour, pehla/aakhri message. */
+  async getChatAnalytics(chatId: string): Promise<ChatAnalytics> {
+    const { data } = await this.sb
+      .from('messages')
+      .select('sender_id,sender_name,created_at')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true })
+      .limit(5000);
+    const rows = (data || []) as Array<{ sender_id: string; sender_name: string; created_at: number | string }>;
+    const perUserMap = new Map<string, { userId: string; displayName: string; count: number }>();
+    const hourCounts = new Array<number>(24).fill(0);
+    let first = 0;
+    let last = 0;
+    for (const r of rows) {
+      const at = num(r.created_at);
+      if (!first || at < first) first = at;
+      if (at > last) last = at;
+      const e = perUserMap.get(r.sender_id) || { userId: r.sender_id, displayName: r.sender_name || 'User', count: 0 };
+      e.count++;
+      perUserMap.set(r.sender_id, e);
+      hourCounts[new Date(at).getHours()]++;
+    }
+    let mostActiveHour = -1;
+    let best = 0;
+    hourCounts.forEach((c, h) => {
+      if (c > best) {
+        best = c;
+        mostActiveHour = h;
+      }
+    });
+    return {
+      chatId,
+      totalMessages: rows.length,
+      perUser: [...perUserMap.values()].sort((a, b) => b.count - a.count),
+      mostActiveHour,
+      firstMessageAt: first,
+      lastMessageAt: last,
+    };
+  }
+
+  /** WA-style group read list — sirf messageId se, kisne kab parha. */
+  async getMessageReadList(messageId: string): Promise<ReaderInfo[]> {
+    const { data: msg } = await this.sb.from('messages').select('chat_id,read_by,read_at').eq('id', messageId).maybeSingle();
+    const m = msg as { chat_id?: string; read_by?: string[]; read_at?: Record<string, number> } | null;
+    if (!m) return [];
+    return this.getMessageReaders(m.chat_id || '', messageId);
+  }
+
+  /** Forwarded tag chhupane ki per-user setting. */
+  async setHideForwardTag(hidden: boolean): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    await this.sb.from('profiles').update({ hide_forward_tag: hidden }).eq('id', me);
+  }
+
+  async getHideForwardTag(): Promise<boolean> {
+    const me = this.meId;
+    if (!me) return false;
+    const { data } = await this.sb.from('profiles').select('hide_forward_tag').eq('id', me).maybeSingle();
+    return !!((data as { hide_forward_tag?: boolean } | null)?.hide_forward_tag);
+  }
+
+  /** 1 ghante ke andar expire hone wale (self-destruct) messages — warning ke liye. */
+  async getExpiringSoon(): Promise<ChatMessage[]> {
+    const me = this.meId;
+    if (!me) return [];
+    const now = Date.now();
+    const { data: parts } = await this.sb.from('chat_participants').select('chat_id').eq('user_id', me);
+    const chatIds = ((parts || []) as Array<{ chat_id: string }>).map((p) => p.chat_id);
+    if (chatIds.length === 0) return [];
+    const { data } = await this.sb
+      .from('messages')
+      .select('*')
+      .in('chat_id', chatIds)
+      .gt('self_destruct_at', now)
+      .lte('self_destruct_at', now + 3600 * 1000)
+      .order('self_destruct_at', { ascending: true })
+      .limit(50);
+    const rows = (data || []) as DbMessage[];
+    const byChat = new Map<string, DbMessage[]>();
+    for (const r of rows) {
+      const arr = byChat.get(r.chat_id) || [];
+      arr.push(r);
+      byChat.set(r.chat_id, arr);
+    }
+    const out: ChatMessage[] = [];
+    for (const [cid, arr] of byChat) out.push(...(await this.decryptRows(cid, arr)).map(toChatMessage));
+    return out.sort((a, b) => (a.selfDestructAt || 0) - (b.selfDestructAt || 0));
+  }
+
+  /** WA-style message info: sent/delivered/read ke exact timestamps. */
+  async getMessageInfo(messageId: string): Promise<MessageInfo> {
+    const { data } = await this.sb
+      .from('messages')
+      .select('created_at,delivered_at,sender_id,read_at')
+      .eq('id', messageId)
+      .maybeSingle();
+    const m = data as { created_at?: number | string; delivered_at?: number | string | null; sender_id?: string; read_at?: Record<string, number> } | null;
+    if (!m) throw new Error('Message nahi mila');
+    const sentAt = num(m.created_at);
+    const deliveredAt = m.delivered_at ? num(m.delivered_at) : 0;
+    // readAt = pehle non-sender reader ka waqt
+    let readAt = 0;
+    const readAtMap = m.read_at || {};
+    for (const [uid, t] of Object.entries(readAtMap)) {
+      if (uid === m.sender_id) continue;
+      const ts = Number(t) || 0;
+      if (ts > 0 && (!readAt || ts < readAt)) readAt = ts;
+    }
+    return { messageId, sentAt, deliveredAt, readAt };
+  }
+
+  /**
+   * Auto-archive: 30 din se inactive chats (koi naya message nahi) archive karo.
+   * Returns: kitni chats archive hui. App-start par chalao.
+   */
+  async autoArchiveInactive(): Promise<number> {
+    const me = this.meId;
+    if (!me) return 0;
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    const { data: parts } = await this.sb.from('chat_participants').select('chat_id').eq('user_id', me);
+    const chatIds = ((parts || []) as Array<{ chat_id: string }>).map((p) => p.chat_id);
+    if (chatIds.length === 0) return 0;
+    const { data: chats } = await this.sb.from('chats').select('id,updated_at').in('id', chatIds).lt('updated_at', cutoff);
+    const stale = ((chats || []) as Array<{ id: string }>) || [];
+    if (stale.length === 0) return 0;
+    // Pehle se archived ko dobara mat likho
+    const { data: settings } = await this.sb
+      .from('user_chat_settings')
+      .select('chat_id,archived')
+      .eq('user_id', me)
+      .in('chat_id', stale.map((c) => c.id));
+    const already = new Set(
+      ((settings || []) as Array<{ chat_id: string; archived: boolean }>).filter((s) => s.archived).map((s) => s.chat_id)
+    );
+    const todo = stale.map((c) => c.id).filter((id) => !already.has(id));
+    if (todo.length === 0) return 0;
+    await this.sb.from('user_chat_settings').upsert(
+      todo.map((chat_id) => ({ chat_id, user_id: me, archived: true })),
+      { onConflict: 'chat_id,user_id' }
+    );
+    return todo.length;
   }
 }

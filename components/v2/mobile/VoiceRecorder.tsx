@@ -11,14 +11,13 @@ export function fmtDur(s: number): string {
 
 /**
  * VoicePlayer — WhatsApp-style audio message player.
- * Play/pause, seek bar, duration, speed toggle (1x / 1.5x / 2x).
+ * Play/pause, seek bar, duration.
  */
 export function VoicePlayer({ url, duration, mine }: { url: string; duration?: number; mine: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(duration || 0);
-  const [speed, setSpeed] = useState(1);
 
   // Deterministic pseudo-waveform bars from URL
   const bars = (() => {
@@ -46,10 +45,6 @@ export function VoicePlayer({ url, duration, mine }: { url: string; duration?: n
       a.pause();
     };
   }, [url, duration]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = speed;
-  }, [speed]);
 
   const toggle = () => {
     const a = audioRef.current;
@@ -98,14 +93,8 @@ export function VoicePlayer({ url, duration, mine }: { url: string; duration?: n
             />
           ))}
         </div>
-        <div className="flex items-center justify-between mt-0.5">
+        <div className="flex items-center mt-0.5">
           <span className={`text-[11px] ${mine ? 'text-white/80' : 'text-[var(--mv2-muted)]'}`}>{fmtDur(dur)}</span>
-          <button
-            onClick={() => setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1))}
-            className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${mine ? 'text-white/80' : 'text-[var(--mv2-muted)]'}`}
-          >
-            {speed}x
-          </button>
         </div>
       </div>
     </div>
@@ -124,12 +113,18 @@ export default function MicButton({ onDone }: { onDone: (blob: Blob, seconds: nu
   const chunks = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRef2 = useRef<{ ctx: AudioContext; gateTimer: ReturnType<typeof setInterval> } | null>(null);
   const startX = useRef(0);
   const cancelled = useRef(false);
 
   const cleanup = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    if (audioRef2.current) {
+      clearInterval(audioRef2.current.gateTimer);
+      audioRef2.current.ctx.close().catch(() => {});
+      audioRef2.current = null;
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     recRef.current = null;
@@ -156,10 +151,56 @@ export default function MicButton({ onDone }: { onDone: (blob: Blob, seconds: nu
   const start = async (e: React.PointerEvent) => {
     e.preventDefault();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       streamRef.current = stream;
+
+      // ---- Noise cancellation chain (Web Audio API) ----
+      // mic -> highpass (low rumble kat-ta hai) -> noise gate -> compressor -> recorder
+      let recStream: MediaStream = stream;
+      try {
+        const AC = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        await AC.resume().catch(() => {});
+        const src = AC.createMediaStreamSource(stream);
+        const hp = AC.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 110; // neeche ka shor (AC hum, hawa) kat jata hai
+        hp.Q.value = 0.7;
+        const analyser = AC.createAnalyser();
+        analyser.fftSize = 512;
+        const gate = AC.createGain();
+        gate.gain.value = 0;
+        const comp = AC.createDynamicsCompressor();
+        comp.threshold.value = -30;
+        comp.knee.value = 18;
+        comp.ratio.value = 8;
+        comp.attack.value = 0.004;
+        comp.release.value = 0.18;
+        const dest = AC.createMediaStreamDestination();
+        src.connect(hp);
+        hp.connect(analyser);
+        hp.connect(gate);
+        gate.connect(comp);
+        comp.connect(dest);
+        // noise gate: khamoshi par gate band, bolne par khul jata hai
+        const buf = new Float32Array(analyser.fftSize);
+        const gateTimer = setInterval(() => {
+          analyser.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          const rms = Math.sqrt(sum / buf.length);
+          const open = rms > 0.012; // ~-38dB threshold
+          gate.gain.setTargetAtTime(open ? 1 : 0, AC.currentTime, open ? 0.015 : 0.09);
+        }, 90);
+        audioRef2.current = { ctx: AC, gateTimer };
+        recStream = dest.stream;
+      } catch {
+        // Web Audio fail — raw stream par record karein
+      }
+
       const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const rec = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
       chunks.current = [];
       cancelled.current = false;
       rec.ondataavailable = (ev) => { if (ev.data.size > 0) chunks.current.push(ev.data); };
@@ -195,6 +236,7 @@ export default function MicButton({ onDone }: { onDone: (blob: Blob, seconds: nu
             <div className={`flex items-center gap-3 px-4 h-12 rounded-full bg-[var(--mv2-sheet)] shadow-[var(--mv2-shadow)] transition-all ${cancelArmed ? 'opacity-90' : ''}`}>
               <span className="w-2.5 h-2.5 rounded-full bg-[var(--mv2-danger)] animate-pulse" />
               <span className="text-[15px] font-medium text-[var(--mv2-text)] tabular-nums">{fmtDur(secs)}</span>
+              <span className="text-[11px] font-medium text-[var(--mv2-accent)] bg-[var(--mv2-accent-soft)] px-2 py-0.5 rounded-full">🎧 Noise filter on</span>
               <span className="text-[13px] text-[var(--mv2-muted)]">← slide karke cancel</span>
             </div>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${cancelArmed ? 'bg-[var(--mv2-danger)]' : 'bg-[var(--mv2-sheet)]'}`}>

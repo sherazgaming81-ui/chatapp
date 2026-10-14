@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '@/components/Avatar';
 import { Ticks } from '@/components/Ticks';
 import { backend } from '@/lib/backend';
 import type { Chat, UserProfile } from '@/lib/backend/types';
 import { fmtListTime } from '@/lib/format';
 import BottomSheet, { SheetRow } from './BottomSheet';
+import EmptyArt from '../shared/EmptyArt';
+import { tapHaptic, sendHaptic } from '../shared/haptics';
 
 export function chatDisplayName(chat: Chat, me: string): string {
   if (chat.type === 'group') return chat.name;
@@ -42,6 +44,21 @@ function tickState(chat: Chat, me: string): 'sent' | 'delivered' | 'read' {
   return 'sent';
 }
 
+/** Search query ko naam me yellow highlight karein */
+function hiName(name: string, q: string): React.ReactNode {
+  const query = q.trim().toLowerCase();
+  if (!query) return name;
+  const idx = name.toLowerCase().indexOf(query);
+  if (idx < 0) return name;
+  return (
+    <>
+      {name.slice(0, idx)}
+      <mark className="mv2-hl">{name.slice(idx, idx + query.length)}</mark>
+      {name.slice(idx + query.length)}
+    </>
+  );
+}
+
 type Tab = 'all' | 'unread' | 'groups';
 
 export default function ChatList({
@@ -52,6 +69,13 @@ export default function ChatList({
   verifyPin,
   onSelect,
   forceFilter,
+  pinnedIds,
+  archivedIds,
+  compact,
+  onArchive,
+  onUnarchive,
+  onPin,
+  onUnpin,
 }: {
   chats: Chat[];
   user: UserProfile;
@@ -60,6 +84,13 @@ export default function ChatList({
   verifyPin: (pin: string) => boolean;
   onSelect: (chat: Chat) => void;
   forceFilter?: 'groups';
+  pinnedIds: string[];
+  archivedIds: string[];
+  compact: boolean;
+  onArchive: (chatId: string) => void;
+  onUnarchive: (chatId: string) => void;
+  onPin: (chatId: string) => void;
+  onUnpin: (chatId: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>(forceFilter === 'groups' ? 'groups' : 'all');
   const [query, setQuery] = useState('');
@@ -67,17 +98,31 @@ export default function ChatList({
   const [pinFor, setPinFor] = useState<Chat | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [swipeOpen, setSwipeOpen] = useState<string | null>(null);
+  const [mutedMap, setMutedMap] = useState<Record<string, boolean>>({});
+  const [showArchived, setShowArchived] = useState(false);
 
   const filtered = useMemo(() => {
-    let list = [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
+    let list = chats.filter((c) => !archivedIds.includes(c.id));
     if (tab === 'unread') list = list.filter((c) => (unread[c.id] || 0) > 0);
     if (tab === 'groups') list = list.filter((c) => c.type === 'group');
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter((c) => chatDisplayName(c, user.id).toLowerCase().includes(q));
     }
-    return list;
-  }, [chats, tab, unread, query, user.id]);
+    // pinned sab se upar, phir recent
+    return [...list].sort((a, b) => {
+      const pa = pinnedIds.includes(a.id) ? 0 : 1;
+      const pb = pinnedIds.includes(b.id) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return b.updatedAt - a.updatedAt;
+    });
+  }, [chats, tab, unread, query, user.id, archivedIds, pinnedIds]);
+
+  const archivedChats = useMemo(
+    () => chats.filter((c) => archivedIds.includes(c.id)).sort((a, b) => b.updatedAt - a.updatedAt),
+    [chats, archivedIds]
+  );
 
   const tryOpen = (chat: Chat) => {
     if (isLocked(chat.id)) {
@@ -99,6 +144,25 @@ export default function ChatList({
       setPinError(true);
       setPinInput('');
     }
+  };
+
+  const ensureMuted = async (chat: Chat) => {
+    if (mutedMap[chat.id] !== undefined) return mutedMap[chat.id];
+    try {
+      const s = await backend.getChatNotificationSettings(chat.id);
+      setMutedMap((m) => ({ ...m, [chat.id]: s.muted }));
+      return s.muted;
+    } catch { return false; }
+  };
+
+  const toggleMute = async (chat: Chat) => {
+    const cur = await ensureMuted(chat);
+    try {
+      await backend.setChatMuted(chat.id, !cur);
+      setMutedMap((m) => ({ ...m, [chat.id]: !cur }));
+      sendHaptic();
+    } catch { /* ignore */ }
+    setSwipeOpen(null);
   };
 
   const tabs: { id: Tab; label: string }[] = [
@@ -148,66 +212,86 @@ export default function ChatList({
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && archivedChats.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-[var(--mv2-accent-soft)] flex items-center justify-center mb-4">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="var(--mv2-accent)">
-                <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z" />
-              </svg>
-            </div>
-            <p className="text-[var(--mv2-muted)] text-[15px]">
-              {tab === 'unread' ? 'Koi unread chat nahi 🎉' : query ? 'Kuch nahi mila' : 'Abhi koi chat nahi — neeche + dabayein'}
+            <EmptyArt size={130} className="mb-4 opacity-90" />
+            <p className="text-[15px] font-semibold text-[var(--mv2-text)] mb-1">
+              {tab === 'unread' ? 'Sab parh liya! 🎉' : query ? 'Kuch nahi mila' : 'Koi chat nahi'}
+            </p>
+            <p className="text-[var(--mv2-muted)] text-[14px]">
+              {tab === 'unread' ? 'Koi unread chat nahi' : query ? 'Doosra lafz try karein' : 'Neeche + dabakar baat shuru karein'}
             </p>
           </div>
         ) : (
-          filtered.map((chat) => {
-            const n = unread[chat.id] || 0;
-            const name = chatDisplayName(chat, user.id);
-            const mine = chat.lastMessage?.senderId === user.id;
-            return (
-              <button
+          <>
+            {filtered.map((chat) => (
+              <SwipeRow
                 key={chat.id}
-                onClick={() => tryOpen(chat)}
-                className="w-full flex items-center gap-3 px-4 py-3 active:bg-[var(--mv2-accent-soft)] text-left"
-              >
-                <div className="relative">
-                  <Avatar name={name} photoURL={chatPhoto(chat, user.id)} size={52} />
-                  {isLocked(chat.id) && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--mv2-header)] flex items-center justify-center">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--mv2-muted)"><path d="M12 2a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V6a4 4 0 0 0-4-4zm-2 7V6a2 2 0 1 1 4 0v3h-4z" /></svg>
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 border-b border-[var(--mv2-divider)] pb-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium text-[16px] text-[var(--mv2-text)] truncate">{name}</span>
-                    {chat.lastMessage && (
-                      <span className={`text-[12px] shrink-0 ${n > 0 ? 'text-[var(--mv2-unread)] font-semibold' : 'text-[var(--mv2-muted)]'}`}>
-                        {fmtListTime(chat.lastMessage.createdAt)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <span className={`text-[14px] truncate flex items-center gap-1 ${n > 0 ? 'text-[var(--mv2-text)]' : 'text-[var(--mv2-muted)]'}`}>
-                      {mine && <Ticks state={tickState(chat, user.id)} />}
-                      {isLocked(chat.id) ? '🔒 Locked chat' : lastPreview(chat)}
-                    </span>
-                    {n > 0 && (
-                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--mv2-unread)] text-white text-[12px] font-semibold flex items-center justify-center">
-                        {n > 99 ? '99+' : n}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })
+                chat={chat}
+                user={user}
+                unreadCount={unread[chat.id] || 0}
+                locked={isLocked(chat.id)}
+                pinned={pinnedIds.includes(chat.id)}
+                muted={mutedMap[chat.id] || false}
+                compact={compact}
+                query={query}
+                swipeOpen={swipeOpen}
+                setSwipeOpen={setSwipeOpen}
+                onOpen={() => tryOpen(chat)}
+                onArchive={() => { tapHaptic(); onArchive(chat.id); setSwipeOpen(null); }}
+                onMute={() => toggleMute(chat)}
+                onPinToggle={() => {
+                  tapHaptic();
+                  if (pinnedIds.includes(chat.id)) onUnpin(chat.id);
+                  else onPin(chat.id);
+                  setSwipeOpen(null);
+                }}
+                onEnsureMuted={() => ensureMuted(chat)}
+              />
+            ))}
+            {/* Archived section */}
+            {archivedChats.length > 0 && (
+              <div className="mt-1">
+                <button
+                  onClick={() => { setShowArchived((s) => !s); tapHaptic(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-[var(--mv2-accent-soft)]"
+                >
+                  <span className="w-10 h-10 rounded-full bg-[var(--mv2-input)] flex items-center justify-center text-[18px]">📦</span>
+                  <span className="flex-1 text-[15px] font-medium text-[var(--mv2-text)]">Archived</span>
+                  <span className="text-[13px] text-[var(--mv2-muted)]">{archivedChats.length}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mv2-muted)" strokeWidth="2.4" strokeLinecap="round"
+                    className={`transition-transform ${showArchived ? 'rotate-180' : ''}`}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                {showArchived && archivedChats.map((chat) => {
+                  const name = chatDisplayName(chat, user.id);
+                  return (
+                    <div key={chat.id} className="flex items-center gap-3 px-4 py-2.5 opacity-75">
+                      <Avatar name={name} photoURL={chatPhoto(chat, user.id)} size={44} />
+                      <button onClick={() => tryOpen(chat)} className="flex-1 min-w-0 text-left">
+                        <span className="block text-[15px] text-[var(--mv2-text)] truncate">{hiName(name, query)}</span>
+                        <span className="block text-[13px] text-[var(--mv2-muted)] truncate">{lastPreview(chat)}</span>
+                      </button>
+                      <button
+                        onClick={() => { tapHaptic(); onUnarchive(chat.id); }}
+                        aria-label="Unarchive karein"
+                        className="w-10 h-10 rounded-full bg-[var(--mv2-accent-soft)] text-[var(--mv2-accent)] flex items-center justify-center"
+                      >
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M4 10a8 8 0 0 1 14-4l2 2M20 14a8 8 0 0 1-14 4l-2-2" /><path d="M20 4v4h-4M4 20v-4h4" /></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* FAB */}
       <button
-        onClick={() => setShowNew(true)}
+        onClick={() => { setShowNew(true); tapHaptic(); }}
         aria-label="Nayi chat"
         className="absolute bottom-6 right-5 w-14 h-14 rounded-2xl bg-[var(--mv2-accent)] text-white shadow-[var(--mv2-shadow)] flex items-center justify-center active:scale-95 transition-transform"
       >
@@ -245,6 +329,162 @@ export default function ChatList({
           </button>
         </div>
       </BottomSheet>
+    </div>
+  );
+}
+
+/**
+ * SwipeRow — chat row with swipe actions:
+ * daayein swipe → Archive, baayein swipe → Mute / Pin.
+ */
+function SwipeRow({
+  chat, user, unreadCount, locked, pinned, muted, compact, query,
+  swipeOpen, setSwipeOpen, onOpen, onArchive, onMute, onPinToggle, onEnsureMuted,
+}: {
+  chat: Chat;
+  user: UserProfile;
+  unreadCount: number;
+  locked: boolean;
+  pinned: boolean;
+  muted: boolean;
+  compact: boolean;
+  query: string;
+  swipeOpen: string | null;
+  setSwipeOpen: (id: string | null) => void;
+  onOpen: () => void;
+  onArchive: () => void;
+  onMute: () => void;
+  onPinToggle: () => void;
+  onEnsureMuted: () => void;
+}) {
+  const [x, setX] = useState(0);
+  const start = useRef({ x: 0, y: 0 });
+  const moved = useRef(false);
+  const name = chatDisplayName(chat, user.id);
+  const mine = chat.lastMessage?.senderId === user.id;
+  const open = swipeOpen === chat.id;
+
+  useEffect(() => {
+    if (!open) setX(0);
+  }, [open ]);
+
+  const onTS = (e: React.TouchEvent) => {
+    start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    moved.current = false;
+  };
+  const onTM = (e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - start.current.x;
+    const dy = e.touches[0].clientY - start.current.y;
+    if (Math.abs(dy) > 28) return; // vertical scroll — chhodein
+    if (Math.abs(dx) > 10) moved.current = true;
+    setX(Math.max(-168, Math.min(140, dx)));
+  };
+  const onTE = () => {
+    if (x > 64) {
+      setX(124);
+      setSwipeOpen(chat.id);
+      tapHaptic();
+    } else if (x < -64) {
+      setX(-152);
+      setSwipeOpen(chat.id);
+      onEnsureMuted();
+      tapHaptic();
+    } else {
+      setX(0);
+      if (open) setSwipeOpen(null);
+    }
+  };
+
+  const onTap = (e: React.MouseEvent) => {
+    if (moved.current || open) {
+      e.preventDefault();
+      e.stopPropagation();
+      moved.current = false;
+      setX(0);
+      setSwipeOpen(null);
+      return;
+    }
+    onOpen();
+  };
+
+  const avatarSize = compact ? 44 : 52;
+
+  return (
+    <div className="relative overflow-hidden">
+      {/* underlay: left = archive (right swipe) */}
+      <div className="absolute inset-0 flex items-stretch justify-between">
+        <button
+          onClick={onArchive}
+          aria-label="Archive karein"
+          className="w-[124px] shrink-0 bg-[#8a6d3b]/25 flex flex-col items-center justify-center gap-1 text-[#d1a94e]"
+        >
+          <span className="text-[22px]">📦</span>
+          <span className="text-[11px] font-semibold">Archive</span>
+        </button>
+        <div className="flex-1" />
+        <div className="flex shrink-0">
+          <button
+            onClick={onMute}
+            aria-label={muted ? 'Unmute karein' : 'Mute karein'}
+            className="w-[76px] bg-[var(--mv2-input)] flex flex-col items-center justify-center gap-1 text-[var(--mv2-muted)]"
+          >
+            <span className="text-[20px]">{muted ? '🔔' : '🔕'}</span>
+            <span className="text-[11px] font-semibold">{muted ? 'Unmute' : 'Mute'}</span>
+          </button>
+          <button
+            onClick={onPinToggle}
+            aria-label={pinned ? 'Unpin karein' : 'Pin karein'}
+            className={`w-[76px] flex flex-col items-center justify-center gap-1 ${pinned ? 'bg-[var(--mv2-accent)] text-white' : 'bg-[var(--mv2-accent-soft)] text-[var(--mv2-accent)]'}`}
+          >
+            <span className="text-[20px]">📌</span>
+            <span className="text-[11px] font-semibold">{pinned ? 'Unpin' : 'Pin'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* foreground row */}
+      <button
+        onClick={onTap}
+        onTouchStart={onTS}
+        onTouchMove={onTM}
+        onTouchEnd={onTE}
+        className={`relative w-full flex items-center gap-3 px-4 active:bg-[var(--mv2-accent-soft)] text-left bg-[var(--mv2-bg)] ${compact ? 'py-[7px]' : 'py-3'}`}
+        style={{ transform: x ? `translateX(${x}px)` : undefined, transition: x ? 'none' : 'transform 0.18s ease-out' }}
+      >
+        <div className="relative shrink-0">
+          <Avatar name={name} photoURL={chatPhoto(chat, user.id)} size={avatarSize} />
+          {locked && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--mv2-header)] flex items-center justify-center">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--mv2-muted)"><path d="M12 2a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V6a4 4 0 0 0-4-4zm-2 7V6a2 2 0 1 1 4 0v3h-4z" /></svg>
+            </span>
+          )}
+        </div>
+        <div className={`flex-1 min-w-0 border-b border-[var(--mv2-divider)] ${compact ? 'pb-[7px]' : 'pb-3'}`}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className={`font-medium text-[var(--mv2-text)] truncate ${compact ? 'text-[15px]' : 'text-[16px]'}`}>
+              {pinned && <span className="mr-1 text-[13px]">📌</span>}
+              {hiName(name, query)}
+            </span>
+            {chat.lastMessage && (
+              <span className={`text-[12px] shrink-0 ${unreadCount > 0 ? 'text-[var(--mv2-unread)] font-semibold' : 'text-[var(--mv2-muted)]'}`}>
+                {fmtListTime(chat.lastMessage.createdAt)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <span className={`text-[14px] truncate flex items-center gap-1 ${unreadCount > 0 ? 'text-[var(--mv2-text)]' : 'text-[var(--mv2-muted)]'}`}>
+              {mine && <Ticks state={tickState(chat, user.id)} />}
+              {muted && <span className="text-[12px]">🔕</span>}
+              {locked ? '🔒 Locked chat' : lastPreview(chat)}
+            </span>
+            {unreadCount > 0 && (
+              <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--mv2-unread)] text-white text-[12px] font-semibold flex items-center justify-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
     </div>
   );
 }

@@ -10,6 +10,9 @@ import ChatList, { chatDisplayName, chatPhoto } from './ChatList';
 import ChatScreen from './ChatScreen';
 import SettingsScreen, { type NightSchedule, type ThemeChoice } from './SettingsScreen';
 import BottomSheet, { SheetRow } from './BottomSheet';
+import ChatBubbles from './ChatBubbles';
+import AppTour from './AppTour';
+import { tapHaptic } from '../shared/haptics';
 import Avatar from '@/components/Avatar';
 import './v2-mobile.css';
 
@@ -74,6 +77,17 @@ export default function MobileShell() {
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [searchQ, setSearchQ] = useState('');
+  const [compact, setCompact] = useState(() => readLS('v2-compact', '0') === '1');
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('v2-pinned') || '[]'); } catch { return []; }
+  });
+  const [archivedIds, setArchivedIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('v2-archived') || '[]'); } catch { return []; }
+  });
+  const [dismissedBubbles, setDismissedBubbles] = useState<Record<string, number>>({});
+  const [showTour, setShowTour] = useState(() => {
+    try { return localStorage.getItem('v2-tour-done') !== '1'; } catch { return true; }
+  });
 
   // ---- auth ----
   useEffect(() => backend.onAuth((u) => { setUser(u); setAuthReady(true); }), []);
@@ -126,6 +140,9 @@ export default function MobileShell() {
   useEffect(() => { try { localStorage.setItem('v2-wallpaper', wallpaper); } catch {} }, [wallpaper]);
   useEffect(() => { try { localStorage.setItem('v2-night', JSON.stringify(night)); } catch {} }, [night]);
   useEffect(() => { try { localStorage.setItem('v2-locked', JSON.stringify(lockedIds)); } catch {} }, [lockedIds]);
+  useEffect(() => { try { localStorage.setItem('v2-compact', compact ? '1' : '0'); } catch {} }, [compact]);
+  useEffect(() => { try { localStorage.setItem('v2-pinned', JSON.stringify(pinnedIds)); } catch {} }, [pinnedIds]);
+  useEffect(() => { try { localStorage.setItem('v2-archived', JSON.stringify(archivedIds)); } catch {} }, [archivedIds]);
 
   // night schedule par har minute re-evaluate
   const [, setTick] = useState(0);
@@ -198,6 +215,26 @@ export default function MobileShell() {
 
   const totalUnread = useMemo(() => Object.values(unread).reduce((a, b) => a + b, 0), [unread]);
 
+  // ---- archive / pin ----
+  const archiveChat = useCallback((id: string) => setArchivedIds((a) => (a.includes(id) ? a : [...a, id])), []);
+  const unarchiveChat = useCallback((id: string) => setArchivedIds((a) => a.filter((x) => x !== id)), []);
+  const pinChat = useCallback((id: string) => setPinnedIds((p) => (p.includes(id) ? p : [...p, id])), []);
+  const unpinChat = useCallback((id: string) => setPinnedIds((p) => p.filter((x) => x !== id)), []);
+
+  // ---- floating chat bubble: latest unread chat (jab koi chat khuli na ho) ----
+  const bubbleChat = useMemo(() => {
+    if (selected || !user) return null;
+    // dismiss ke baad naya message aaye to bubble dobara dikhe
+    const cands = chats.filter((c) => (unread[c.id] || 0) > 0 && (unread[c.id] || 0) > (dismissedBubbles[c.id] || 0));
+    if (cands.length === 0) return null;
+    return [...cands].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  }, [chats, unread, selected, dismissedBubbles, user]);
+
+  const finishTour = useCallback(() => {
+    try { localStorage.setItem('v2-tour-done', '1'); } catch {}
+    setShowTour(false);
+  }, []);
+
   const searchResults = useMemo(() => {
     const q = searchQ.trim().toLowerCase();
     if (!q || !user) return [];
@@ -256,11 +293,15 @@ export default function MobileShell() {
       <main className="flex-1 min-h-0 relative">
         {tab === 'chats' && (
           <ChatList chats={chats} user={user} unread={unread} isLocked={isChatLocked} verifyPin={verifyPin}
-            onSelect={setSelected} />
+            onSelect={setSelected}
+            pinnedIds={pinnedIds} archivedIds={archivedIds} compact={compact}
+            onArchive={archiveChat} onUnarchive={unarchiveChat} onPin={pinChat} onUnpin={unpinChat} />
         )}
         {tab === 'groups' && (
           <ChatList chats={chats} user={user} unread={unread} isLocked={isChatLocked} verifyPin={verifyPin}
-            onSelect={setSelected} forceFilter="groups" />
+            onSelect={setSelected} forceFilter="groups"
+            pinnedIds={pinnedIds} archivedIds={archivedIds} compact={compact}
+            onArchive={archiveChat} onUnarchive={unarchiveChat} onPin={pinChat} onUnpin={unpinChat} />
         )}
         {tab === 'settings' && (
           <SettingsScreen
@@ -269,6 +310,7 @@ export default function MobileShell() {
             wallpaperId={wallpaper} onWallpaper={setWallpaper}
             lockedIds={lockedIds} onUnlockChat={unlockChat}
             night={night} onNight={setNight}
+            compact={compact} onCompact={setCompact}
             onSignOut={() => backend.signOut().catch(() => {})}
           />
         )}
@@ -283,7 +325,7 @@ export default function MobileShell() {
             return (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => { setTab(t.id); tapHaptic(); }}
                 className={`flex-1 flex flex-col items-center justify-center gap-1 min-h-[44px] ${active ? 'text-[var(--mv2-accent)]' : 'text-[var(--mv2-muted)]'}`}
               >
                 <span className="relative">
@@ -319,6 +361,20 @@ export default function MobileShell() {
           />
         </div>
       )}
+
+      {/* Floating chat bubble (Messenger style) */}
+      {bubbleChat && (
+        <ChatBubbles
+          chat={bubbleChat}
+          userId={user.id}
+          unreadCount={unread[bubbleChat.id] || 0}
+          onOpen={(c) => setSelected(c)}
+          onDismiss={(id) => setDismissedBubbles((d) => ({ ...d, [id]: unread[id] || 0 }))}
+        />
+      )}
+
+      {/* App tour (pehli login par) */}
+      {showTour && <AppTour onDone={finishTour} />}
 
       {/* Global search sheet */}
       <BottomSheet open={showSearch} onClose={() => setShowSearch(false)} title="Search">
