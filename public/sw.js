@@ -3,7 +3,7 @@
 // Kaam: (1) app shell cache karna, (2) navigations/static ke liye cache-first +
 // network fallback, (3) push notifications dikhana, (4) notification click par "/" kholna.
 
-const CACHE_VERSION = "chat-v2";
+const CACHE_VERSION = "chat-v3"; // v3: naya favicon/branding — purana cache (purana "N" favicon) saaf ho jayega
 const CACHE_NAME = `chat-cache-${CACHE_VERSION}`;
 const APP_SHELL = ["/"];
 

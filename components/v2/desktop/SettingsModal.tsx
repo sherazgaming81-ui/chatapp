@@ -393,7 +393,7 @@ function PrivacyCheckup({ me, go }: { me: UserProfile; go(p: Page): void }) {
   };
 
   const next = async () => {
-    if (step >= 1 && step <= 3) await savePrivacy();
+    if (step >= 2 && step <= 4) await savePrivacy();
     setStep((s) => Math.min(s + 1, CHECKUP_STEPS.length - 1));
   };
   const back = () => setStep((s) => Math.max(s - 1, 0));

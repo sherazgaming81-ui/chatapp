@@ -726,20 +726,6 @@ const MessageBubble = forwardRef<HTMLDivElement, BubbleProps>(function MessageBu
   );
 });
 
-function MenuRow({ icon, label, danger, onClick }: { icon: string; label: string; danger?: boolean; onClick(): void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-[13.5px] text-left transition whitespace-nowrap ${
-        danger ? 'text-[#ea0038] hover:bg-[var(--v2-danger-bg)]' : 'text-[var(--v2-text)] hover:bg-[var(--v2-hover)]'
-      }`}
-    >
-      <Icon d={icon} size={17} className={danger ? '' : 'text-[var(--v2-muted)]'} />
-      {label}
-    </button>
-  );
-}
-
 function MsgBody({ m, meId, chatId, onImage, onDoc }: { m: ChatMessage; meId: string; chatId: string; onImage(): void; onDoc(): void }) {
   if (m.type === 'image' && m.mediaURL) {
     return (
