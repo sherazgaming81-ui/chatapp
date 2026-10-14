@@ -4,10 +4,14 @@ import { ThemeProvider } from "@/lib/v1/theme";
 import PWAInit from "@/components/v1/PWAInit";
 
 export const metadata: Metadata = {
-  title: "Chat — WhatsApp style messenger",
+  title: "ChatsApp — WhatsApp style messenger",
   description: "Chat karo doston se — WhatsApp jaisa messenger, sirf Google login ke saath",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chat" },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "ChatsApp" },
 };
 
 export const viewport: Viewport = {
