@@ -81,7 +81,7 @@ export default function LoginScreen() {
           className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-medium rounded-full py-3 px-4 hover:bg-gray-100 transition disabled:opacity-60"
         >
           <GoogleIcon />
-          {loading ? 'Login ho raha hai...' : 'Google se continue karein'}
+          {loading ? 'Account ban raha hai...' : 'Google se Sign Up karein'}
         </button>
         {error && <p className="text-red-400 text-sm text-center mt-4">{error}</p>}
         {isDemoMode && (
