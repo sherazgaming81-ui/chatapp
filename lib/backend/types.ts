@@ -120,6 +120,8 @@ export interface ChatMessage {
   deletedEveryone?: boolean; // true = sender ne "delete for everyone" kiya (placeholder dikhao)
   forwardCount?: number; // kitni dafa forward hua (5+ par "Forwarded many times")
   deliveredAt?: number; // epoch ms, kab deliver hua (pehli dafa kisi recipient ne dekha)
+  // ---- v5 additions ----
+  isAnnouncement?: boolean; // true = owner ka /announce message (special styling)
 }
 
 export interface LastMessage {

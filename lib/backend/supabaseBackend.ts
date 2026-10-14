@@ -30,6 +30,39 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const isSupabaseConfigured = !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
 
+// ==================== v5: single-group pivot ====================
+// Sirf ek group: "Madrasa Group". Owner ki pehchan uske email se hoti hai.
+export const OWNER_EMAIL = 'sherazgaming81@gmail.com';
+export const OWNER_DISPLAY_NAME = 'sheraz';
+export const MAIN_GROUP_ID = 'main-group';
+
+/** /command ka parse hua natija (UI send se pehle check karegi). */
+export interface ParsedCommand {
+  command: string; // '/'' ke baghair, lowercase — misal 'mute'
+  args: string[]; // whitespace par tute hue arguments
+  rawArgs: string; // '/command ' ke baad ka poora text
+}
+
+/** /stats command ka natija. */
+export interface CommandStats {
+  totalMessages: number;
+  activeMembers: number;
+  topSenders: { userId: string; displayName: string; count: number }[];
+}
+
+/** executeCommand ka natija — UI `text` dikhaye, `stats` ho to card banaye. */
+export interface CommandResult {
+  ok: boolean;
+  text: string; // Hinglish confirmation
+  stats?: CommandStats;
+}
+
+/** Supabase Presence se aane wali online state (userId -> state). */
+export interface PresenceState {
+  online: boolean;
+  lastSeen: number;
+}
+
 type DbProfile = {
   id: string;
   display_name: string;
@@ -91,9 +124,25 @@ type DbMessage = {
   deleted_everyone?: boolean;
   forward_count?: number | null;
   delivered_at?: number | string | null;
+  // ---- v5 columns ----
+  is_announcement?: boolean;
 };
 
 const num = (v: number | string | null | undefined): number => Number(v || 0);
+
+/**
+ * v5: milliseconds ko insani muddat me badlo (mute errors/confirmations ke liye).
+ * Misal: 90000 -> "2 minute", 3600000 -> "1 ghanta".
+ */
+function formatMs(ms: number): string {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  if (s < 60) return `${s} second`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} minute`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} ghanta`;
+  return `${Math.floor(h / 24)} din`;
+}
 
 /**
  * Presence fix (v3): sirf `online` flag par bharosa mat karo — tab close /
@@ -154,6 +203,8 @@ function toChatMessage(m: DbMessage): ChatMessage {
     deletedEveryone: !!m.deleted_everyone,
     forwardCount: Number(m.forward_count || 0),
     deliveredAt: m.delivered_at ? num(m.delivered_at) : undefined,
+    // ---- v5 ----
+    isAnnouncement: !!m.is_announcement,
   };
 }
 
@@ -202,12 +253,20 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   readonly mode = 'supabase' as const;
   private sb: SupabaseClient;
   private meId: string | null = null;
+  private meEmail: string | null = null; // v5: owner check ke liye
   private channels: RealtimeChannel[] = [];
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   private typingCache = new Map<string, Record<string, number>>();
   private chanSeq = 0;
   private profileChan: RealtimeChannel | null = null;
   private myDeviceId: string | null = null;
+  // ---- v5: owner/presence state ----
+  private ownerIdCache: string | null = null;
+  private ownerIdPromise: Promise<string | null> | null = null;
+  private presenceCh: RealtimeChannel | null = null;
+  private presenceStarted = false;
+  private presenceCbs = new Set<(state: Record<string, PresenceState>) => void>();
+  private presenceStateMap = new Map<string, PresenceState>();
 
   constructor() {
     this.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -313,10 +372,12 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       const sessionUser = data.session?.user || null;
       if (!sessionUser) {
         this.meId = null;
+        this.meEmail = null; // v5
         cb(null);
         return;
       }
       this.meId = sessionUser.id;
+      this.meEmail = sessionUser.email || null; // v5: owner check ke liye
       const meta = sessionUser.user_metadata || {};
       // Sirf pehli dafa profile banao; baad me Google data se OVERWRITE mat karo
       // (warna user ka custom naam/photo reset ho jayega)
@@ -333,6 +394,16 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
         await this.sb.from('profiles').insert(row);
       } else {
         await this.sb.from('profiles').update({ online: true, last_seen: Date.now() }).eq('id', sessionUser.id);
+      }
+      // v5: owner ka display name hamesha 'sheraz' (pehli login par pakka karo)
+      if (this.isOwner()) {
+        await this.sb.from('profiles').update({ display_name: OWNER_DISPLAY_NAME }).eq('id', sessionUser.id);
+      }
+      // v5: har login par Madrasa Group me auto-join (ban user ko chhor kar)
+      try {
+        await this.ensureMemberAutoJoin(sessionUser.id);
+      } catch (e) {
+        console.error('ensureMemberAutoJoin failed:', e);
       }
       const { data: prof } = await this.sb.from('profiles').select('*').eq('id', sessionUser.id).single();
       this.startPresence();
@@ -362,13 +433,21 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     };
   }
 
+  /**
+   * v5: 60-second heartbeat HATA DIYA — ab Supabase Presence istemal hota hai.
+   * Tab close/crash par server khud seconds me entry hata deta hai, is liye
+   * "online" atka nahi rehta. profiles.online/last_seen sirf login/logout par
+   * ek dafa likhe jate hain (purane UI ke liye fallback).
+   */
   private startPresence() {
-    if (this.presenceTimer || !this.meId) return;
-    const beat = () => {
-      if (!this.meId) return;
-      this.sb.from('profiles').update({ online: true, last_seen: Date.now() }).eq('id', this.meId);
-    };
-    this.presenceTimer = setInterval(beat, 60000);
+    if (this.presenceStarted || !this.meId) return;
+    this.presenceStarted = true;
+    this.trackPresence(this.meId);
+    // Login par ek dafa online flag lagao (purana fallback)
+    this.sb.from('profiles').update({ online: true, last_seen: Date.now() }).eq('id', this.meId).then(
+      () => {},
+      () => {}
+    );
     const goOffline = () => {
       if (!this.meId) return;
       this.sb.from('profiles').update({ online: false, last_seen: Date.now() }).eq('id', this.meId);
@@ -495,6 +574,12 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     }
     if (this.presenceTimer) clearInterval(this.presenceTimer);
     this.presenceTimer = null;
+    this.presenceStarted = false; // v5
+    this.presenceCh = null; // v5 (channel neeche removeChannel se hata diya jata hai)
+    this.presenceStateMap.clear(); // v5
+    this.ownerIdCache = null; // v5
+    this.ownerIdPromise = null; // v5
+    this.meEmail = null; // v5
     this.channels.forEach((c) => this.sb.removeChannel(c));
     this.channels = [];
     await this.sb.auth.signOut();
@@ -559,7 +644,9 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
         isMainGroup: !!c.is_main_group,
       });
     }
-    return chats;
+    // v5: single-group pivot — DM chats kabhi mat dikhao (purani DM rows DB me
+    // maujood ho sakti hain, lekin UI me sirf group nazar aana chahiye)
+    return chats.filter((c) => c.type !== 'direct');
   }
 
   onChats(cb: (chats: Chat[]) => void): () => void {
@@ -670,6 +757,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   async sendMessage(chatId: string, input: SendInput): Promise<void> {
     const me = this.meId;
     if (!me) return;
+    // v5: mute / group-lock / ban check (Hinglish error ke sath throw hota hai)
+    await this.assertCanSend(chatId);
     // Block kiye user ko message nahi bhej sakte
     const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
     const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
@@ -793,41 +882,22 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     return ((data || []) as DbProfile[]).map(toUserProfile);
   }
 
-  async getOrCreateDirectChat(otherId: string): Promise<string> {
+  /**
+   * v5: DMs HATA DIYE — ye method ab seedha Madrasa Group ka id deti hai taake
+   * purani UI (jo ab bhi isay call karti hai) na toote. Nayi UI isay call na kare.
+   */
+  async getOrCreateDirectChat(_otherId: string): Promise<string> {
     const me = this.meId;
     if (!me) throw new Error('Not signed in');
-    if (!otherId || otherId === me) throw new Error('Ghalat user');
-    const id = `dm_${[me, otherId].sort().join('_')}`;
-    try {
-      const { data: existing } = await this.sb.from('chats').select('id').eq('id', id).maybeSingle();
-      if (!existing) {
-        const { error: cErr } = await this.sb.from('chats').insert({ id, type: 'direct', updated_at: Date.now() });
-        if (cErr) throw cErr;
-        const { error: pErr } = await this.sb.from('chat_participants').insert([
-          { chat_id: id, user_id: me },
-          { chat_id: id, user_id: otherId },
-        ]);
-        if (pErr) throw pErr;
-      }
-      return id;
-    } catch (e) {
-      console.error('getOrCreateDirectChat failed:', e);
-      throw new Error('Chat nahi khul saki, dobara try karein');
-    }
+    return this.ensureMainGroup();
   }
 
-  async createGroup(name: string, memberIds: string[]): Promise<string> {
-    const me = this.meId;
-    if (!me) throw new Error('Not signed in');
-    const members = [...new Set([me, ...memberIds])];
-    const { data, error } = await this.sb
-      .from('chats')
-      .insert({ type: 'group', name, admin_ids: [me], updated_at: Date.now() })
-      .select('id')
-      .single();
-    if (error || !data) throw new Error('Group nahi ban saka');
-    await this.sb.from('chat_participants').insert(members.map((uid) => ({ chat_id: data.id, user_id: uid })));
-    return data.id as string;
+  /**
+   * v5: naya group banana BAND — sirf ek hi group hai (Madrasa Group).
+   * Signature wahi rakha taake purani UI compile hoti rahe; call par Error.
+   */
+  async createGroup(_name: string, _memberIds: string[]): Promise<string> {
+    throw new Error('Naya group nahi ban sakta — sirf Madrasa Group hai');
   }
 
   async uploadMedia(chatId: string, file: File): Promise<{ url: string; kind: 'image' | 'audio' }> {
@@ -840,45 +910,44 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   }
 
   /**
-   * v3: WhatsApp-style delete.
-   * - "Delete for me": hamesha allowed — sirf mere liye chhupta hai (deleted_for).
-   * - "Delete for everyone": SIRF tab jab main sender hoon AUR message 2 din se
-   *   purana na ho. Sab ke liye placeholder lag jata hai.
+   * v5: delete rules (purana 2-din wala WhatsApp rule HATA DIYA).
+   * - forEveryone=false ("for me"): koi bhi user, kisi ka bhi message — sirf
+   *   apne liye chhupta hai (deleted_for me apni id add hoti hai).
+   * - forEveryone=true ("for everyone"): SIRF owner — row HARD DELETE hoti hai
+   *   (koi placeholder nahi). Member chalaye to Error throw hota hai.
+   * Signature wahi hai taake purani UI na toote.
    */
   async deleteMessage(chatId: string, messageId: string, forEveryone: boolean): Promise<void> {
     const me = this.meId;
     if (!me) return;
     if (forEveryone) {
-      const { data } = await this.sb.from('messages').select('sender_id,created_at').eq('id', messageId).maybeSingle();
-      const row = data as { sender_id?: string; created_at?: number | string } | null;
-      if (!row || row.sender_id !== me) {
-        throw new Error('Sirf apna bheja hua message sab ke liye delete kar sakte hain');
+      if (!this.isOwner()) {
+        throw new Error('Sirf owner sab ke liye message delete kar sakta hai');
       }
-      const age = Date.now() - num(row.created_at);
-      if (age > 2 * 24 * 3600 * 1000) {
-        throw new Error('2 din se purana message sab ke liye delete nahi ho sakta — sirf apne liye delete karein');
-      }
-      const placeholder = '🚫 Ye message delete kar diya gaya';
-      await this.sb.from('messages').update({
-        text: placeholder,
-        type: 'text',
-        media_url: null,
-        file_name: null,
-        file_size: null,
-        duration: null,
-        poll: null,
-        contact_data: null,
-        reply_to: null,
-        deleted_everyone: true,
-      }).eq('id', messageId);
-      // Agar yehi chat ka last message tha to chat list me bhi placeholder dikhao
-      const { data: chat } = await this.sb.from('chats').select('last_message').eq('id', chatId).maybeSingle();
-      const lm = (chat as { last_message?: LastMessage } | null)?.last_message;
-      if (lm && lm.createdAt === num(row.created_at)) {
+      await this.sb.from('messages').delete().eq('id', messageId);
+      // Chat list ka last message dobara nikalo (deleted wala gaya to)
+      const { data: latest } = await this.sb
+        .from('messages')
+        .select('*')
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latest) {
+        const lm = latest as DbMessage;
+        const text = (lm.text || '').slice(0, 120);
         await this.sb.from('chats').update({
-          last_message: { ...lm, text: placeholder, type: 'text' } as LastMessage,
+          last_message: {
+            text,
+            senderId: lm.sender_id,
+            senderName: lm.sender_name || 'User',
+            createdAt: num(lm.created_at),
+            type: lm.type,
+          } as LastMessage,
           updated_at: Date.now(),
         }).eq('id', chatId);
+      } else {
+        await this.sb.from('chats').update({ last_message: null, updated_at: Date.now() }).eq('id', chatId);
       }
     } else {
       const { data } = await this.sb.from('messages').select('deleted_for').eq('id', messageId).maybeSingle();
@@ -1170,9 +1239,11 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     }
   }
 
+  /** v5: sirf owner member remove kar sakta hai (ban/mute commands ke liye). */
   async removeMember(chatId: string, userId: string): Promise<void> {
     const me = this.meId;
     if (!me || userId === me) return;
+    if (!this.isOwner()) throw new Error('Sirf owner member remove kar sakta hai');
     await this.sb.from('chat_participants').delete().eq('chat_id', chatId).eq('user_id', userId);
   }
 
@@ -1642,6 +1713,8 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   ): Promise<void> {
     const me = this.meId;
     if (!me) return;
+    // v5: mute / group-lock / ban check (special messages par bhi)
+    await this.assertCanSend(chatId);
     // Block check (self-destruct/contact/location ke liye bhi)
     const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
     const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
@@ -1870,5 +1943,553 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
       { onConflict: 'chat_id,user_id' }
     );
     return todo.length;
+  }
+
+  // ==================== v5 additions (single-group pivot) ====================
+
+  // ---- 1. Owner system ----
+
+  /** v5: kya logged-in user owner hai? Pehchan email se: sherazgaming81@gmail.com */
+  isOwner(): boolean {
+    if (this.ownerIdCache && this.meId && this.meId === this.ownerIdCache) return true;
+    return !!this.meId && !!this.meEmail && this.meEmail.toLowerCase() === OWNER_EMAIL;
+  }
+
+  /** v5: owner ka user id — profiles me email se dhoonda, cached. */
+  async getOwnerId(): Promise<string | null> {
+    if (this.ownerIdCache) return this.ownerIdCache;
+    if (!this.ownerIdPromise) {
+      this.ownerIdPromise = (async () => {
+        try {
+          const { data } = await this.sb.from('profiles').select('id').eq('email', OWNER_EMAIL).maybeSingle();
+          const id = (data as { id?: string } | null)?.id || null;
+          if (id) this.ownerIdCache = id;
+          return id;
+        } catch {
+          return null;
+        }
+      })();
+    }
+    return this.ownerIdPromise;
+  }
+
+  /**
+   * v5: badge text — 'Owner' (owner ka id), custom role (user_roles table),
+   * warna 'Member'. UI isi string ko badge me dikhaye.
+   */
+  async getRole(userId: string): Promise<string> {
+    const ownerId = await this.getOwnerId();
+    if ((ownerId && userId === ownerId) || (userId === this.meId && this.isOwner())) return 'Owner';
+    try {
+      const { data } = await this.sb.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+      const role = (data as { role?: string } | null)?.role?.trim();
+      return role || 'Member';
+    } catch {
+      return 'Member';
+    }
+  }
+
+  /** v5: custom role lagao/hatayo — SIRF owner. Khali ya 'Member' = role hatao. */
+  async setUserRole(userId: string, role: string): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner roles de sakta hai');
+    const r = (role || '').trim().slice(0, 30);
+    if (!r || /^member$/i.test(r)) {
+      await this.sb.from('user_roles').delete().eq('user_id', userId);
+      return;
+    }
+    await this.sb.from('user_roles').upsert({ user_id: userId, role: r }, { onConflict: 'user_id' });
+  }
+
+  // ---- 2. Single-group enforcement ----
+
+  /** v5: Madrasa Group ka Chat object (id 'main-group', naam me 'madrasa', ya is_main_group). */
+  async getMainGroup(): Promise<Chat | null> {
+    const chats = await this.fetchChats();
+    return (
+      chats.find((c) => c.isMainGroup) ||
+      chats.find((c) => c.id === MAIN_GROUP_ID) ||
+      chats.find((c) => /madrasa/i.test(c.name || '')) ||
+      null
+    );
+  }
+
+  /**
+   * v5: har login par user ko Madrasa Group me auto-add karo.
+   * Ban user skip hota hai (khamoshi se — login flow nahi rokna).
+   * Group na bana ho to banao (owner admin banta hai).
+   */
+  async ensureMemberAutoJoin(userId: string): Promise<string> {
+    const { data: ban } = await this.sb
+      .from('bans')
+      .select('user_id')
+      .eq('chat_id', MAIN_GROUP_ID)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (ban) return MAIN_GROUP_ID;
+    const { data: existing } = await this.sb.from('chats').select('id').eq('id', MAIN_GROUP_ID).maybeSingle();
+    if (!existing) {
+      const ownerId = (await this.getOwnerId()) || userId;
+      await this.sb.from('chats').insert({
+        id: MAIN_GROUP_ID,
+        type: 'group',
+        name: 'Madrasa Group',
+        admin_ids: [ownerId],
+        is_main_group: true,
+        description: 'Madrasse Tahfeez-ul-Quran ke sab doston ka group',
+        updated_at: Date.now(),
+      });
+    }
+    await this.sb.from('chat_participants').upsert(
+      { chat_id: MAIN_GROUP_ID, user_id: userId },
+      { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+    );
+    return MAIN_GROUP_ID;
+  }
+
+  /**
+   * v5: kya user group chhor sakta hai? Members ke liye HAMESHA false (no-leave).
+   * Sirf owner manage kar sakta hai.
+   */
+  canLeaveGroup(): boolean {
+    return this.isOwner();
+  }
+
+  // ---- 3. Owner commands ----
+
+  /**
+   * v5: '/' se shuru hone wale text ko parse karo.
+   * UI: sendMessage se PEHLE isay call karo; natija mile to executeCommand chalao,
+   * warna aam message bhejo. Sirf owner ke commands execute hote hain.
+   */
+  parseCommand(text: string): ParsedCommand | null {
+    const t = (text || '').trim();
+    if (!t.startsWith('/')) return null;
+    const sp = t.indexOf(' ');
+    const command = (sp < 0 ? t.slice(1) : t.slice(1, sp)).toLowerCase();
+    if (!command) return null;
+    const rawArgs = sp < 0 ? '' : t.slice(sp + 1).trim();
+    return { command, args: rawArgs ? rawArgs.split(/\s+/) : [], rawArgs };
+  }
+
+  /**
+   * v5: owner command chalao. Sirf owner — warna Error.
+   * Commands: /mute, /timeout, /unmute, /ban, /warn, /lock, /unlock,
+   *           /announce, /clear, /stats
+   */
+  async executeCommand(command: string, args: string[], chatId: string): Promise<CommandResult> {
+    if (!this.meId) throw new Error('Not signed in');
+    if (!this.isOwner()) throw new Error('Ye command sirf owner chala sakta hai');
+    const cmd = command.toLowerCase().replace(/^\//, '');
+    switch (cmd) {
+      case 'mute':
+      case 'timeout':
+        return this.cmdMute(chatId, args);
+      case 'unmute':
+        return this.cmdUnmute(chatId, args);
+      case 'ban':
+        return this.cmdBan(chatId, args);
+      case 'warn':
+        return this.cmdWarn(chatId, args);
+      case 'lock':
+        return this.cmdLockUnlock(true);
+      case 'unlock':
+        return this.cmdLockUnlock(false);
+      case 'announce':
+        return this.cmdAnnounce(chatId, args);
+      case 'clear':
+        return this.cmdClear(chatId, args);
+      case 'stats':
+        return this.cmdStats(chatId);
+      default:
+        throw new Error(`'/${cmd}' koi command nahi hai`);
+    }
+  }
+
+  /** '30s' | '10m' | '2h' | '1d' -> milliseconds. Ghalat ho to null. */
+  private parseDurationToken(tok: string): number | null {
+    const m = /^(\d+)(s|m|h|d)$/i.exec((tok || '').trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    if (n <= 0 || n > 365) return null;
+    const mult: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+    return n * (mult[m[2].toLowerCase()] || 0);
+  }
+
+  /**
+   * v5: naam se user dhoondo (fuzzy). "@Ahmed", "ahmed", "Ahmed Khan" sab chalte
+   * hain. UI auto-suggest se seedha userId bhi de sakti hai — wo pehle check hota hai.
+   */
+  async resolveUserByName(chatId: string, nameQuery: string): Promise<{ userId: string; displayName: string } | null> {
+    const q = (nameQuery || '').trim().replace(/^@+/, '').toLowerCase();
+    if (!q) return null;
+    const parts = await this.getChatParticipantsForMentions(chatId);
+    // Seedha userId mila ho to
+    const byId = parts.find((p) => p.userId === (nameQuery || '').trim());
+    if (byId) return byId;
+    let hit = parts.find((p) => p.displayName.toLowerCase() === q);
+    if (!hit) hit = parts.find((p) => p.displayName.toLowerCase().startsWith(q));
+    if (!hit) hit = parts.find((p) => p.displayName.toLowerCase().includes(q));
+    if (!hit) hit = parts.find((p) => p.displayName.toLowerCase().split(/\s+/)[0] === q);
+    return hit || null;
+  }
+
+  /**
+   * Command tokens me se target user nikalo — sab se LAMBA naam pehle try karo
+   * ("Ahmed Khan" > "Ahmed"), baqi tokens `rest` me (wajah waghera ke liye).
+   */
+  private async resolveCommandTarget(
+    chatId: string,
+    tokens: string[]
+  ): Promise<{ userId: string; displayName: string; rest: string[] } | null> {
+    const clean = tokens.map((t) => t.replace(/^@+/, ''));
+    if (clean.length === 0 || clean.every((t) => !t)) return null;
+    for (let k = clean.length; k >= 1; k--) {
+      const name = clean.slice(0, k).join(' ');
+      if (!name.trim()) continue;
+      const hit = await this.resolveUserByName(chatId, name);
+      if (hit) return { userId: hit.userId, displayName: hit.displayName, rest: tokens.slice(k) };
+    }
+    return null;
+  }
+
+  private async cmdMute(chatId: string, args: string[]): Promise<CommandResult> {
+    // Duration token dhoondo (aakhri duration jaisa token jeet-ta hai); default 10 minute
+    let durIdx = -1;
+    let durMs = 10 * 60 * 1000;
+    for (let i = 0; i < args.length; i++) {
+      const d = this.parseDurationToken(args[i]);
+      if (d !== null) {
+        durIdx = i;
+        durMs = d;
+      }
+    }
+    const nameTokens = durIdx >= 0 ? args.slice(0, durIdx) : args;
+    const reason = durIdx >= 0 ? args.slice(durIdx + 1).join(' ').trim() : '';
+    const target = await this.resolveCommandTarget(chatId, nameTokens);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /mute @ahmed 10m)');
+    if (target.userId === this.meId) throw new Error('Khud ko mute nahi kar sakte');
+    await this.sb.from('mutes').upsert(
+      { chat_id: chatId, user_id: target.userId, muted_until: Date.now() + durMs, reason: reason || null },
+      { onConflict: 'chat_id,user_id' }
+    );
+    return { ok: true, text: `🔇 ${target.displayName} ${formatMs(durMs)} ke liye mute${reason ? ` — ${reason}` : ''}` };
+  }
+
+  private async cmdUnmute(chatId: string, args: string[]): Promise<CommandResult> {
+    const target = await this.resolveCommandTarget(chatId, args);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /unmute @ahmed)');
+    await this.sb.from('mutes').delete().eq('chat_id', chatId).eq('user_id', target.userId);
+    return { ok: true, text: `🔊 ${target.displayName} ka mute khatam` };
+  }
+
+  private async cmdBan(chatId: string, args: string[]): Promise<CommandResult> {
+    const target = await this.resolveCommandTarget(chatId, args);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /ban @ahmed wajah)');
+    if (target.userId === this.meId) throw new Error('Khud ko ban nahi kar sakte');
+    const reason = target.rest.join(' ').trim() || null;
+    await this.sb.from('bans').upsert(
+      { chat_id: chatId, user_id: target.userId, reason },
+      { onConflict: 'chat_id,user_id' }
+    );
+    await this.sb.from('chat_participants').delete().eq('chat_id', chatId).eq('user_id', target.userId);
+    await this.sb.from('mutes').delete().eq('chat_id', chatId).eq('user_id', target.userId);
+    return { ok: true, text: `🚫 ${target.displayName} ko group se ban kar diya${reason ? ` — wajah: ${reason}` : ''}` };
+  }
+
+  private async cmdWarn(chatId: string, args: string[]): Promise<CommandResult> {
+    const target = await this.resolveCommandTarget(chatId, args);
+    if (!target) throw new Error('User nahi mila — naam sahi likhein (misal /warn @ahmed wajah)');
+    if (target.userId === this.meId) throw new Error('Khud ko warn nahi kar sakte');
+    const reason = target.rest.join(' ').trim() || null;
+    await this.sb.from('warns').insert({ chat_id: chatId, user_id: target.userId, reason, created_at: Date.now() });
+    const { data } = await this.sb.from('warns').select('id').eq('chat_id', chatId).eq('user_id', target.userId);
+    const count = (data || []).length;
+    let extra = '';
+    if (count >= 3) {
+      // 3 warnings = 1 minute auto-mute
+      await this.sb.from('mutes').upsert(
+        { chat_id: chatId, user_id: target.userId, muted_until: Date.now() + 60000, reason: '3 warnings — auto mute' },
+        { onConflict: 'chat_id,user_id' }
+      );
+      extra = ' — 3 warnings par 1 minute ke liye auto-mute kar diya';
+    }
+    return { ok: true, text: `⚠️ ${target.displayName} ko warning #${count} mili${reason ? ` — ${reason}` : ''}${extra}` };
+  }
+
+  private async cmdLockUnlock(locked: boolean): Promise<CommandResult> {
+    await this.setGroupLocked(locked);
+    return {
+      ok: true,
+      text: locked
+        ? '🔒 Group lock ho gaya — ab sirf owner message bhej sakta hai'
+        : '🔓 Group unlock ho gaya — sab message bhej sakte hain',
+    };
+  }
+
+  /** v5: group lock lagao/hatayo — SIRF owner (group_settings key='locked'). */
+  async setGroupLocked(locked: boolean): Promise<void> {
+    if (!this.isOwner()) throw new Error('Sirf owner group lock kar sakta hai');
+    await this.sb.from('group_settings').upsert({ key: 'locked', value: locked }, { onConflict: 'key' });
+  }
+
+  /** v5: kya group lock hai? (lock me owner ke siwa koi message nahi bhej sakta) */
+  async isGroupLocked(_chatId?: string): Promise<boolean> {
+    try {
+      const { data } = await this.sb.from('group_settings').select('value').eq('key', 'locked').maybeSingle();
+      const v = (data as { value?: unknown } | null)?.value;
+      if (v === true) return true;
+      if (v && typeof v === 'object') return (v as { locked?: unknown }).locked === true;
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  private async cmdAnnounce(chatId: string, args: string[]): Promise<CommandResult> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const text = args.join(' ').trim();
+    if (!text) throw new Error('Likhein: /announce <text>');
+    const now = Date.now();
+    const base: Record<string, unknown> = {
+      chat_id: chatId,
+      sender_id: me,
+      sender_name: OWNER_DISPLAY_NAME,
+      type: 'text',
+      text,
+      created_at: now,
+      read_by: [me],
+      is_announcement: true,
+    };
+    let storedText = text;
+    const { error } = await this.sb.from('messages').insert(base);
+    if (error) {
+      if (/is_announcement/i.test(error.message)) {
+        // Column abhi schema me nahi — bina flag ke bhejo, 📢 prefix ke sath
+        const retry: Record<string, unknown> = { ...base, text: `📢 ${text}` };
+        delete retry.is_announcement;
+        const { error: e2 } = await this.sb.from('messages').insert(retry);
+        if (e2) throw new Error('Announcement nahi bheja ja saka');
+        storedText = `📢 ${text}`;
+      } else {
+        throw new Error('Announcement nahi bheja ja saka');
+      }
+    }
+    await this.sb.from('chats').update({
+      last_message: {
+        text: `📢 ${storedText.slice(0, 80)}`,
+        senderId: me,
+        senderName: OWNER_DISPLAY_NAME,
+        createdAt: now,
+        type: 'text',
+      } as LastMessage,
+      updated_at: now,
+    }).eq('id', chatId);
+    this.firePush(chatId, OWNER_DISPLAY_NAME, `📢 ${text}`.slice(0, 80));
+    return { ok: true, text: '📢 Announcement bhej diya gaya' };
+  }
+
+  private async cmdClear(chatId: string, args: string[]): Promise<CommandResult> {
+    const arg = (args[0] || '').toLowerCase();
+    let ids: string[];
+    if (arg === 'all') {
+      const { data } = await this.sb.from('messages').select('id').eq('chat_id', chatId);
+      ids = ((data || []) as Array<{ id: string }>).map((r) => r.id);
+    } else {
+      const n = Math.max(1, Math.min(500, parseInt(arg, 10) || 0));
+      if (!n) throw new Error('Likhein: /clear <number|all> — misal /clear 10 ya /clear all');
+      const { data } = await this.sb
+        .from('messages')
+        .select('id')
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: false })
+        .limit(n);
+      ids = ((data || []) as Array<{ id: string }>).map((r) => r.id);
+    }
+    for (let i = 0; i < ids.length; i += 100) {
+      await this.sb.from('messages').delete().in('id', ids.slice(i, i + 100));
+    }
+    await this.sb.from('chats').update({ last_message: null, updated_at: Date.now() }).eq('id', chatId);
+    return { ok: true, text: `🧹 ${ids.length} messages delete kar diye` };
+  }
+
+  private async cmdStats(chatId: string): Promise<CommandResult> {
+    const analytics = await this.getChatAnalytics(chatId);
+    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+    const topSenders = analytics.perUser.slice(0, 5).map((p) => ({
+      userId: p.userId,
+      displayName: p.displayName,
+      count: p.count,
+    }));
+    const stats: CommandStats = {
+      totalMessages: analytics.totalMessages,
+      activeMembers: (parts || []).length,
+      topSenders,
+    };
+    const top = topSenders.map((t, i) => `${i + 1}. ${t.displayName} — ${t.count}`).join('\n') || '—';
+    return {
+      ok: true,
+      text: `📊 Group stats:\n• Kul messages: ${stats.totalMessages}\n• Members: ${stats.activeMembers}\n• Top senders:\n${top}`,
+      stats,
+    };
+  }
+
+  // ---- 4. Mute enforcement ----
+
+  /**
+   * v5: kya user mute hai? Expired mutes ki lazy-safai bhi yahin hoti hai.
+   */
+  async isMuted(chatId: string, userId: string): Promise<{ muted: boolean; remainingMs: number }> {
+    const now = Date.now();
+    await this.sb.from('mutes').delete().eq('chat_id', chatId).eq('user_id', userId).lte('muted_until', now);
+    const { data } = await this.sb
+      .from('mutes')
+      .select('muted_until')
+      .eq('chat_id', chatId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const until = num((data as { muted_until?: number | string } | null)?.muted_until);
+    if (until > now) return { muted: true, remainingMs: until - now };
+    return { muted: false, remainingMs: 0 };
+  }
+
+  /**
+   * v5: bhejne se pehle guard — ban/mute/lock check. Ruka to Hinglish Error.
+   * sendMessage aur insertSpecialMessage dono isi ko call karte hain.
+   */
+  private async assertCanSend(chatId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data: ban } = await this.sb
+      .from('bans')
+      .select('user_id')
+      .eq('chat_id', chatId)
+      .eq('user_id', me)
+      .maybeSingle();
+    if (ban) throw new Error('Aap is group se ban hain');
+    const { muted, remainingMs } = await this.isMuted(chatId, me);
+    if (muted) throw new Error(`Aap ${formatMs(remainingMs)} ke liye mute hain — waqt poora hone par dobara try karein`);
+    if (!this.isOwner() && (await this.isGroupLocked(chatId))) {
+      throw new Error('Group lock hai — sirf owner message bhej sakta hai');
+    }
+  }
+
+  // ---- 6. Speed (v5) ----
+
+  /**
+   * v5 speed: temp message FORAN wapas milta hai (UI turant render kare),
+   * asal persist background me hota hai. `sent` par error aaye to UI temp
+   * message hata kar error dikhaye.
+   */
+  sendMessageOptimistic(
+    chatId: string,
+    input: SendInput,
+    sender: { id: string; displayName: string }
+  ): { temp: ChatMessage; sent: Promise<void> } {
+    const temp = this.buildLocalMessage(chatId, input, sender);
+    const sent = this.sendMessage(chatId, input);
+    // Caller `sent` ko khud await/catch karega — yahan sirf unhandled warning roko
+    sent.catch(() => {});
+    return { temp, sent };
+  }
+
+  /**
+   * v5 speed: realtime event ka PAYLOAD seedha istemal karo (payload.new) —
+   * naya message aane par dobara fetch mat karo. UI message ko foran list me
+   * daal sakti hai (onMessages wali poori refresh ki zaroorat nahi).
+   */
+  onMessagePayload(chatId: string, cb: (msg: ChatMessage, event: 'INSERT' | 'UPDATE' | 'DELETE') => void): () => void {
+    const ch = this.track(
+      this.sb
+        .channel(`msgs-payload-${chatId}-${++this.chanSeq}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+          (payload) => {
+            try {
+              const p = payload as unknown as { eventType: string; new?: DbMessage; old?: DbMessage };
+              const row = p.eventType === 'DELETE' ? p.old : p.new;
+              if (!row || !row.id) return;
+              cb(toChatMessage(row), p.eventType as 'INSERT' | 'UPDATE' | 'DELETE');
+            } catch (e) {
+              console.error('onMessagePayload handler failed:', e);
+            }
+          }
+        )
+        .subscribe()
+    );
+    return () => {
+      this.sb.removeChannel(ch);
+      this.channels = this.channels.filter((x) => x !== ch);
+    };
+  }
+
+  /**
+   * v5: Supabase Presence — user ko presence channel par track karo.
+   * Disconnect/tab-close par Supabase khud seconds me entry hata deta hai
+   * (60-sec heartbeat ki tarah atka "online" nahi rehta).
+   */
+  trackPresence(userId: string, meta?: Record<string, unknown>): void {
+    if (typeof window === 'undefined') return;
+    const payload = { user_id: userId, online: true, lastSeen: Date.now(), ...(meta || {}) };
+    if (this.presenceCh) {
+      this.presenceCh.track(payload).catch(() => {});
+      return;
+    }
+    const ch = this.sb.channel('presence-global', { config: { presence: { key: userId } } });
+    ch.on('presence', { event: 'sync' }, () => this.emitPresenceState(ch))
+      .on('presence', { event: 'join' }, () => this.emitPresenceState(ch))
+      .on('presence', { event: 'leave' }, () => this.emitPresenceState(ch));
+    ch.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try {
+          await ch.track(payload);
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+    this.presenceCh = this.track(ch);
+  }
+
+  private emitPresenceState(ch: RealtimeChannel): void {
+    try {
+      const raw = ch.presenceState() as Record<string, Array<Record<string, unknown>>>;
+      const out: Record<string, PresenceState> = {};
+      for (const metas of Object.values(raw)) {
+        for (const m of metas) {
+          const uid = typeof m.user_id === 'string' ? m.user_id : '';
+          if (!uid) continue;
+          out[uid] = { online: true, lastSeen: Number(m.lastSeen) || Date.now() };
+        }
+      }
+      this.presenceStateMap = new Map(Object.entries(out));
+      this.presenceCbs.forEach((cb) => {
+        try {
+          cb(out);
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch (e) {
+      console.error('emitPresenceState failed:', e);
+    }
+  }
+
+  /**
+   * v5: presence tabdeelion par subscribe karo — har sync/join/leave par
+   * poori online-state milti hai. Foran maujooda state bhi bhej di jati hai.
+   * Returns: unsubscribe function.
+   */
+  onPresenceChange(cb: (state: Record<string, PresenceState>) => void): () => void {
+    this.presenceCbs.add(cb);
+    try {
+      cb(Object.fromEntries(this.presenceStateMap));
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      this.presenceCbs.delete(cb);
+    };
   }
 }
