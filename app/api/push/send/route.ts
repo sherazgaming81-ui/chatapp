@@ -82,9 +82,11 @@ async function sendWebPush(
   const claims = b64u(Buffer.from(JSON.stringify({ aud, exp, sub: subject })));
   const signInput = `${header}.${claims}`;
   const privDer = Buffer.concat([
-    Buffer.from('302e0201010420', 'hex'),
+    // SEC1 ECPrivateKey DER — prime256v1 OID zaroori hai (1.2.840.10045.3.1.7),
+    // warna OpenSSL ghalat curve par key banata hai aur push service 401 deta hai.
+    Buffer.from('30310201010420', 'hex'),
     unb64u(vapidPriv),
-    Buffer.from('a00706052b8104000a', 'hex'),
+    Buffer.from('a00a06082a8648ce3d030107', 'hex'),
   ]);
   const keyObj = crypto.createPrivateKey({ key: privDer, format: 'der', type: 'sec1' });
   const derSig = crypto.sign('sha256', Buffer.from(signInput), keyObj);

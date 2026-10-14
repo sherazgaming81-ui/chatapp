@@ -1002,7 +1002,11 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
   async editMessage(chatId: string, messageId: string, newText: string): Promise<void> {
     const t = newText.trim();
     if (!t) return;
-    await this.sb.from('messages').update({ text: t, edited_at: Date.now() }).eq('id', messageId);
+    // v3: E2E — text message ka naya text bhi encrypt karo
+    const { data: orig } = await this.sb.from('messages').select('type').eq('id', messageId).maybeSingle();
+    const isText = (orig as { type?: string } | null)?.type === 'text';
+    const stored = isText ? await this.encryptForChat(chatId, t) : t;
+    await this.sb.from('messages').update({ text: stored, edited_at: Date.now() }).eq('id', messageId);
     await this.sb.from('chats').update({ updated_at: Date.now() }).eq('id', chatId);
   }
 
