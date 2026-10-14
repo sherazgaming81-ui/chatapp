@@ -1,5 +1,13 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  BlockedUser,
+  InviteLink,
+  JoinRequest,
+  PollAnalytics,
+  SharedContact,
+  BackendV2,
+} from '@/lib/v2/types';
+import type {
   Chat,
   ChatBackend,
   ChatMessage,
@@ -67,6 +75,13 @@ type DbMessage = {
   poll: PollData | null;
   forwarded: boolean;
   read_at: Record<string, number>;
+  // ---- v2 columns ----
+  poll_deadline?: number | string | null;
+  self_destruct_at?: number | string | null;
+  contact_data?: { name: string; phone?: string; email?: string } | null;
+  lat?: number | null;
+  lng?: number | null;
+  location_expires_at?: number | string | null;
 };
 
 const num = (v: number | string | null | undefined): number => Number(v || 0);
@@ -107,10 +122,17 @@ function toChatMessage(m: DbMessage): ChatMessage {
     isPinned: !!m.is_pinned,
     poll: (m.poll as PollData) || null,
     forwarded: !!m.forwarded,
+    // ---- v2 ----
+    pollDeadline: m.poll_deadline ? num(m.poll_deadline) : undefined,
+    selfDestructAt: m.self_destruct_at ? num(m.self_destruct_at) : undefined,
+    contact: (m.contact_data as ChatMessage['contact']) || undefined,
+    lat: m.lat ?? undefined,
+    lng: m.lng ?? undefined,
+    locationExpiresAt: m.location_expires_at ? num(m.location_expires_at) : undefined,
   };
 }
 
-export class SupabaseBackend implements ChatBackend {
+export class SupabaseBackend implements ChatBackend, BackendV2 {
   readonly mode = 'supabase' as const;
   private sb: SupabaseClient;
   private meId: string | null = null;
@@ -307,17 +329,42 @@ export class SupabaseBackend implements ChatBackend {
     };
   }
 
+  /** Meri block-list (user ids ka Set). Cache nahi — chhota table hai. */
+  private async fetchBlockedIds(): Promise<Set<string>> {
+    const me = this.meId;
+    if (!me) return new Set();
+    const { data } = await this.sb.from('blocked_users').select('blocked_id').eq('user_id', me);
+    return new Set((data || []).map((r) => (r as { blocked_id: string }).blocked_id));
+  }
+
   onMessages(chatId: string, cb: (messages: ChatMessage[]) => void): () => void {
     let alive = true;
     const refresh = async () => {
       if (!alive) return;
-      const { data } = await this.sb
-        .from('messages')
-        .select('*')
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true })
-        .limit(200);
-      if (alive) cb(((data || []) as DbMessage[]).map(toChatMessage));
+      const [msgRes, blocked] = await Promise.all([
+        this.sb
+          .from('messages')
+          .select('*')
+          .eq('chat_id', chatId)
+          .order('created_at', { ascending: true })
+          .limit(200),
+        this.fetchBlockedIds(),
+      ]);
+      let msgs = ((msgRes.data || []) as DbMessage[]).map(toChatMessage);
+      // Block kiye users ke messages chhupao
+      if (blocked.size > 0) msgs = msgs.filter((m) => !blocked.has(m.senderId));
+      // Self-destruct: expire ho gaye to UI se hatao + DB se safai (fire-and-forget)
+      const now = Date.now();
+      const expired = msgs.filter((m) => m.selfDestructAt && m.selfDestructAt <= now);
+      if (expired.length > 0) {
+        const ids = expired.map((m) => m.id);
+        msgs = msgs.filter((m) => !m.selfDestructAt || m.selfDestructAt > now);
+        this.sb.from('messages').delete().in('id', ids).then(
+          () => {},
+          (e) => console.error('self-destruct cleanup failed:', e)
+        );
+      }
+      if (alive) cb(msgs);
     };
     refresh();
     const chName = `msgs-${chatId}-${++this.chanSeq}`;
@@ -341,6 +388,13 @@ export class SupabaseBackend implements ChatBackend {
   async sendMessage(chatId: string, input: SendInput): Promise<void> {
     const me = this.meId;
     if (!me) return;
+    // Block kiye user ko message nahi bhej sakte
+    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+    const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
+    if (others.length > 0) {
+      const blocked = await this.fetchBlockedIds();
+      if (others.some((u) => blocked.has(u))) throw new Error('Aap ne is user ko block kiya hua hai');
+    }
     const now = Date.now();
     const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).single();
     const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
@@ -616,9 +670,12 @@ export class SupabaseBackend implements ChatBackend {
   async votePoll(chatId: string, messageId: string, optionIndex: number): Promise<void> {
     const me = this.meId;
     if (!me) return;
-    const { data } = await this.sb.from('messages').select('poll').eq('id', messageId).maybeSingle();
-    const poll = (data as { poll?: PollData } | null)?.poll;
+    const { data } = await this.sb.from('messages').select('poll,poll_deadline').eq('id', messageId).maybeSingle();
+    const row = data as { poll?: PollData; poll_deadline?: number | string | null } | null;
+    const poll = row?.poll;
     if (!poll) return;
+    const deadline = row?.poll_deadline ? num(row.poll_deadline) : 0;
+    if (deadline > 0 && Date.now() > deadline) throw new Error('Poll band ho chuki hai');
     const votes: Record<string, string[]> = { ...(poll.votes || {}) };
     for (const k of Object.keys(votes)) votes[k] = (votes[k] || []).filter((u) => u !== me);
     const key = String(optionIndex);
@@ -836,5 +893,417 @@ export class SupabaseBackend implements ChatBackend {
   async getAuthToken(): Promise<string | null> {
     const { data } = await this.sb.auth.getSession();
     return data.session?.access_token || null;
+  }
+
+  // ==================== v2 additions ====================
+
+  // ---- Drafts ----
+  async saveDraft(chatId: string, text: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    if (!text.trim()) {
+      await this.clearDraft(chatId);
+      return;
+    }
+    await this.sb.from('message_drafts').upsert(
+      { user_id: me, chat_id: chatId, text, updated_at: Date.now() },
+      { onConflict: 'user_id,chat_id' }
+    );
+  }
+
+  async getDraft(chatId: string): Promise<string | null> {
+    const me = this.meId;
+    if (!me) return null;
+    const { data } = await this.sb.from('message_drafts').select('text').eq('user_id', me).eq('chat_id', chatId).maybeSingle();
+    return (data as { text?: string } | null)?.text ?? null;
+  }
+
+  async clearDraft(chatId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    await this.sb.from('message_drafts').delete().eq('user_id', me).eq('chat_id', chatId);
+  }
+
+  // ---- Block ----
+  async blockUser(userId: string): Promise<void> {
+    const me = this.meId;
+    if (!me || !userId || userId === me) return;
+    await this.sb.from('blocked_users').upsert(
+      { user_id: me, blocked_id: userId, blocked_at: Date.now() },
+      { onConflict: 'user_id,blocked_id', ignoreDuplicates: true }
+    );
+  }
+
+  async unblockUser(userId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    await this.sb.from('blocked_users').delete().eq('user_id', me).eq('blocked_id', userId);
+  }
+
+  async getBlockedUsers(): Promise<BlockedUser[]> {
+    const me = this.meId;
+    if (!me) return [];
+    const { data } = await this.sb.from('blocked_users').select('blocked_id,blocked_at').eq('user_id', me).order('blocked_at', { ascending: false });
+    return ((data || []) as Array<{ blocked_id: string; blocked_at: number | string }>).map((r) => ({
+      userId: r.blocked_id,
+      blockedAt: num(r.blocked_at),
+    }));
+  }
+
+  // ---- Invite links ----
+  async createInviteLink(chatId: string, expiresAt?: number | null, maxUses?: number | null): Promise<InviteLink> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    const now = Date.now();
+    const { error } = await this.sb.from('invite_links').insert({
+      code,
+      chat_id: chatId,
+      created_by: me,
+      created_at: now,
+      expires_at: expiresAt ?? null,
+      max_uses: maxUses ?? null,
+      uses: 0,
+    });
+    if (error) throw new Error('Invite link nahi ban saka');
+    return { code, chatId, createdBy: me, createdAt: now, expiresAt: expiresAt ?? null, maxUses: maxUses ?? null, uses: 0 };
+  }
+
+  async joinViaInvite(code: string): Promise<string> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data } = await this.sb.from('invite_links').select('*').eq('code', code.trim()).maybeSingle();
+    const link = data as { code: string; chat_id: string; expires_at: number | string | null; max_uses: number | null; uses: number } | null;
+    if (!link) throw new Error('Invite link ghalat ya khatam ho gaya');
+    if (link.expires_at && Date.now() > num(link.expires_at)) throw new Error('Invite link ki muddat khatam ho gayi');
+    if (link.max_uses != null && link.uses >= link.max_uses) throw new Error('Invite link ka istemal poora ho gaya');
+    await this.sb.from('chat_participants').upsert(
+      { chat_id: link.chat_id, user_id: me },
+      { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+    );
+    await this.sb.from('invite_links').update({ uses: link.uses + 1 }).eq('code', link.code);
+    return link.chat_id;
+  }
+
+  async revokeInviteLink(code: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    const { data } = await this.sb.from('invite_links').select('created_by,chat_id').eq('code', code).maybeSingle();
+    const link = data as { created_by: string; chat_id: string } | null;
+    if (!link) return;
+    // Link banane wala ya chat admin hi revoke kar sakta hai
+    const { data: chat } = await this.sb.from('chats').select('admin_ids').eq('id', link.chat_id).maybeSingle();
+    const admins = ((chat as { admin_ids?: string[] } | null)?.admin_ids || []) as string[];
+    if (link.created_by !== me && !admins.includes(me)) throw new Error('Aap ke paas ijazat nahi');
+    await this.sb.from('invite_links').delete().eq('code', code);
+  }
+
+  // ---- Poll analytics + deadline ----
+  async getPollAnalytics(messageId: string): Promise<PollAnalytics> {
+    const { data } = await this.sb.from('messages').select('poll').eq('id', messageId).maybeSingle();
+    const poll = (data as { poll?: PollData } | null)?.poll;
+    if (!poll) throw new Error('Poll nahi mila');
+    const votes = poll.votes || {};
+    // Note: PollAnalytics contract me voter display names ka field nahi hai,
+    // is liye sirf voterIds return karte hain — frontend profiles se naam nikal le.
+    const perOption = poll.options.map((option, i) => ({
+      option,
+      votes: (votes[String(i)] || []).length,
+      voterIds: votes[String(i)] || [],
+    }));
+    return {
+      pollId: messageId,
+      totalVotes: perOption.reduce((s, o) => s + o.votes, 0),
+      perOption,
+    };
+  }
+
+  async setPollDeadline(messageId: string, deadlineAt: number): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    await this.sb.from('messages').update({ poll_deadline: deadlineAt }).eq('id', messageId);
+  }
+
+  // ---- Ownership ----
+  async transferOwnership(chatId: string, newAdminId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    if (newAdminId === me) return;
+    const { data } = await this.sb.from('chats').select('admin_ids').eq('id', chatId).maybeSingle();
+    const admins = ((data as { admin_ids?: string[] } | null)?.admin_ids || []) as string[];
+    if (!admins.includes(me)) throw new Error('Sirf admin ownership de sakta hai');
+    const next = admins.filter((a) => a !== me);
+    if (!next.includes(newAdminId)) next.push(newAdminId);
+    await this.sb.from('chats').update({ admin_ids: next }).eq('id', chatId);
+    // Naya owner chat ka member bhi hona chahiye
+    await this.sb.from('chat_participants').upsert(
+      { chat_id: chatId, user_id: newAdminId },
+      { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+    );
+  }
+
+  // ---- Backup ----
+  async exportChatBackup(): Promise<string> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data: parts } = await this.sb.from('chat_participants').select('chat_id').eq('user_id', me);
+    const chatIds = ((parts || []) as Array<{ chat_id: string }>).map((p) => p.chat_id);
+    let chats: unknown[] = [];
+    let messages: unknown[] = [];
+    let profiles: unknown[] = [];
+    if (chatIds.length > 0) {
+      const [chatRes, msgRes, partRes] = await Promise.all([
+        this.sb.from('chats').select('*').in('id', chatIds),
+        this.sb.from('messages').select('*').in('chat_id', chatIds).order('created_at', { ascending: true }).limit(5000),
+        this.sb.from('chat_participants').select('user_id').in('chat_id', chatIds),
+      ]);
+      chats = chatRes.data || [];
+      messages = msgRes.data || [];
+      const userIds = [...new Set(((partRes.data || []) as Array<{ user_id: string }>).map((p) => p.user_id))];
+      if (userIds.length > 0) {
+        const { data: profRows } = await this.sb.from('profiles').select('id,display_name,email,photo_url,about').in('id', userIds);
+        profiles = profRows || [];
+      }
+    }
+    const { data: myProf } = await this.sb.from('profiles').select('*').eq('id', me).maybeSingle();
+    return JSON.stringify({
+      version: 2,
+      app: 'ChatsApp',
+      exportedAt: Date.now(),
+      userId: me,
+      me: myProf || null,
+      chats,
+      messages,
+      profiles,
+      messageCount: (messages as unknown[]).length,
+    });
+  }
+
+  async importChatBackup(json: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    let parsed: { chats?: unknown[]; messages?: unknown[]; profiles?: unknown[] };
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new Error('Backup file sahi nahi hai');
+    }
+    const chats = Array.isArray(parsed.chats) ? parsed.chats : [];
+    const messages = Array.isArray(parsed.messages) ? parsed.messages : [];
+    const profiles = Array.isArray(parsed.profiles) ? parsed.profiles : [];
+    if (chats.length === 0 && messages.length === 0) throw new Error('Backup khaali hai');
+    try {
+      // Chats jisme user hissa tha — upsert se conflicts sambhalo
+      for (const c of chats) {
+        const row = c as Record<string, unknown>;
+        if (!row || typeof row.id !== 'string') continue;
+        const { error } = await this.sb.from('chats').upsert(row as never, { onConflict: 'id', ignoreDuplicates: false });
+        if (error) console.error('backup chat upsert failed:', error.message);
+        // Apni membership pakki karo taake chat nazar aaye
+        await this.sb.from('chat_participants').upsert(
+          { chat_id: row.id as string, user_id: me },
+          { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+        );
+      }
+      // Messages — upsert
+      const msgRows = (messages as Array<Record<string, unknown>>).filter((m) => m && typeof m.id === 'string');
+      for (let i = 0; i < msgRows.length; i += 200) {
+        const chunk = msgRows.slice(i, i + 200);
+        const { error } = await this.sb.from('messages').upsert(chunk as never[], { onConflict: 'id', ignoreDuplicates: false });
+        if (error) console.error('backup messages upsert failed:', error.message);
+      }
+      // Profiles subset — best effort (RLS doosron ki profile rok sakti hai)
+      const profRows = (profiles as Array<Record<string, unknown>>).filter((p) => p && typeof p.id === 'string');
+      for (const p of profRows) {
+        const { error } = await this.sb.from('profiles').upsert(p as never, { onConflict: 'id', ignoreDuplicates: false });
+        if (error) break; // RLS rok de to aage mat barho
+      }
+      // Metadata entry
+      await this.sb.from('chat_backups').insert({
+        id: `backup_${Date.now()}`,
+        user_id: me,
+        created_at: Date.now(),
+        message_count: msgRows.length,
+      });
+    } catch (e) {
+      console.error('importChatBackup failed:', e);
+      throw new Error('Backup restore nahi ho saka');
+    }
+  }
+
+  // ---- Join requests ----
+  async requestToJoin(chatId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data: already } = await this.sb.from('chat_participants').select('chat_id').eq('chat_id', chatId).eq('user_id', me).maybeSingle();
+    if (already) throw new Error('Aap pehle se member hain');
+    await this.sb.from('join_requests').upsert(
+      { id: `jr_${chatId}_${me}`, chat_id: chatId, user_id: me, status: 'pending', created_at: Date.now() },
+      { onConflict: 'id', ignoreDuplicates: false }
+    );
+  }
+
+  async getJoinRequests(chatId: string): Promise<JoinRequest[]> {
+    const { data } = await this.sb.from('join_requests').select('*').eq('chat_id', chatId).eq('status', 'pending').order('created_at', { ascending: false });
+    return ((data || []) as Array<{ id: string; chat_id: string; user_id: string; status: string; created_at: number | string }>).map((r) => ({
+      id: r.id,
+      chatId: r.chat_id,
+      userId: r.user_id,
+      status: r.status as JoinRequest['status'],
+      createdAt: num(r.created_at),
+    }));
+  }
+
+  async approveJoinRequest(requestId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data } = await this.sb.from('join_requests').select('*').eq('id', requestId).maybeSingle();
+    const req = data as { id: string; chat_id: string; user_id: string; status: string } | null;
+    if (!req || req.status !== 'pending') throw new Error('Request nahi mili');
+    const { data: chat } = await this.sb.from('chats').select('admin_ids').eq('id', req.chat_id).maybeSingle();
+    const admins = ((chat as { admin_ids?: string[] } | null)?.admin_ids || []) as string[];
+    if (!admins.includes(me)) throw new Error('Sirf admin approve kar sakta hai');
+    await this.sb.from('chat_participants').upsert(
+      { chat_id: req.chat_id, user_id: req.user_id },
+      { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+    );
+    await this.sb.from('join_requests').update({ status: 'approved' }).eq('id', requestId);
+  }
+
+  async rejectJoinRequest(requestId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) throw new Error('Not signed in');
+    const { data } = await this.sb.from('join_requests').select('chat_id,status').eq('id', requestId).maybeSingle();
+    const req = data as { chat_id: string; status: string } | null;
+    if (!req || req.status !== 'pending') throw new Error('Request nahi mili');
+    const { data: chat } = await this.sb.from('chats').select('admin_ids').eq('id', req.chat_id).maybeSingle();
+    const admins = ((chat as { admin_ids?: string[] } | null)?.admin_ids || []) as string[];
+    if (!admins.includes(me)) throw new Error('Sirf admin reject kar sakta hai');
+    await this.sb.from('join_requests').update({ status: 'rejected' }).eq('id', requestId);
+  }
+
+  // ---- Locked chats (per-user flag; PIN UI frontend ka kaam) ----
+  async setChatLocked(chatId: string, locked: boolean): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    if (locked) {
+      await this.sb.from('locked_chats').upsert(
+        { user_id: me, chat_id: chatId, locked_at: Date.now() },
+        { onConflict: 'user_id,chat_id', ignoreDuplicates: true }
+      );
+    } else {
+      await this.sb.from('locked_chats').delete().eq('user_id', me).eq('chat_id', chatId);
+    }
+  }
+
+  async isChatLocked(chatId: string): Promise<boolean> {
+    const me = this.meId;
+    if (!me) return false;
+    const { data } = await this.sb.from('locked_chats').select('chat_id').eq('user_id', me).eq('chat_id', chatId).maybeSingle();
+    return !!data;
+  }
+
+  // ---- Per-chat tone ----
+  async setChatTone(chatId: string, tone: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    await this.sb.from('user_chat_settings').upsert(
+      { chat_id: chatId, user_id: me, tone },
+      { onConflict: 'chat_id,user_id' }
+    );
+  }
+
+  async getChatTone(chatId: string): Promise<string> {
+    const me = this.meId;
+    if (!me) return 'default';
+    const { data } = await this.sb.from('user_chat_settings').select('tone').eq('chat_id', chatId).eq('user_id', me).maybeSingle();
+    return (data as { tone?: string } | null)?.tone || 'default';
+  }
+
+  // ---- Self-destruct ----
+  private async insertSpecialMessage(
+    chatId: string,
+    row: Record<string, unknown>
+  ): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    // Block check (self-destruct/contact/location ke liye bhi)
+    const { data: parts } = await this.sb.from('chat_participants').select('user_id').eq('chat_id', chatId);
+    const others = ((parts || []) as Array<{ user_id: string }>).map((p) => p.user_id).filter((u) => u !== me);
+    if (others.length > 0) {
+      const blocked = await this.fetchBlockedIds();
+      if (others.some((u) => blocked.has(u))) throw new Error('Aap ne is user ko block kiya hua hai');
+    }
+    const now = Date.now();
+    const { data: prof } = await this.sb.from('profiles').select('display_name').eq('id', me).maybeSingle();
+    const senderName = (prof as { display_name?: string } | null)?.display_name || 'User';
+    await this.sb.from('messages').insert({
+      chat_id: chatId,
+      sender_id: me,
+      sender_name: senderName,
+      created_at: now,
+      read_by: [me],
+      ...row,
+    });
+    const preview =
+      row.type === 'contact' ? '👤 Contact' : row.type === 'location' ? '📍 Live location' : '⏳ ' + String(row.text || '').slice(0, 40);
+    await this.sb.from('chats').update({
+      last_message: { text: preview, senderId: me, senderName, createdAt: now, type: row.type } as LastMessage,
+      updated_at: now,
+    }).eq('id', chatId);
+  }
+
+  async sendSelfDestructMessage(chatId: string, text: string, seconds: number): Promise<void> {
+    const t = text.trim();
+    if (!t) return;
+    const secs = Math.max(1, Math.min(86400, seconds));
+    await this.insertSpecialMessage(chatId, {
+      type: 'text',
+      text: t,
+      self_destruct_at: Date.now() + secs * 1000,
+    });
+  }
+
+  // ---- Contact share ----
+  async sendContact(chatId: string, contact: SharedContact): Promise<void> {
+    const name = contact.name.trim();
+    if (!name) throw new Error('Contact ka naam likhein');
+    await this.insertSpecialMessage(chatId, {
+      type: 'contact',
+      text: name,
+      contact_data: { name, phone: contact.phone || undefined, email: contact.email || undefined },
+    });
+  }
+
+  // ---- Live location ----
+  async sendLiveLocation(chatId: string, lat: number, lng: number, durationMin: number): Promise<void> {
+    const mins = Math.max(1, Math.min(480, durationMin));
+    await this.insertSpecialMessage(chatId, {
+      type: 'location',
+      text: '📍 Live location',
+      lat,
+      lng,
+      location_expires_at: Date.now() + mins * 60000,
+    });
+  }
+
+  async updateLiveLocation(messageId: string, lat: number, lng: number): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    const { data } = await this.sb.from('messages').select('sender_id,location_expires_at').eq('id', messageId).maybeSingle();
+    const row = data as { sender_id: string; location_expires_at: number | string | null } | null;
+    if (!row || row.sender_id !== me) return;
+    if (row.location_expires_at && Date.now() > num(row.location_expires_at)) throw new Error('Location share khatam ho gaya');
+    await this.sb.from('messages').update({ lat, lng }).eq('id', messageId);
+  }
+
+  async stopLiveLocation(messageId: string): Promise<void> {
+    const me = this.meId;
+    if (!me) return;
+    const { data } = await this.sb.from('messages').select('sender_id').eq('id', messageId).maybeSingle();
+    if ((data as { sender_id?: string } | null)?.sender_id !== me) return;
+    await this.sb.from('messages').update({ location_expires_at: Date.now() }).eq('id', messageId);
   }
 }

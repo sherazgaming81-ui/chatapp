@@ -11,7 +11,7 @@ export interface UserProfile {
   disappearingAfter?: number; // seconds, 0 = off (per-user setting)
 }
 
-export type MessageType = 'text' | 'image' | 'audio' | 'poll' | 'file';
+export type MessageType = 'text' | 'image' | 'audio' | 'poll' | 'file' | 'contact' | 'location';
 
 export type PrivacyLevel = 'everyone' | 'nobody';
 
@@ -79,6 +79,13 @@ export interface ChatMessage {
   isPinned?: boolean;
   poll?: PollData | null;
   forwarded?: boolean;
+  // ---- v2 additions ----
+  pollDeadline?: number; // epoch ms, poll voting band hone ka waqt
+  selfDestructAt?: number; // epoch ms, is waqt ke baad message gayab
+  contact?: { name: string; phone?: string; email?: string };
+  lat?: number; // live location
+  lng?: number;
+  locationExpiresAt?: number; // epoch ms
 }
 
 export interface LastMessage {

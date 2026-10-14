@@ -390,4 +390,33 @@ export class FirebaseBackend implements ChatBackend {
   async subscribePush(): Promise<void> {}
   async unsubscribePush(): Promise<void> {}
   async searchInChat(): Promise<import('./types').ChatMessage[]> { return []; }
+
+  // ---- v2 stubs (firebase: not implemented, supabase is primary) ----
+  async saveDraft(): Promise<void> {}
+  async getDraft(): Promise<string | null> { return null; }
+  async clearDraft(): Promise<void> {}
+  async blockUser(): Promise<void> {}
+  async unblockUser(): Promise<void> {}
+  async getBlockedUsers(): Promise<import('@/lib/v2/types').BlockedUser[]> { return []; }
+  async createInviteLink(): Promise<import('@/lib/v2/types').InviteLink> { throw new Error('v2 supported nahi'); }
+  async joinViaInvite(): Promise<string> { throw new Error('v2 supported nahi'); }
+  async revokeInviteLink(): Promise<void> {}
+  async getPollAnalytics(): Promise<import('@/lib/v2/types').PollAnalytics> { throw new Error('v2 supported nahi'); }
+  async setPollDeadline(): Promise<void> {}
+  async transferOwnership(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async exportChatBackup(): Promise<string> { throw new Error('v2 supported nahi'); }
+  async importChatBackup(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async requestToJoin(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async getJoinRequests(): Promise<import('@/lib/v2/types').JoinRequest[]> { return []; }
+  async approveJoinRequest(): Promise<void> {}
+  async rejectJoinRequest(): Promise<void> {}
+  async setChatLocked(): Promise<void> {}
+  async isChatLocked(): Promise<boolean> { return false; }
+  async setChatTone(): Promise<void> {}
+  async getChatTone(): Promise<string> { return 'default'; }
+  async sendSelfDestructMessage(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async sendContact(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async sendLiveLocation(): Promise<void> { throw new Error('v2 supported nahi'); }
+  async updateLiveLocation(): Promise<void> {}
+  async stopLiveLocation(): Promise<void> {}
 }
