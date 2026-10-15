@@ -15,4 +15,6 @@ export function supabase(): SupabaseClient {
 }
 
 export const OWNER_EMAIL = "sherazgaming81@gmail.com";
-export const MAIN_GROUP_ID = "madrasa"; // is_main_group=true wali chat
+// Real chat ID is resolved dynamically in loadRealData (never hardcode "madrasa")
+export let MAIN_GROUP_ID = "madrasa";
+export function setMainGroupId(id: string) { MAIN_GROUP_ID = id; }

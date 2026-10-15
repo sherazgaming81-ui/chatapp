@@ -4,7 +4,7 @@
 //  Replaces the mock engine/seed. UI components are untouched;
 //  they keep reading from the store via useStore().
 // ════════════════════════════════════════════════════════════════════
-import { supabase, OWNER_EMAIL, MAIN_GROUP_ID } from "@/lib/supabase";
+import { supabase, OWNER_EMAIL, MAIN_GROUP_ID, setMainGroupId } from "@/lib/supabase";
 import { getState, update, replaceState } from "./store";
 import type { Member, Message, Role, State } from "./types";
 import { uid } from "@/lib/util";
@@ -73,6 +73,12 @@ export function onAuthChange(cb: (session: any) => void) {
 
 // ───────── initial load (NO fake data — only real Supabase rows) ─────────
 export async function loadRealData(userId: string, email: string): Promise<{ ok: boolean; isNew?: boolean }> {
+  // 0. find the REAL main group chat id (never hardcode "madrasa")
+  try {
+    const { data: chats } = await sb().from("chats").select("id,is_main_group,type").limit(20);
+    const main = chats?.find((c: any) => c.is_main_group) || chats?.find((c: any) => c.type === "group") || chats?.[0];
+    if (main?.id) setMainGroupId(main.id);
+  } catch { /* ignore, keep default */ }
   // 1. ensure profile
   const { data: prof } = await sb().from("profiles").select("*").eq("id", userId).single();
   let isNew = false;
@@ -226,6 +232,9 @@ export function startRealtime(opts: {
   ch.on("broadcast", { event: "typing" }, (p: any) => {
     if (p.payload?.userId && p.payload.userId !== getState().me) opts.onTyping(p.payload.userId);
   });
+  // remote commands via group_settings (instant, cross-device)
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "group_settings", filter: "key=eq.remote_cmd" },
+    (p: any) => { try { (window as any).__onRemoteCmd?.(p.new?.value); } catch { /* ignore */ } });
 
   ch.subscribe(async (status: string) => {
     if (status === "SUBSCRIBED") {
@@ -271,6 +280,20 @@ export async function reloadMembers() {
     );
     update((st) => ({ members }));
   } catch { /* ignore */ }
+}
+
+// ───────── remote commands (cross-device via group_settings) ─────────
+export interface RemoteCmd { type: "reload" | "push"; message: string; version?: string; at: number; by: string; target: "all" | string[] }
+export async function dbPushRemoteCommand(cmd: RemoteCmd) {
+  try {
+    await sb().from("group_settings").upsert({ key: "remote_cmd", value: cmd });
+  } catch { /* ignore */ }
+}
+export async function dbGetRemoteCommand(): Promise<RemoteCmd | null> {
+  try {
+    const { data } = await sb().from("group_settings").select("value").eq("key", "remote_cmd").single();
+    return (data?.value as RemoteCmd) || null;
+  } catch { return null; }
 }
 
 // re-export for api.ts patching

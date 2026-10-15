@@ -11,7 +11,7 @@ import { ACHIEVEMENTS, photoArt, svgUri } from "./assets";
 import { DEFAULT_LOC, DUAS, HIJRI_MONTHS, SURAHS, QURAN_LOCAL, hijri, prayerTimes, qiblaBearing, PRAYER_NAMES, type PrayerKey } from "./deen";
 import { mkPeaks } from "./seed";
 // Supabase write-through (fire-and-forget; UI stays reactive via local store)
-import { dbInsertMessage, dbUpdateMessage, dbDeleteMessage, dbSetMute, dbSetBan, dbAddWarn, dbSetRole } from "./supabase";
+import { dbInsertMessage, dbUpdateMessage, dbDeleteMessage, dbSetMute, dbSetBan, dbAddWarn, dbSetRole, dbPushRemoteCommand } from "./supabase";
 
 const S = getState;
 export const me = () => S().members.find((m) => m.id === S().me)!;
@@ -475,6 +475,8 @@ export function reloadUsers(ids: string[] | "all", message: string) {
   update((st) => ({ owner: { ...st.owner, jobs: [job, ...st.owner.jobs].slice(0, 30), history: [{ id: uid("h"), at: Date.now(), by: st.me, kind: "reload" as const, version: st.owner.currentVersion, scope: ids === "all" ? "Sab members" : targets.map((t) => getMember(t)?.name).join(", "), note: message }, ...st.owner.history] } }));
   logAudit(ids === "all" ? "Sab ka app reload kiya" : "Member ka app reload kiya", "reload", ids === "all" ? "Sab" : getMember(targets[0])?.name);
   remoteChannel()?.postMessage({ type: "reload", kind: "reload", message, tab: TAB });
+  // → real cross-device push via Supabase
+  dbPushRemoteCommand({ type: "reload", message, at: Date.now(), by: s.me, target: ids === "all" ? "all" : targets });
   targets.forEach((uidd) => setTimeout(() => settleEntry(job.id, uidd), 900 + Math.random() * 3500));
   return job.id;
 }
@@ -507,6 +509,8 @@ export function pushVersion(message: string) {
   update((s) => ({ owner: { ...s.owner, rollout: { version: o.available!.version, stage: 10, updated: picks, message }, history: [{ id: uid("h"), at: Date.now(), by: s.me, kind: "push", version: o.available!.version, scope: "Stage 10%", note: message }, ...s.owner.history] }, members: s.members.map((m) => (picks.includes(m.id) ? { ...m, version: o.available!.version } : m)) }));
   logAudit(`Version ${o.available.version} push (10%)`, "push");
   remoteChannel()?.postMessage({ type: "reload", kind: "push", message, version: o.available.version, tab: TAB });
+  // → real cross-device push via Supabase
+  dbPushRemoteCommand({ type: "push", message, version: o.available.version, at: Date.now(), by: S().me, target: "all" });
   return true;
 }
 export function advanceRollout(stage: 50 | 100) {
@@ -560,20 +564,30 @@ export function simulateIncoming() {
   if (f) receiveMessage(f.id, { type: "text", text: "Aur sunao, kya chal raha hai? 😄" });
 }
 
-// ───────── insights (mock analytics) ─────────
+// ───────── insights (REAL data only — no fake numbers) ─────────
 export function getInsights() {
   const s = S();
-  const hash = (str: string) => Array.from(str).reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 997, 7);
-  const names = ["Isn", "Mng", "Bud", "Jum", "Jmt", "Hft", "Aaj"];
+  const real = s.messages.filter((m) => m.type !== "system" && !m.deleted);
+  const dayStr = (d: Date) => d.toDateString();
   const today = new Date();
-  const days = names.map((_, i) => ["Aitwar", "Peer", "Mangal", "Budh", "Jumerat", "Jumma", "Hafta"][(today.getDay() - 6 + i + 14) % 7].slice(0, 3));
-  const real = (d: number) => s.messages.filter((m) => new Date(m.at).toDateString() === new Date(Date.now() - (6 - d) * 864e5).toDateString() && m.type !== "system").length;
-  const base = [52, 61, 48, 74, 69, 96, 30];
-  const perDay = base.map((b, i) => b + real(i));
-  const curve = (h: number) => Math.round(6 + 38 * Math.exp(-((h - 22) ** 2) / 8) + 22 * Math.exp(-((h - 13.5) ** 2) / 4) + 18 * Math.exp(-((h - 6) ** 2) / 3));
-  const hours = Array.from({ length: 24 }, (_, h) => curve(h) + s.messages.filter((m) => new Date(m.at).getHours() === h).length);
-  const heat = Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => Math.max(0, Math.round(curve(h) * (0.6 + ((d * 7 + h * 3) % 10) / 14)))));
-  const top = s.members.filter((m) => !m.banned).map((m) => ({ id: m.id, n: 40 + (hash(m.name) % 140) + s.messages.filter((x) => x.from === m.id).length })).sort((a, b) => b.n - a.n).slice(0, 5);
+  const days: string[] = [];
+  const perDay: number[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 864e5);
+    days.push(["Itw", "Pir", "Mng", "Bdh", "Jum", "Jum", "Haf"][d.getDay()]);
+    perDay.push(real.filter((m) => dayStr(new Date(m.at)) === dayStr(d)).length);
+  }
+  const hours = Array.from({ length: 24 }, (_, h) => real.filter((m) => new Date(m.at).getHours() === h).length);
+  const heat = Array.from({ length: 7 }, (_, d) => {
+    const dd = new Date(today.getTime() - (6 - d) * 864e5);
+    return Array.from({ length: 24 }, (_, h) => real.filter((m) => dayStr(new Date(m.at)) === dayStr(dd) && new Date(m.at).getHours() === h).length);
+  });
+  const top = s.members
+    .filter((m) => !m.banned)
+    .map((m) => ({ id: m.id, n: real.filter((x) => x.from === m.id).length }))
+    .filter((t) => t.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5);
   return { perDay, days, hours, heat, top };
 }
 

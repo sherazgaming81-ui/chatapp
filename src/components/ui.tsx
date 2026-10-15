@@ -79,7 +79,7 @@ export function Sheet({ open, onClose, title, children, wide, full, noPad }: { o
   return (
     <AnimatePresence>
       {open && (
-        <div data-sheet className="fixed inset-0 z-[80] flex items-end justify-center md:items-center">
+        <div data-sheet className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto md:items-center md:p-6">
           <motion.div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.div
             className={cn("relative flex w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-2xl md:rounded-3xl", wide ? "md:max-w-2xl" : "md:max-w-md", full ? "h-[92dvh] md:h-[86dvh]" : "max-h-[88dvh]")}

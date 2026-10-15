@@ -45,7 +45,7 @@ function Home({ go }: { go: (t: T) => void }) {
       {avail && <button onClick={() => go("remote")} className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-gold/50 bg-gradient-to-r from-gold/20 to-transparent p-4 text-left"><BellRing className="text-gold" /><span><span className="block font-extrabold text-gold">Naya version tayyar hai!</span><span className="text-sm text-mute">v{avail.version} — Remote tab me jakar push karein</span></span></button>}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat icon={<Users size={18} />} label="Kul members" value={members.length} sub={`${members.filter((m) => m.banned).length} banned`} c="#2ccf8a" />
-        <Stat icon={<MessageSquare size={18} />} label="Aaj ke messages" value={today + 38} c="#4cc3ff" />
+        <Stat icon={<MessageSquare size={18} />} label="Aaj ke messages" value={today} c="#4cc3ff" />
         <Stat icon={<Wifi size={18} />} label="Abhi online" value={members.filter((m) => m.online && !m.banned).length} c="#e8bd57" />
         <Stat icon={<HardDrive size={18} />} label="Storage" value={fmtSize(st.media + st.docs + st.voice)} c="#ff8a5c" />
       </div>

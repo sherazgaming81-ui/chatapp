@@ -4,7 +4,7 @@
 // Presence / typing / incoming messages come from Supabase Realtime
 // via src/data/supabase.ts startRealtime().
 import { getState, update } from "./store";
-import { startRealtime, dbTouchPresence, reloadMembers } from "./supabase";
+import { startRealtime, dbTouchPresence, reloadMembers, dbGetRemoteCommand, type RemoteCmd } from "./supabase";
 import { addAlert, detectUpdate, flushQueue, getLocation, isStaff, me, receiveMessage, remoteChannel, sendMessage, toast, triggerAzaan, burstConfetti, patchSettings, dndActive } from "./api";
 import { PRAYER_NAMES, isEidDay, prayerTimes, type PrayerKey } from "./deen";
 import { uid, inWindow } from "@/lib/util";
@@ -56,6 +56,31 @@ export function startEngine() {
 
   // expose typing sender for Composer
   (window as any).__sendTyping = () => rt?.sendTyping();
+
+  // ── cross-device remote commands (owner push/reload) ──
+  // check on boot + every 15s (in addition to realtime below)
+  let lastCmdAt = 0;
+  try { lastCmdAt = parseInt(localStorage.getItem("chatsapp:lastCmd") || "0", 10) || 0; } catch { /* ignore */ }
+  const handleCmd = (cmd: RemoteCmd | null) => {
+    if (!cmd || !cmd.at || cmd.at <= lastCmdAt) return;
+    const s = getState();
+    // don't reload the owner's own device that sent it (they already see the UI)
+    if (cmd.by === s.me) { lastCmdAt = cmd.at; try { localStorage.setItem("chatsapp:lastCmd", String(cmd.at)); } catch { /* ignore */ } return; }
+    // targeted push? check if I'm in target list
+    if (cmd.target !== "all" && Array.isArray(cmd.target) && !cmd.target.includes(s.me)) return;
+    lastCmdAt = cmd.at;
+    try { localStorage.setItem("chatsapp:lastCmd", String(cmd.at)); } catch { /* ignore */ }
+    update((st) => ({ ui: { ...st.ui, remoteOverlay: { message: cmd.message || "App update ho raha hai…", kind: cmd.type } } }));
+    setTimeout(() => {
+      // dynamic import to avoid cycle
+      import("./api").then((a) => a.wipeDeviceAndReload(cmd.version));
+    }, 2600);
+  };
+  // realtime hook: supabase.ts calls this on group_settings remote_cmd change
+  (window as any).__onRemoteCmd = handleCmd;
+  const pollCmd = async () => { try { handleCmd(await dbGetRemoteCommand()); } catch { /* ignore */ } };
+  tos.push(setTimeout(pollCmd, 4000));
+  ivs.push(setInterval(pollCmd, 15000));
 
   // 1s tick: local tick progression, expiry, scheduled, polls, queue
   ivs.push(setInterval(() => {
