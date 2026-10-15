@@ -161,7 +161,8 @@ export interface SendInput {
 export interface ChatBackend {
   readonly mode: 'firebase' | 'demo' | 'supabase';
   onAuth(cb: (user: UserProfile | null) => void): () => void;
-  signInWithGoogle(): Promise<void>;
+  /** v6.7: string (fallback URL) wapas de sakta hai agar redirect block ho. */
+  signInWithGoogle(): Promise<string | void>;
   signOut(): Promise<void>;
   updateProfile(patch: Partial<Pick<UserProfile, 'displayName' | 'about' | 'photoURL' | 'coverURL'>>): Promise<void>;
   onChats(cb: (chats: Chat[]) => void): () => void;
