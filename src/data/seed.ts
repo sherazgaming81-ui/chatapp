@@ -17,6 +17,7 @@ export function createSeed(): State {
     me: "",
     members: [],
     messages: [],
+    chats: [],
     settings: {
       theme: "dark", compact: false, wallpaper: "noor", wallDim: 0.35, chatTheme: "zumurrud",
       nightSchedule: { on: false, from: "18:30", to: "05:45" }, disappearing: 0, mute: { on: false, until: null },
@@ -73,7 +74,7 @@ export function createSeed(): State {
     data: { wifi: [0, 0, 0, 0, 0, 0, 0], mobile: [0, 0, 0, 0, 0, 0, 0] },
     stats: { streak: 0, lastDay: dayKey },
     scores: { quiz: 0, ttt: 0, paheli: 0 },
-    ui: { toasts: [], typing: [], azaan: null, achievement: null, offline: false, confetti: 0, remoteOverlay: null, changelog: false, syncing: false, slowUntil: 0, sttNonce: 0 },
+    ui: { toasts: [], typing: [], azaan: null, achievement: null, offline: false, confetti: 0, remoteOverlay: null, changelog: false, syncing: false, slowUntil: 0, sttNonce: 0, activeChatId: null },
     nav: { tab: "chat", stack: [] },
   };
 }

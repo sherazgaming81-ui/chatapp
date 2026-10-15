@@ -25,6 +25,12 @@ export const go = (page: string, props?: any) => update((s) => ({ nav: { ...s.na
 export const back = () => update((s) => ({ nav: { ...s.nav, stack: s.nav.stack.slice(0, -1) } }));
 export const closeAll = () => update((s) => ({ nav: { ...s.nav, stack: [] } }));
 export const setTab = (tab: State["nav"]["tab"]) => update((s) => ({ nav: { tab, stack: [] } }));
+export const setActiveChat = (chatId: string) => {
+  update((s) => {
+    const msgs = s.messages.filter((m) => m.chatId === chatId);
+    return { ui: { ...s.ui, activeChatId: chatId }, lastRead: msgs[msgs.length - 1]?.id ?? s.lastRead };
+  });
+};
 
 // ───────── toasts / achievements ─────────
 export function toast(title: string, body = "", kind: "msg" | "info" | "ach" = "info", ms = 4200) {
@@ -102,16 +108,19 @@ export function sendMessage(p: NewMsg, opts: { skipChecks?: boolean } = {}): Mes
   }
   const s = S();
   const now = Date.now();
+  const activeChatId = s.ui.activeChatId || (s.chats[0]?.id ?? "");
   const m: Message = {
-    id: uid("m"), from: s.me, status: s.ui.offline ? "queued" : "sent", at: now, reactions: {}, ...p,
+    id: uid("m"), from: s.me, chatId: activeChatId, status: s.ui.offline ? "queued" : "sent", at: now, reactions: {}, ...p,
     expiresAt: s.settings.disappearing ? now + s.settings.disappearing : undefined,
   };
+  // never let p override chatId with undefined
+  if (!m.chatId) m.chatId = activeChatId;
   if (m.type === "image" || m.type === "video" || m.type === "doc") m.downloaded = true;
   // automod
   const text = (m.text ?? "") + " " + (m.caption ?? "");
   const bad = s.owner.autoMod.on && !isStaff(me()) ? s.owner.autoMod.words.find((w) => w && text.toLowerCase().includes(w.toLowerCase())) : null;
   if (bad) {
-    update((st) => ({ messages: [...st.messages, { ...m, deleted: true, text: "", caption: "", type: "system", status: "read" }] }));
+    update((st) => ({ messages: [...st.messages, { ...m, chatId: m.chatId, deleted: true, text: "", caption: "", type: "system", status: "read" }] }));
     toast("Auto-mod", `Aapka message hata diya gaya (mana shuda lafz: "${bad}")`, "info");
     addAlert(`${displayName(me())} ne mana shuda lafz likha: "${bad}"`, "automod");
     return null;
@@ -203,7 +212,7 @@ export const closePoll = (id: string) => {
 export function announcePollResult(p: Poll) {
   const counts = p.options.map((o) => ({ o, n: Object.values(p.votes).filter((v) => v.includes(o.id)).length }));
   const top = counts.sort((a, b) => b.n - a.n)[0];
-  update((s) => ({ messages: [...s.messages, { id: uid("m"), from: "system", type: "system", text: `Poll band: "${p.q}" — jeetne wala: ${top?.o.text ?? "-"} (${top?.n ?? 0} vote)`, at: Date.now(), status: "read", reactions: {} }] }));
+  update((s) => ({ messages: [...s.messages, sysMsg(`Poll band: "${p.q}" — jeetne wala: ${top?.o.text ?? "-"} (${top?.n ?? 0} vote)`)] }));
 }
 export function createPoll(q: string, options: { text: string; img?: string }[], o: { multi: boolean; anonymous: boolean; durationMs?: number }) {
   const poll: Poll = { q, multi: o.multi, anonymous: o.anonymous, votes: {}, closesAt: o.durationMs ? Date.now() + o.durationMs : undefined, options: options.map((x, i) => ({ id: "o" + i, text: x.text, img: x.img })) };
@@ -243,7 +252,7 @@ export function warnMember(id: string, reason: string) {
   if (m.warns.length >= 3) {
     muteMember(id, 3600e3);
     addAlert(`${m.name} ko 3 warning mil gayi — auto-mute (1 ghanta)`, "warn");
-    update((s) => ({ messages: [...s.messages, { id: uid("m"), from: "system", type: "system", text: `${m.name} ko 3 warnings par auto-mute kar diya gaya`, at: Date.now(), status: "read", reactions: {} }] }));
+    update((s) => ({ messages: [...s.messages, sysMsg(`${m.name} ko 3 warnings par auto-mute kar diya gaya`)] }));
   }
 }
 export const clearWarns = (id: string) => update((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, warns: [] } : m)) }));
@@ -260,7 +269,7 @@ export function addMember(name: string) {
   welcomeMember(m);
 }
 export function welcomeMember(m: Member) {
-  update((s) => ({ messages: [...s.messages, { id: uid("m"), from: "system", type: "system", text: `🌙 ${m.name} group me aa gaye! Assalamu Alaikum aur khush aamdeed — sab milke unka swagat karein.`, at: Date.now(), status: "read", reactions: {} }] }));
+  update((s) => ({ messages: [...s.messages, sysMsg(`🌙 ${m.name} group me aa gaye! Assalamu Alaikum aur khush aamdeed — sab milke unka swagat karein.`)] }));
 }
 export function setRole(id: string, role: Role) {
   update((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, role } : m)) }));
@@ -310,7 +319,7 @@ export function prayerLines() {
 }
 export function hijriText() { const h = hijri(); return `${h.d} ${HIJRI_MONTHS[h.m - 1]} ${h.y} Hijri`; }
 const postCmd = (cmd: string, text: string) => {
-  update((s) => ({ messages: [...s.messages, { id: uid("m"), from: "system", type: "cmd", cmd, text, at: Date.now(), status: "read", reactions: {} }], owner: { ...s.owner, cmdLog: [{ id: uid("l"), at: Date.now(), by: s.me, cmd: "/" + cmd }, ...s.owner.cmdLog].slice(0, 100) } }));
+  update((s) => ({ messages: [...s.messages, sysMsg(text, { type: "cmd", cmd })], owner: { ...s.owner, cmdLog: [{ id: uid("l"), at: Date.now(), by: s.me, cmd: "/" + cmd }, ...s.owner.cmdLog].slice(0, 100) } }));
 };
 const findMember = (q: string) => S().members.find((m) => m.id !== S().me && m.name.toLowerCase().includes(q.trim().toLowerCase().replace(/^@/, "")));
 /** returns true if text was a command (handled) */
@@ -362,7 +371,7 @@ export function receiveMessage(from: string, p: NewMsg) {
   const now = Date.now();
   const text = (p.text ?? "") + " " + (p.caption ?? "");
   const bad = s.owner.autoMod.on && !isStaff(sender) ? s.owner.autoMod.words.find((w) => w && text.toLowerCase().includes(w.toLowerCase())) : null;
-  const m: Message = { id: uid("m"), from, status: "read", at: now, reactions: {}, expiresAt: s.settings.disappearing ? now + s.settings.disappearing : undefined, ...p };
+  const m: Message = { id: uid("m"), from, chatId: p.chatId || s.ui.activeChatId || s.chats[0]?.id || "", status: "read", at: now, reactions: {}, expiresAt: s.settings.disappearing ? now + s.settings.disappearing : undefined, ...p };
   if (m.type === "image" || m.type === "video" || m.type === "doc") m.downloaded = s.settings.autoDl.photos.wifi;
   if (bad) {
     update((st) => ({ messages: [...st.messages, { ...m, type: "system", deleted: true, text: "", caption: "" }] }));
@@ -592,7 +601,12 @@ export function getInsights() {
 }
 
 export const addScore = (k: "quiz" | "ttt" | "paheli", n = 1) => update((s) => ({ scores: { ...s.scores, [k]: s.scores[k] + n } }));
-export const postSystem = (text: string) => update((s) => ({ messages: [...s.messages, { id: uid("m"), from: "system", type: "system", text, at: Date.now(), status: "read", reactions: {} }] }));
+// system message helper — always carries the active chatId
+const sysMsg = (text: string, extra: Partial<Message> = {}): Message => ({
+  id: uid("m"), from: "system", chatId: getState().ui.activeChatId || getState().chats[0]?.id || "",
+  type: "system", text, at: Date.now(), status: "read", reactions: {}, ...extra,
+});
+export const postSystem = (text: string) => update((s) => ({ messages: [...s.messages, sysMsg(text)] }));
 export function applyRamadanPack() {
   const d = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
   patchSettings({ theme: "dark", chatTheme: "zafran", wallpaper: "raat", wallDim: 0.3, ramadan: { mode: "on", start: d } });

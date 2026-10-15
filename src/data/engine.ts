@@ -29,7 +29,17 @@ export function startEngine() {
       if (s.messages.some((x) => x.id === m.id)) return;
       const sender = s.members.find((x) => x.id === m.from);
       if (sender?.banned || s.blocked.includes(m.from)) return;
-      update((st) => ({ messages: [...st.messages, m] }));
+      update((st) => {
+        // auto-add unknown chat (e.g. new DM) to chat list
+        let chats = st.chats;
+        if (m.chatId && !chats.some((c) => c.id === m.chatId)) {
+          const other = st.members.find((x) => x.id === m.from && x.id !== st.me);
+          chats = [...chats, { id: m.chatId, type: "dm", name: other?.name || "Chat", photo: other?.avatar || "", otherId: other?.id, lastAt: m.at }];
+        } else {
+          chats = chats.map((c) => (c.id === m.chatId ? { ...c, lastAt: m.at } : c));
+        }
+        return { messages: [...st.messages, m], chats };
+      });
       const st2 = getState();
       const inChat = st2.nav.tab === "chat" && st2.nav.stack.length === 0 && typeof document !== "undefined" && document.visibilityState === "visible";
       if (!inChat && !st2.settings.groupMute && !dndActive()) {

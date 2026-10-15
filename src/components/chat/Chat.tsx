@@ -34,6 +34,8 @@ function RamadanStrip() {
 export default function ChatView({ active }: { active: boolean }) {
   const desktop = useIsDesktop();
   const all = useStore((s) => s.messages);
+  const chats = useStore((s) => s.chats);
+  const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
   const blocked = useStore((s) => s.blocked);
   const meId = useStore((s) => s.me);
   const lastRead = useStore((s) => s.lastRead);
@@ -42,7 +44,12 @@ export default function ChatView({ active }: { active: boolean }) {
   const members = useStore((s) => s.members);
   const branding = useStore((s) => s.owner.branding);
   const archived = useStore((s) => s.archived);
-  const msgs = useMemo(() => all.filter((m) => !blocked.includes(m.from)), [all, blocked]);
+  const msgs = useMemo(() => all.filter((m) => !blocked.includes(m.from) && (!activeChatId || m.chatId === activeChatId)), [all, blocked, activeChatId]);
+  const activeChat = chats.find((c) => c.id === activeChatId);
+  const isDM = activeChat?.type === "dm";
+  const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
+  const chatName = isDM ? (dmOther?.name || activeChat?.name || "Chat") : branding.name;
+  const chatPhoto = isDM ? (dmOther?.avatar || activeChat?.photo) : branding.logo;
   const online = members.filter((m) => m.online && !m.banned).length;
   const typer = members.find((m) => m.id === typing[0]);
 
@@ -161,12 +168,12 @@ export default function ChatView({ active }: { active: boolean }) {
             ) : (
               <motion.div key="h" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-1 items-center gap-1">
                 <button onClick={() => go("chatlist")} className="rounded-full p-2 hover:bg-surface2 md:hidden" aria-label="Chats"><ArrowLeft size={20} /></button>
-                <button onClick={() => go("group")} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1.5 py-1 text-left hover:bg-surface2/60">
-                  <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-[#0b4a37] text-lg font-black text-accent-fg">{branding.logo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={branding.logo} alt="" className="h-full w-full object-cover" /> : "م"}</span>
+                <button onClick={() => go(isDM ? "chatlist" : "group")} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1.5 py-1 text-left hover:bg-surface2/60">
+                  <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-[#0b4a37] text-lg font-black text-accent-fg">{chatPhoto ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={chatPhoto} alt="" className="h-full w-full object-cover" /> : (isDM ? chatName[0]?.toUpperCase() : "م")}{isDM && dmOther?.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-accent" />}</span>
                   <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 truncate text-[16px] font-bold leading-tight">{branding.name}{settings.groupMute && <BellOff size={13} className="text-mute" />}{settings.disappearing > 0 && <Timer size={13} className="text-mute" />}</span>
+                    <span className="flex items-center gap-1.5 truncate text-[16px] font-bold leading-tight">{chatName}{!isDM && settings.groupMute && <BellOff size={13} className="text-mute" />}{!isDM && settings.disappearing > 0 && <Timer size={13} className="text-mute" />}</span>
                     <span className="block truncate text-xs leading-tight text-mute">
-                      {typer ? <span className="font-semibold text-accent">{typer.name.split(" ")[0]} likh raha hai…</span> : <><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />{online} online · {members.filter((m) => !m.banned).length} members</>}
+                      {isDM ? (dmOther?.online ? <span className="font-semibold text-accent">Online hai</span> : "Offline") : (typer ? <span className="font-semibold text-accent">{typer.name.split(" ")[0]} likh raha hai…</span> : <><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />{online} online · {members.filter((m) => !m.banned).length} members</>)}
                     </span>
                   </span>
                 </button>

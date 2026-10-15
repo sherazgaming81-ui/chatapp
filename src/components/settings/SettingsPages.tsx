@@ -154,27 +154,45 @@ export function ScheduledPage() {
 }
 
 export function ChatListPage() {
-  const archived = useStore((s) => s.archived);
-  const last = useStore((s) => s.messages[s.messages.length - 1]);
+  const chats = useStore((s) => s.chats);
+  const messages = useStore((s) => s.messages);
+  const members = useStore((s) => s.members);
+  const me = useStore((s) => s.me);
+  const activeChatId = useStore((s) => s.ui.activeChatId);
   const branding = useStore((s) => s.owner.branding);
-  const set = (v: boolean) => { useStoreSet(v); toast(v ? "Chat archive ho gayi" : "Unarchive ho gayi", "", "info", 1800); };
-  const Row_ = ({ arch }: { arch: boolean }) => (
-    <div className="relative overflow-hidden rounded-2xl">
-      <div className={cn("absolute inset-0 flex items-center justify-end px-6 text-sm font-bold text-white", arch ? "bg-[#2a7fb8]" : "bg-[#2a7fb8]")}><Archive size={20} className="mr-2" />{arch ? "Unarchive" : "Archive"}</div>
-      <motion.div drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.5, right: 0 }} onDragEnd={(_, i) => i.offset.x < -90 && set(!arch)} className="relative flex items-center gap-3 bg-surface p-3">
-        <button onClick={() => { closeAll(); setTab("chat"); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-[#0b4a37] text-xl font-black text-accent-fg">م</span>
-          <span className="min-w-0 flex-1"><span className="block font-bold">{branding.name}</span><span className="block truncate text-sm text-mute">{last ? msgSnippet(last) : ""}</span></span>
-        </button>
-        <button onClick={() => set(!arch)} className="hidden rounded-full p-2 text-mute hover:bg-surface2 md:block" title={arch ? "Unarchive" : "Archive"}>{arch ? <Undo2 size={18} /> : <Archive size={18} />}</button>
-      </motion.div>
-    </div>
-  );
+  const open = (id: string) => { api.setActiveChat(id); closeAll(); setTab("chat"); };
+  const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
+  const unread = (chatId: string) => messages.filter((m) => m.chatId === chatId && m.from !== me && !m.deleted && m.type !== "system").length;
   return (
-    <Page title="Chats" sub="Left swipe karke archive karein">
-      {!archived && <Row_ arch={false} />}
-      {archived && <Empty icon={<Archive size={36} />} text="Koi active chat nahi — sab archive me hai" />}
-      {archived && <><h3 className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-mute">Archived (1)</h3><Row_ arch /></>}
+    <Page title="Chats" sub={`${chats.length} chats`}>
+      <div className="space-y-2 p-4">
+        {chats.map((c) => {
+          const lm = lastMsg(c.id);
+          const other = c.type === "dm" ? members.find((m) => m.id === c.otherId) : null;
+          const name = c.type === "group" ? (branding.name || c.name) : (other?.name || c.name);
+          const photo = c.type === "group" ? (branding.logo || c.photo) : (other?.avatar || c.photo);
+          const un = unread(c.id);
+          return (
+            <button key={c.id} onClick={() => open(c.id)} className={cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition", c.id === activeChatId ? "border-accent/60 bg-accent/10" : "border-line bg-surface hover:bg-surface2")}>
+              <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-[#0b4a37] text-xl font-black text-accent-fg">
+                {photo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photo} alt="" className="h-full w-full object-cover" /> : (c.type === "group" ? "م" : name[0]?.toUpperCase())}
+                {c.type === "dm" && other?.online && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-surface bg-accent" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate font-bold">{name}</span>
+                  {lm && <span className="shrink-0 text-[11px] text-mute">{fmtTime(lm.at)}</span>}
+                </span>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm text-mute">{lm ? (lm.from === me ? "Aap: " : "") + msgSnippet(lm) : "Koi message nahi"}</span>
+                  {un > 0 && <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-black text-accent-fg">{un}</span>}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        {chats.length === 0 && <Empty icon={<MessageCircle size={36} />} text="Koi chat nahi mili" />}
+      </div>
     </Page>
   );
 }

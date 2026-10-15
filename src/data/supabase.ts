@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════════
 import { supabase, OWNER_EMAIL, MAIN_GROUP_ID, setMainGroupId } from "@/lib/supabase";
 import { getState, update, replaceState } from "./store";
-import type { Member, Message, Role, State } from "./types";
+import type { ChatMeta, Member, Message, Role, State } from "./types";
 import { uid } from "@/lib/util";
 
 const sb = () => supabase();
@@ -40,6 +40,7 @@ function toMessage(r: any): Message {
   return {
     id: r.id,
     from: r.sender_id,
+    chatId: r.chat_id || MAIN_GROUP_ID,
     type: (r.type as any) || "text",
     text: r.text || "",
     at: r.created_at || Date.now(),
@@ -73,12 +74,27 @@ export function onAuthChange(cb: (session: any) => void) {
 
 // ───────── initial load (NO fake data — only real Supabase rows) ─────────
 export async function loadRealData(userId: string, email: string): Promise<{ ok: boolean; isNew?: boolean }> {
-  // 0. find the REAL main group chat id (never hardcode "madrasa")
+  // 0. find ALL chats the user participates in (main group + DMs) — never hardcode ids
+  let myChatIds: string[] = [];
+  let chatRows: any[] = [];
   try {
-    const { data: chats } = await sb().from("chats").select("id,is_main_group,type").limit(20);
-    const main = chats?.find((c: any) => c.is_main_group) || chats?.find((c: any) => c.type === "group") || chats?.[0];
-    if (main?.id) setMainGroupId(main.id);
+    const { data: parts } = await sb().from("chat_participants").select("chat_id").eq("user_id", userId);
+    myChatIds = [...new Set((parts || []).map((p: any) => p.chat_id))];
+    if (myChatIds.length > 0) {
+      const { data: chats } = await sb().from("chats").select("id,type,name,photo_url,is_main_group").in("id", myChatIds);
+      chatRows = chats || [];
+    } else {
+      // fallback: discover main group
+      const { data: chats } = await sb().from("chats").select("id,type,name,photo_url,is_main_group").limit(20);
+      chatRows = chats || [];
+    }
+    const main = chatRows.find((c: any) => c.is_main_group) || chatRows.find((c: any) => c.type === "group") || chatRows[0];
+    if (main?.id) {
+      setMainGroupId(main.id);
+      if (!myChatIds.includes(main.id)) myChatIds.push(main.id);
+    }
   } catch { /* ignore, keep default */ }
+  const allChatIds = myChatIds.length > 0 ? myChatIds : [MAIN_GROUP_ID];
   // 1. ensure profile
   const { data: prof } = await sb().from("profiles").select("*").eq("id", userId).single();
   let isNew = false;
@@ -118,14 +134,43 @@ export async function loadRealData(userId: string, email: string): Promise<{ ok:
     )
   );
 
-  // 3. load messages (latest 300)
+  // 3. load messages for ALL my chats (main group + DMs), latest 300 per chat
   const { data: msgs } = await sb()
     .from("messages")
     .select("*")
-    .eq("chat_id", MAIN_GROUP_ID)
+    .in("chat_id", allChatIds)
     .order("created_at", { ascending: true })
-    .limit(300);
+    .limit(1500);
   const messages: Message[] = (msgs || []).map(toMessage);
+
+  // 3b. build chat list (group + DMs with names/photos)
+  let dmParts: any[] = [];
+  try {
+    const dmIds = chatRows.filter((c: any) => c.type !== "group" && !c.is_main_group).map((c: any) => c.id);
+    if (dmIds.length > 0) {
+      const { data } = await sb().from("chat_participants").select("chat_id,user_id").in("chat_id", dmIds);
+      dmParts = data || [];
+    }
+  } catch { /* ignore */ }
+  const chats: ChatMeta[] = chatRows
+    .filter((c: any) => allChatIds.includes(c.id))
+    .map((c: any) => {
+      const isGroup = c.is_main_group || c.type === "group";
+      if (isGroup) return { id: c.id, type: "group" as const, name: c.name || "Madrasa Group", photo: c.photo_url || "", lastAt: 0 };
+      const otherId = dmParts.find((p: any) => p.chat_id === c.id && p.user_id !== userId)?.user_id;
+      const other = (profiles || []).find((p: any) => p.id === otherId);
+      return {
+        id: c.id, type: "dm" as const,
+        name: other?.display_name || c.name || "Chat",
+        photo: other?.photo_url || c.photo_url || "",
+        otherId, lastAt: 0,
+      };
+    });
+  // main group first, then DMs by recent activity
+  const lastMsgAt: Record<string, number> = {};
+  messages.forEach((m) => { if (!lastMsgAt[m.chatId] || m.at > lastMsgAt[m.chatId]) lastMsgAt[m.chatId] = m.at; });
+  chats.forEach((c) => { c.lastAt = lastMsgAt[c.id] || 0; });
+  chats.sort((a, b) => (a.type === "group" ? -1 : b.type === "group" ? 1 : b.lastAt - a.lastAt));
 
   // 4. group settings (rules, branding)
   const { data: gset } = await sb().from("group_settings").select("*");
@@ -138,7 +183,9 @@ export async function loadRealData(userId: string, email: string): Promise<{ ok:
     me: userId,
     members,
     messages,
+    chats,
     lastRead: messages[messages.length - 1]?.id ?? "",
+    ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID },
     owner: {
       ...prev.owner,
       rules: gmap.rules?.text || prev.owner.rules,
@@ -153,7 +200,7 @@ export async function dbInsertMessage(m: Message) {
   try {
     await sb().from("messages").insert({
       id: m.id,
-      chat_id: MAIN_GROUP_ID,
+      chat_id: m.chatId || MAIN_GROUP_ID,
       sender_id: m.from,
       type: m.type,
       text: m.text || "",
@@ -210,9 +257,9 @@ export function startRealtime(opts: {
 }) {
   const ch = sb().channel("madrasa-room", { config: { presence: { key: getState().me } } });
 
-  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `chat_id=eq.${MAIN_GROUP_ID}` },
+  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
     (p: any) => { if (p.new.sender_id !== getState().me) opts.onMessage(toMessage(p.new)); });
-  ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `chat_id=eq.${MAIN_GROUP_ID}` },
+  ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" },
     (p: any) => opts.onMessageUpdate(toMessage(p.new)));
   ch.on("postgres_changes", { event: "*", schema: "public", table: "mutes", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, () => opts.onModeration());
   ch.on("postgres_changes", { event: "*", schema: "public", table: "bans", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, () => opts.onModeration());

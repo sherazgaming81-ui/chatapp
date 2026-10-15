@@ -54,6 +54,7 @@ export interface Poll {
 export interface Message {
   id: string;
   from: string;
+  chatId: string;
   type: MsgType;
   text?: string;
   at: number;
@@ -158,6 +159,15 @@ export interface OwnerState {
   announceDraft: string;
 }
 
+export interface ChatMeta {
+  id: string;
+  type: "group" | "dm";
+  name: string;
+  photo?: string;
+  otherId?: string; // for dm: the other person's member id
+  lastAt: number;
+}
+
 export interface Ui {
   toasts: { id: string; title: string; body: string; at: number; kind?: "msg" | "info" | "ach" }[];
   typing: string[];
@@ -170,6 +180,7 @@ export interface Ui {
   syncing: boolean;
   slowUntil: number;
   sttNonce: number;
+  activeChatId: string | null;
 }
 
 export interface Nav { tab: "chat" | "deen" | "khel" | "owner" | "me"; stack: { page: string; props?: any }[] }
@@ -179,6 +190,7 @@ export interface State {
   me: string;
   members: Member[];
   messages: Message[];
+  chats: ChatMeta[];
   settings: Settings;
   drafts: Record<string, string>;
   scheduled: Scheduled[];
