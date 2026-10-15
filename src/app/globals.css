@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-fg: var(--fg);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-gold: var(--gold);
+  --color-danger: var(--danger);
+  --color-bub-in: var(--bub-in);
+  --color-bub-out: var(--bub-out);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root,
+html[data-theme="dark"] {
+  --bg: #0a1311;
+  --bg2: #0e1a17;
+  --surface: #121f1c;
+  --surface2: #1a2b27;
+  --fg: #e8f0ec;
+  --mute: #8fa59d;
+  --line: rgba(255, 255, 255, 0.07);
+  --accent: #2ccf8a;
+  --accent-fg: #04140d;
+  --gold: #e8bd57;
+  --danger: #ff6b5e;
+  --bub-in: #172623;
+  --bub-out: #0f5a43;
+  --bub-out-fg: #f1fff8;
+  --wall-veil: rgba(8, 16, 14, 0.55);
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  --bg: #f4f1e9;
+  --bg2: #ebe7dc;
+  --surface: #ffffff;
+  --surface2: #f1eee6;
+  --fg: #16221e;
+  --mute: #66766f;
+  --line: rgba(20, 40, 30, 0.1);
+  --accent: #0f9b64;
+  --accent-fg: #ffffff;
+  --gold: #b4861f;
+  --danger: #d9402f;
+  --bub-in: #ffffff;
+  --bub-out: #d3f5df;
+  --bub-out-fg: #0d2a1d;
+  --wall-veil: rgba(244, 241, 233, 0.35);
+  color-scheme: light;
+}
+html[data-theme="amoled"] {
+  --bg: #000000;
+  --bg2: #050807;
+  --surface: #0b0f0e;
+  --surface2: #141a18;
+  --fg: #eef5f1;
+  --mute: #7f948c;
+  --line: rgba(255, 255, 255, 0.08);
+  --accent: #2ccf8a;
+  --accent-fg: #00140b;
+  --gold: #e8bd57;
+  --danger: #ff6b5e;
+  --bub-in: #121917;
+  --bub-out: #0b4a37;
+  --bub-out-fg: #f1fff8;
+  --wall-veil: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overscroll-behavior: none; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.35s ease, color 0.35s ease;
+}
+button { cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.noscroll::-webkit-scrollbar { display: none; }
+.noscroll { scrollbar-width: none; }
+.thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+.thin::-webkit-scrollbar-thumb:hover { background: var(--mute); }
+.arabic { font-family: "Amiri Quran", "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif; direction: rtl; line-height: 2.2; }
+.safe-b { padding-bottom: env(safe-area-inset-bottom); }
+.safe-t { padding-top: env(safe-area-inset-top); }
+.h-dvh { height: 100dvh; }
+
+/* ---------- bubbles ---------- */
+.bub { position: relative; border-radius: 14px; background: var(--bub-in); color: var(--fg); box-shadow: 0 1px 0 rgba(0,0,0,.18); }
+.bub.out { background: var(--bub-out); color: var(--bub-out-fg, var(--fg)); }
+.bub.tail.out { border-top-right-radius: 3px; }
+.bub.tail.in { border-top-left-radius: 3px; }
+.bub.tail::after { content: ""; position: absolute; top: 0; width: 9px; height: 13px; background: inherit; }
+.bub.tail.out::after { right: -8px; clip-path: path("M0 0H9C7 1 3 5 0 13Z"); }
+.bub.tail.in::after { left: -8px; clip-path: path("M9 0H0C2 1 6 5 9 13Z"); }
+.bub.gold { background: linear-gradient(135deg, #3a2c0a, #6b4f12 55%, #3a2c0a); color: #fff3cf; border: 1px solid rgba(232,189,87,.55); }
+html[data-theme="light"] .bub.gold { background: linear-gradient(135deg, #fff2c9, #f6dd8d); color: #4a3406; }
+mark.hl { background: #ffe14d; color: #111; border-radius: 3px; padding: 0 1px; }
+mark.hl.cur { background: #ff9f1c; }
+
+/* ---------- misc animation ---------- */
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); } 100% { box-shadow: 0 0 0 16px transparent; } }
+.pulse-ring { animation: pulse-ring 1.6s ease-out infinite; }
+@keyframes dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
+.tdot { width: 6px; height: 6px; border-radius: 99px; background: var(--mute); display: inline-block; animation: dot-bounce 1.2s infinite; }
+.tdot:nth-child(2) { animation-delay: .15s; } .tdot:nth-child(3) { animation-delay: .3s; }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.shimmer { background-size: 200% 100%; animation: shimmer 3s linear infinite; }
+@keyframes tick-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.35); } 100% { transform: scale(1); opacity: 1; } }
+.tick-pop { animation: tick-pop .42s cubic-bezier(.3,1.6,.5,1); }
+@keyframes float-y { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.float-y { animation: float-y 4s ease-in-out infinite; }
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 40s linear infinite; }
+@keyframes wave-bar { 0%,100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@keyframes banner-grad { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+.banner-anim { background-size: 200% 200%; animation: banner-grad 8s ease infinite alternate; }
+@keyframes twinkle { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes fall { 0% { transform: translateY(-20px) rotate(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(260px) rotate(360deg); opacity: 0; } }
+@keyframes rise { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translateY(-200px); opacity: 0; } }
+@keyframes glow { 0%,100% { filter: drop-shadow(0 0 4px var(--gold)); } 50% { filter: drop-shadow(0 0 14px var(--gold)); } }
+@keyframes rec-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+.rec-dot { animation: rec-pulse 1s infinite; }
+@keyframes hint-ping { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+.hint-ping { animation: hint-ping 1.4s ease-out infinite; }
+@keyframes slide-down { from { transform: translateY(-120%); } to { transform: translateY(0); } }
+@keyframes sparkle-in { from { transform: scale(0) rotate(-30deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* ---------- loader ---------- */
+.ld-draw { stroke-dasharray: 520; stroke-dashoffset: 520; animation: ld-draw 1s cubic-bezier(.65,0,.35,1) forwards; }
+@keyframes ld-draw { to { stroke-dashoffset: 0; } }
+.ld-fill { opacity: 0; animation: ld-fill .35s ease .85s forwards; }
+@keyframes ld-fill { to { opacity: 1; } }
+.ld-b { opacity: 0; transform: scale(0); animation: ld-pop .6s cubic-bezier(.2,1.9,.4,1) forwards; }
+@keyframes ld-pop { to { opacity: 1; transform: scale(1); } }
+.ld-tick1, .ld-tick2 { stroke-dasharray: 30; stroke-dashoffset: 30; animation: ld-tickdraw .35s ease forwards; }
+@keyframes ld-tickdraw { to { stroke-dashoffset: 0; } }
+@keyframes ld-blue { from { stroke: #8696a0; } to { stroke: #53bdeb; } }
+.ld-tag { opacity: 0; transform: translateY(10px); animation: ld-tag .5s ease 2.5s forwards; }
+@keyframes ld-tag { to { opacity: 1; transform: none; } }
+@keyframes ld-out { to { opacity: 0; visibility: hidden; } }
+
+/* explainer scenes */
+@keyframes ex-in { from { opacity: 0; transform: translateY(24px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes ex-pop { 0% { opacity: 0; transform: scale(.3); } 70% { transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes ex-slide-l { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
+@keyframes ex-slide-r { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
+.ex-in { opacity: 0; animation: ex-in .6s cubic-bezier(.2,.9,.3,1) forwards; }
+.ex-pop { opacity: 0; animation: ex-pop .6s cubic-bezier(.2,1.4,.4,1) forwards; }
+.ex-l { opacity: 0; animation: ex-slide-l .6s cubic-bezier(.2,.9,.3,1) forwards; }
+.ex-r { opacity: 0; animation: ex-slide-r .6s cubic-bezier(.2,.9,.3,1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .float-y, .spin-slow, .banner-anim, .shimmer { animation: none; }
+}
