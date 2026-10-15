@@ -587,18 +587,33 @@ export class SupabaseBackend implements ChatBackend, BackendV2, BackendV3 {
     }
   }
 
-  async signInWithGoogle(): Promise<void> {
-    // skipBrowserRedirect: redirect hum khud karte hain taake "URL na mile
-    // ya redirect block ho" ki surat me caller ko wazeh error mile
-    // (warna LoginScreen "Login ho raha hai..." par atak sakta hai).
-    const { data, error } = await this.sb.auth.signInWithOAuth({
+  async signInWithGoogle(): Promise<string | void> {
+    // Pehle manual URL lo taake UI me fallback link dikha sakein.
+    // Phir default redirect (skipBrowserRedirect nahi) — mobile par sab se compatible.
+    try {
+      const { data, error } = await this.sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+      });
+      if (!error && data?.url) {
+        // Manual redirect — agar block ho to caller ko URL wapas do (fallback link ke liye)
+        try {
+          window.location.assign(data.url);
+          // Redirect hone me 3 sec se zyada lage to URL wapas (UI link dikhayega)
+          await new Promise((r) => setTimeout(r, 3000));
+          return data.url;
+        } catch {
+          return data.url;
+        }
+      }
+    } catch {
+      /* fallback neeche */
+    }
+    // Fallback: Supabase ka default redirect
+    await this.sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+      options: { redirectTo: window.location.origin },
     });
-    if (error) throw error;
-    const url = data?.url;
-    if (!url) throw new Error('Google login URL nahi mil saka. Dobara try karein.');
-    window.location.assign(url);
   }
 
   async signOut(): Promise<void> {

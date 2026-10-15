@@ -29,9 +29,12 @@ export default function LoginScreen() {
     };
   }, []);
 
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+
   const login = async () => {
     setLoading(true);
     setError('');
+    setFallbackUrl(null);
     // Safety: agar Google redirect na ho (popup/redirect block, WebView,
     // in-app browser), to 15s baad loading reset + hint. Redirect hone par
     // page navigate ho jati hai aur ye timer kabhi fire nahi hota.
@@ -40,11 +43,20 @@ export default function LoginScreen() {
       timerRef.current = null;
       setLoading(false);
       setError(
-        'Google login page nahi khul saki. Chrome browser me kholein, popup/redirect block check karein, phir dobara try karein.'
+        'Google login page nahi khul saki. Neeche diye link par tap karein, ya Chrome browser me kholein.'
       );
     }, REDIRECT_TIMEOUT_MS);
     try {
-      await backend.signInWithGoogle();
+      const url = await backend.signInWithGoogle();
+      if (typeof url === 'string' && url) {
+        // Redirect nahi hua (3 sec guzar gaye) — user ko seedha link do
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        setLoading(false);
+        setFallbackUrl(url);
+        setError('Button se redirect nahi hua. Neeche link par tap karein:');
+        return;
+      }
       if (isDemoMode) {
         // Demo me koi redirect nahi hota — login foran ho jata hai.
         if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -84,6 +96,14 @@ export default function LoginScreen() {
           {loading ? 'Account ban raha hai...' : 'Google se Sign Up karein'}
         </button>
         {error && <p className="text-red-400 text-sm text-center mt-4">{error}</p>}
+        {fallbackUrl && (
+          <a
+            href={fallbackUrl}
+            className="mt-3 block w-full text-center bg-[#00a884] text-white font-medium rounded-full py-3 px-4"
+          >
+            Yahan tap karke Google login kholein →
+          </a>
+        )}
         {isDemoMode && (
           <p className="text-[#8696a0] text-xs text-center mt-6 leading-relaxed">
             Demo mode chal raha hai (backend keys nahi lagi). Supabase ya Firebase connect karne par asli Google login aur real-time chat chalegi.
