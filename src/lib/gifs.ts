@@ -75,7 +75,7 @@ async function giphyFetch(path: string, limit: number): Promise<GifItem[] | null
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(`${GIPHY}${path}&api_key=${GIPHY_KEY}&limit=${limit}&rating=pg-13`, { signal: ctl.signal });
+    const r = await fetch(`${GIPHY}${path}&api_key=${GIPHY_KEY}&limit=${limit}&rating=g&lang=en`, { signal: ctl.signal });
     clearTimeout(t);
     if (!r.ok) throw new Error("giphy " + r.status);
     const items = fromGiphyJson(await r.json());

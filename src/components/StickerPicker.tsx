@@ -20,6 +20,21 @@ const CATS = [
   { id: "love", name: "Love", icon: "❤️", q: "love" },
   { id: "islamic", name: "Islamic", icon: "🕌", q: "islamic" },
   { id: "reactions", name: "Reactions", icon: "👍", q: "reaction" },
+  { id: "happy", name: "Happy", icon: "😊", q: "happy" },
+  { id: "sad", name: "Sad", icon: "😢", q: "sad" },
+  { id: "angry", name: "Angry", icon: "😡", q: "angry" },
+  { id: "wow", name: "Wow", icon: "😲", q: "wow shocked" },
+  { id: "hello", name: "Hello", icon: "👋", q: "hello hi" },
+  { id: "goodmorning", name: "Good Morning", icon: "🌅", q: "good morning" },
+  { id: "goodnight", name: "Good Night", icon: "🌙", q: "good night" },
+  { id: "thanks", name: "Thanks", icon: "🙏", q: "thank you" },
+  { id: "congrats", name: "Congrats", icon: "🎉", q: "congratulations party" },
+  { id: "sorry", name: "Sorry", icon: "😔", q: "sorry" },
+  { id: "cute", name: "Cute", icon: "🥰", q: "cute kawaii" },
+  { id: "animals", name: "Animals", icon: "🐱", q: "cute animals" },
+  { id: "eid", name: "Eid", icon: "🌙", q: "eid mubarak" },
+  { id: "ramadan", name: "Ramadan", icon: "🕌", q: "ramadan kareem" },
+  { id: "birthday", name: "Birthday", icon: "🎂", q: "happy birthday" },
 ];
 
 async function fetchStickers(query: string): Promise<GiphySticker[]> {
