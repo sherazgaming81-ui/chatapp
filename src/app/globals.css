@@ -159,3 +159,13 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
 @media (min-width: 1024px) {
   html { zoom: 0.9; }
 }
+
+/* ── Quran Arabic font (Amiri Quran — Uthmani script) ── */
+.font-quran { font-family: "Amiri Quran", "Scheherazade New", "Traditional Arabic", serif; }
+.font-arabic { font-family: "Amiri Quran", "Scheherazade New", "Traditional Arabic", serif; }
+
+/* ── Azaan alert: soft breathing pulse (chime feel) ── */
+@keyframes azaanPulse { 0%,100% { transform: translateX(-50%) scale(0.9); opacity: 0.7; } 50% { transform: translateX(-50%) scale(1.25); opacity: 1; } }
+@keyframes azaanPulse2 { 0%,100% { transform: translateX(-50%) scale(1); opacity: 0.5; } 50% { transform: translateX(-50%) scale(1.4); opacity: 0.9; } }
+.azaan-pulse { animation: azaanPulse 2.6s ease-in-out infinite; }
+.azaan-pulse2 { animation: azaanPulse2 2.6s ease-in-out 0.4s infinite; }

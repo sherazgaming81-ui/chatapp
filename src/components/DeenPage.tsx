@@ -4,6 +4,8 @@ import { Moon, MapPin, RotateCcw, Compass, BookOpen, ChevronLeft } from "lucide-
 import { patchUI } from "@/lib/store";
 import { prayerTimes, nextPrayer, qiblaBearing, hijri, DUAS, TASBEEH_PRESETS, PRAYER_NAMES, PRAYER_ORDER, DEFAULT_LOC, type PrayerKey } from "@/lib/deen";
 import { fmtTime } from "@/components/ui";
+import QuranReader from "@/components/QuranReader";
+import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
 
 function useNow(ms = 1000) {
   const [, t] = useState(0);
@@ -166,6 +168,7 @@ export default function DeenPage() {
   const times = prayerTimes(now, loc.lat, loc.lng);
   const nx = nextPrayer(loc.lat, loc.lng, now);
   const isNext = (k: PrayerKey) => k === nx.key;
+  const [quranOpen, setQuranOpen] = useState(false);
 
   return (
     <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -182,6 +185,8 @@ export default function DeenPage() {
 
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="mx-auto max-w-2xl space-y-3">
+          <AzaanAlertTop loc={loc} />
+          <CelebrationBanner loc={loc} />
           {/* Hijri + next prayer hero */}
           <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] p-5 text-white soft-shadow">
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/75">Agli namaz</p>
@@ -189,6 +194,22 @@ export default function DeenPage() {
             <p className="mt-0.5 text-lg font-bold tabular-nums text-white/90">{fmtCountdown(nx.at.getTime() - now.getTime())} <span className="text-sm font-medium">· {fmtTime(nx.at.getTime())}</span></p>
             <p className="mt-2 flex items-center gap-1 text-xs text-white/75"><MapPin size={12} /> {loc.name} · {now.toLocaleDateString("ur-Latn", { weekday: "long", day: "numeric", month: "long" })}</p>
           </div>
+
+          <DailyAyat />
+          <DailyHadees />
+
+          {/* Quran reader entry */}
+          <button
+            onClick={() => setQuranOpen(true)}
+            className="flex w-full items-center gap-4 rounded-2xl border border-[#5865f2]/20 bg-white/70 p-4 text-left transition hover:border-[#5865f2]/40 hover:bg-white active:scale-[0.99] soft-shadow"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#5865f2]/10 font-quran text-2xl text-[#5865f2]" dir="rtl" lang="ar">ٱقْرَأْ</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-extrabold tracking-tight text-[#2f3035]">Quran-e-Pak</span>
+              <span className="block text-xs text-[#80848e]">114 suratein · Urdu tarjume ke saath · Bookmarks</span>
+            </span>
+            <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#80848e]" />
+          </button>
 
           {/* Namaz timings */}
           <Card>
@@ -205,12 +226,15 @@ export default function DeenPage() {
             </div>
           </Card>
 
+          <AzaanToggle loc={loc} />
           <Tasbeeh />
           <Qibla loc={loc} />
           <DuaList />
           <p className="pb-2 text-center text-xs text-[#80848e]">Namaz ke auqaat takhmini hain — apni masjid se confirm karein 🌙</p>
         </div>
       </div>
+
+      {quranOpen && <QuranReader onClose={() => setQuranOpen(false)} />}
     </div>
   );
 }
