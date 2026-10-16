@@ -58,9 +58,9 @@ export default function EmojiPicker({
     `shrink-0 rounded-full p-2 transition ${active ? "bg-[#5865f2]/15 text-[#5865f2]" : "text-[#8a8d94] hover:bg-black/5 hover:text-[#5c5e66]"}`;
 
   return (
-    <div className="pop-in absolute bottom-full left-0 z-40 mb-2 flex h-[440px] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl">
-      {/* Search (emoji tab only — sticker tab has its own) */}
-      {tab !== "sticker" && (
+    <div className="pop-in absolute bottom-full left-0 z-40 mb-2 flex h-[440px] max-h-[70vh] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl">
+      {/* Search (emoji tab only — GIF/Sticker tabs have their own search) */}
+      {tab === "emoji" && (
       <div className="shrink-0 px-3 pt-3">
         <div className="flex items-center gap-2 rounded-full bg-black/5 px-3.5 py-2">
           <Search size={16} className="shrink-0 text-[#80848e]" />
@@ -92,9 +92,7 @@ export default function EmojiPicker({
       {/* Content */}
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {tab === "sticker" ? (
-          <div className="flex h-full min-h-0 flex-col pt-2">
-            <StickerPicker onPick={(url) => onSticker?.(url)} />
-          </div>
+          <StickerPicker onPick={(url) => onSticker?.(url)} />
         ) : tab === "gif" ? (
           <GifPicker onPick={(g) => onGif?.(g.url, g.title)} />
         ) : list.length === 0 ? (
@@ -132,7 +130,7 @@ export default function EmojiPicker({
         ).map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setQ(""); }}
             className={`relative flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[13px] font-medium transition ${
               tab === t.id ? "text-[#5865f2]" : "text-[#8a8d94] hover:text-[#5c5e66]"
             }`}

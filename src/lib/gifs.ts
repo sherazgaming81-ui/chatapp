@@ -42,85 +42,78 @@ export const GIF_CATEGORIES: GifCategory[] = [
 
 // ---- live KLIPY (skipped forever once it fails) ----
 let klipyDead = false;
+export interface GifPage {
+  gifs: GifItem[];
+  /** Opaque KLIPY cursor for the next page ("" = no more). */
+  next: string;
+}
 function toGifItem(k: KlipyItem): GifItem {
   return { id: k.id, title: k.title, preview: k.preview, url: k.url };
 }
-async function klipyFetchLive(query: string, limit: number, offset: number, trending: boolean): Promise<GifItem[] | null> {
+async function klipyFetchLive(query: string, limit: number, pos: string, trending: boolean): Promise<GifPage | null> {
   if (klipyDead) return null;
   try {
-    const items = trending
-      ? await trendingKlipy(limit, offset, false)
-      : await searchKlipy(query, limit, offset, false);
-    return items.length ? items.map(toGifItem) : null;
+    const page = trending
+      ? await trendingKlipy(limit, pos, false)
+      : await searchKlipy(query, limit, pos, false);
+    return { gifs: page.items.map(toGifItem), next: page.next };
   } catch {
     klipyDead = true;
     return null;
   }
 }
 
-// ---- curated fallback ----
-// ---- simple in-memory cache ----
-const cache = new Map<string, GifItem[]>();
-function cached(key: string, make: () => GifItem[]): GifItem[] {
-  const hit = cache.get(key);
-  if (hit) return hit;
-  const v = make();
-  cache.set(key, v);
-  if (cache.size > 60) {
-    const first = cache.keys().next().value;
-    if (first) cache.delete(first);
-  }
-  return v;
-}
+// ---- simple in-memory cache (first pages only) ----
+const cache = new Map<string, GifPage>();
 
-/** Live KLIPY search. Supports offset for pagination. */
-export async function searchGifs(query: string, limit = 24, offset = 0): Promise<GifItem[]> {
+/** Live KLIPY search. `pos` = opaque cursor from previous page's `next` ("" for first page). */
+export async function searchGifs(query: string, limit = 24, pos = ""): Promise<GifPage> {
   const q = query.trim();
-  if (!q) return trendingGifs(limit, offset);
+  if (!q) return trendingGifs(limit, pos);
   // Don't use cache for paginated requests
-  if (offset > 0) {
-    const live = await klipyFetchLive(q, limit, offset, false);
-    return live ?? [];
+  if (pos) {
+    const live = await klipyFetchLive(q, limit, pos, false);
+    return live ?? { gifs: [], next: "" };
   }
   const key = "s:" + q.toLowerCase();
   const hit = cache.get(key);
-  if (hit) return hit.slice(0, limit);
-  const live = await klipyFetchLive(q, limit, 0, false);
-  const res = live ?? [];
+  if (hit) return { gifs: hit.gifs.slice(0, limit), next: hit.next };
+  const live = await klipyFetchLive(q, limit, "", false);
+  const res = live ?? { gifs: [], next: "" };
   cache.set(key, res);
-  return res.slice(0, limit);
+  return { gifs: res.gifs.slice(0, limit), next: res.next };
 }
 
-/** Live KLIPY trending. Supports offset for pagination. */
-export async function trendingGifs(limit = 24, offset = 0): Promise<GifItem[]> {
-  if (offset > 0) {
-    const live = await klipyFetchLive("", limit, offset, true);
-    return live ?? [];
+/** Live KLIPY trending. `pos` = opaque cursor ("" for first page). */
+export async function trendingGifs(limit = 24, pos = ""): Promise<GifPage> {
+  if (pos) {
+    const live = await klipyFetchLive("", limit, pos, true);
+    return live ?? { gifs: [], next: "" };
   }
   const hit = cache.get("trending");
-  if (hit) return hit.slice(0, limit);
-  const live = await klipyFetchLive("", limit, 0, true);
-  const res = live ?? [];
+  if (hit) return { gifs: hit.gifs.slice(0, limit), next: hit.next };
+  const live = await klipyFetchLive("", limit, "", true);
+  const res = live ?? { gifs: [], next: "" };
   cache.set("trending", res);
-  return res.slice(0, limit);
+  return { gifs: res.gifs.slice(0, limit), next: res.next };
 }
 
-/** Category GIFs. "trending" → trendingGifs. Supports offset for pagination. */
-export async function categoryGifs(cat: string, limit = 24, offset = 0): Promise<GifItem[]> {
-  if (cat === "trending") return trendingGifs(limit, offset);
+/** Category GIFs. "trending" → trendingGifs. `pos` = opaque cursor ("" for first page). */
+export async function categoryGifs(cat: string, limit = 24, pos = ""): Promise<GifPage> {
+  if (cat === "trending") return trendingGifs(limit, pos);
   const meta = GIF_CATEGORIES.find((c) => c.id === cat);
-  if (!meta?.query) return [];
-  if (offset > 0) {
-    const live = await klipyFetchLive(meta.query, limit, offset, false);
-    return live ?? [];
+  if (!meta?.query) return { gifs: [], next: "" };
+  if (pos) {
+    const live = await klipyFetchLive(meta.query, limit, pos, false);
+    return live ?? { gifs: [], next: "" };
   }
   const key = "c:" + cat;
   const hit = cache.get(key);
-  if (hit) return hit.slice(0, limit);
-  const live = await klipyFetchLive(meta.query, limit, 0, false);
-  const res = live ?? [];
+  if (hit) return { gifs: hit.gifs.slice(0, limit), next: hit.next };
+  const live = await klipyFetchLive(meta.query, limit, "", false);
+  const res = live ?? { gifs: [], next: "" };
   cache.set(key, res);
-  return res.slice(0, limit);
+  return { gifs: res.gifs.slice(0, limit), next: res.next };
 }
 
 // ---- recent GIFs (localStorage) ----
@@ -158,9 +151,9 @@ export function clearRecentGifs(): void {
 // Format per category: [gifId, title]
 /**
  * UI-friendly wrapper used by GifPicker — accepts a full GifCategory object
- * or a plain category id string. Supports offset for pagination.
+ * or a plain category id string. `pos` = opaque cursor ("" for first page).
  */
-export async function fetchCategoryGifs(c: GifCategory | string, limit = 24, offset = 0): Promise<GifItem[]> {
+export async function fetchCategoryGifs(c: GifCategory | string, limit = 24, pos = ""): Promise<GifPage> {
   const id = typeof c === "string" ? c : c.id;
-  return categoryGifs(id, limit, offset);
+  return categoryGifs(id, limit, pos);
 }

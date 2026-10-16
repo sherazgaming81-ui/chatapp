@@ -1,6 +1,8 @@
 "use client";
 // Sticker picker — KLIPY Stickers API (WhatsApp/Discord wala platform!)
-// Trending grid + search bar + category chips. contentfilter=high = no 18+.
+// Trending grid + search bar + category chips.
+// Pagination: KLIPY opaque `next` cursor (numeric offset NAHI).
+// Deduplication: seen IDs track hote hain, duplicates kabhi nahi dikhenge.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, RotateCcw } from "lucide-react";
 import { searchKlipy, trendingKlipy } from "@/lib/klipy";
@@ -37,18 +39,6 @@ const CATS = [
   { id: "birthday", name: "Birthday", icon: "🎂", q: "happy birthday" },
 ];
 
-async function fetchStickers(query: string, offset = 0): Promise<KlipySticker[]> {
-  const items = query.trim()
-    ? await searchKlipy(query.trim(), LIMIT, offset, true)
-    : await trendingKlipy(LIMIT, offset, true);
-  return items.map((s) => ({
-    id: s.id,
-    title: s.title,
-    url: s.preview,
-    fullUrl: s.url,
-  }));
-}
-
 export default function StickerPicker({ onPick }: { onPick: (url: string) => void }) {
   const [cat, setCat] = useState("trending");
   const [q, setQ] = useState("");
@@ -56,55 +46,94 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const offsetRef = useRef(0);
+  const [hasMore, setHasMore] = useState(false);
 
-  const load = useCallback(async (query: string, fresh = true) => {
-    if (fresh) {
-      setLoading(true);
-      offsetRef.current = 0;
-      setHasMore(true);
-    } else {
-      setLoadingMore(true);
+  // Cursor + dedup refs (state nahi — re-render trigger nahi karna)
+  const nextRef = useRef("");
+  const seenRef = useRef<Set<string>>(new Set());
+  const reqIdRef = useRef(0);
+
+  const fetchPage = useCallback(async (query: string, pos: string): Promise<{ stickers: KlipySticker[]; next: string }> => {
+    const page = query.trim()
+      ? await searchKlipy(query.trim(), LIMIT, pos, true)
+      : await trendingKlipy(LIMIT, pos, true);
+    // Deduplicate: sirf naye IDs rakho
+    const fresh: KlipySticker[] = [];
+    for (const s of page.items) {
+      if (seenRef.current.has(s.id)) continue;
+      seenRef.current.add(s.id);
+      fresh.push({ id: s.id, title: s.title, url: s.preview, fullUrl: s.url });
     }
-    setError(false);
-    try {
-      const off = fresh ? 0 : offsetRef.current + LIMIT;
-      const res = await fetchStickers(query, off);
-      setItems((prev) => (fresh ? res : [...prev, ...res]));
-      offsetRef.current = off;
-      setHasMore(res.length >= LIMIT);
-    } catch {
-      if (fresh) {
-        setError(true);
-        setItems([]);
-      }
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    return { stickers: fresh, next: page.next };
   }, []);
 
-  // Category change → immediate load
-  const pickCat = (id: string) => {
+  /** Fresh load: cursor + seen reset, phir page 1 */
+  const loadFresh = useCallback(async (query: string) => {
+    const reqId = ++reqIdRef.current;
+    setLoading(true);
+    setError(false);
+    setHasMore(false);
+    nextRef.current = "";
+    seenRef.current = new Set();
+    try {
+      const { stickers, next } = await fetchPage(query, "");
+      if (reqId !== reqIdRef.current) return; // purani request — ignore
+      setItems(stickers);
+      nextRef.current = next;
+      setHasMore(next.length > 0);
+    } catch {
+      if (reqId !== reqIdRef.current) return;
+      setError(true);
+      setItems([]);
+    } finally {
+      if (reqId === reqIdRef.current) setLoading(false);
+    }
+  }, [fetchPage]);
+
+  /** Load more: cursor se agla page, dedup ke saath append */
+  const loadMore = useCallback(async () => {
+    const query = q.trim() ? q.trim() : (CATS.find((x) => x.id === cat)?.q ?? "");
+    const pos = nextRef.current;
+    if (!pos || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const { stickers, next } = await fetchPage(query, pos);
+      nextRef.current = next;
+      setHasMore(next.length > 0);
+      if (stickers.length > 0) {
+        setItems((prev) => [...prev, ...stickers]);
+      } else if (!next) {
+        // Kuch naya nahi aur cursor bhi khatam — bas hasMore false
+        setHasMore(false);
+      }
+    } catch {
+      // silent — user dobara try kar sakta hai
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [q, cat, loading, loadingMore, fetchPage]);
+
+  // Category change → fresh load with reset
+  const pickCat = useCallback((id: string) => {
     setCat(id);
     setQ("");
     const c = CATS.find((x) => x.id === id);
-    load(c?.q ?? "");
-  };
+    loadFresh(c?.q ?? "");
+  }, [loadFresh]);
 
-  // Search → debounce 500ms
+  // Search → debounce 500ms → fresh load (cursor reset)
   useEffect(() => {
     const query = q.trim();
     if (!query) return;
-    const t = setTimeout(() => load(query), 500);
+    const t = setTimeout(() => loadFresh(query), 500);
     return () => clearTimeout(t);
-  }, [q, load]);
+  }, [q, loadFresh]);
 
   // Initial: trending
   useEffect(() => {
-    load("");
-  }, [load]);
+    loadFresh("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const searching = q.trim().length > 0;
 
@@ -121,10 +150,7 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
         />
         {searching && (
           <button
-            onClick={() => {
-              setQ("");
-              pickCat("trending");
-            }}
+            onClick={() => pickCat("trending")}
             title="Clear"
             className="text-[#80848e] hover:text-[#2f3035]"
           >
@@ -166,7 +192,7 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
             <p className="mt-2 text-sm font-bold text-[#2f3035]">Stickers load nahi hue</p>
             <p className="mt-0.5 text-xs text-[#80848e]">Internet check karo aur dobara try karo</p>
             <button
-              onClick={() => load(searching ? q : CATS.find((x) => x.id === cat)?.q ?? "")}
+              onClick={() => loadFresh(searching ? q.trim() : CATS.find((x) => x.id === cat)?.q ?? "")}
               className="mt-3 rounded-full bg-[#5865f2] px-4 py-1.5 text-xs font-bold text-white transition active:scale-95"
             >
               Dobara try karo
@@ -198,10 +224,10 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
             ))}
           </div>
         )}
-        {/* Load more */}
+        {/* Load more — sirf jab aur results hon */}
         {!loading && !error && hasMore && items.length > 0 && (
           <button
-            onClick={() => load(searching ? q : CATS.find((x) => x.id === cat)?.q ?? "", false)}
+            onClick={loadMore}
             disabled={loadingMore}
             className="mx-auto mt-3 mb-1 flex items-center gap-2 rounded-full bg-black/5 px-5 py-2 text-sm font-medium text-[#5c5e66] transition hover:bg-black/10 active:scale-95 disabled:opacity-50"
           >

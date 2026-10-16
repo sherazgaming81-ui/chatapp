@@ -1,87 +1,133 @@
 "use client";
-// GIF picker — GIPHY trending/search/categories grid
+// GIF picker — KLIPY trending/search/categories.
+// Cursor (`next`) pagination + seen-ID dedup: "Aur dekho" kabhi repeat nahi dikhata.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Loader2 } from "lucide-react";
-import { GIF_CATEGORIES, GifItem, fetchCategoryGifs, searchGifs, type GifCategory } from "@/lib/gifs";
+import { GIF_CATEGORIES, type GifItem, type GifCategory } from "@/lib/gifs";
+import { searchKlipy, trendingKlipy, type KlipyItem } from "@/lib/klipy";
+
+const LIMIT = 24;
+
+type Mode = { kind: "search"; query: string } | { kind: "cat"; cat: GifCategory };
 
 export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) {
   const [cat, setCat] = useState<GifCategory>(GIF_CATEGORIES[0]);
   const [q, setQ] = useState("");
-  const [gifs, setGifs] = useState<GifItem[]>([]);
+  const [gifs, setGifs] = useState<KlipyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [searching, setSearching] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const offsetRef = useRef(0);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const LIMIT = 24;
+  const [hasMore, setHasMore] = useState(false);
 
-  const load = useCallback(async (c: GifCategory, fresh = true) => {
-    if (fresh) {
-      setLoading(true);
-      offsetRef.current = 0;
-      setHasMore(true);
-    } else {
-      setLoadingMore(true);
-    }
-    setError("");
-    try {
-      const off = fresh ? 0 : offsetRef.current + LIMIT;
-      const res = await fetchCategoryGifs(c, LIMIT, off);
-      setGifs((prev) => (fresh ? res : [...prev, ...res]));
-      offsetRef.current = off;
-      setHasMore(res.length >= LIMIT);
-    } catch {
-      if (fresh) setError("GIFs nahi aye — dobara try karo");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+  // KLIPY opaque cursor for the next page ("" = first page / no more)
+  const nextRef = useRef<string>("");
+  // Seen IDs — dedup across pages AND within a page
+  const seenRef = useRef<Set<string>>(new Set());
+  // Mode used for the current list (load-more must match it)
+  const modeRef = useRef<Mode>({ kind: "cat", cat: GIF_CATEGORIES[0] });
+  // Stale-response guard for fresh loads
+  const reqIdRef = useRef(0);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchMode = useCallback(async (mode: Mode, pos: string) => {
+    if (mode.kind === "search") return searchKlipy(mode.query, LIMIT, pos, false);
+    if (mode.cat.id === "trending") return trendingKlipy(LIMIT, pos, false);
+    return searchKlipy(mode.cat.query, LIMIT, pos, false);
   }, []);
 
-  const loadMoreSearch = useCallback(async (query: string) => {
+  /** Filter out already-seen IDs (page-internal + cross-page dupes). */
+  const unique = useCallback((items: KlipyItem[]): KlipyItem[] => {
+    const seen = seenRef.current;
+    const out: KlipyItem[] = [];
+    for (const it of items) {
+      if (!it || !it.id || seen.has(it.id)) continue;
+      seen.add(it.id);
+      out.push(it);
+    }
+    return out;
+  }, []);
+
+  /** Fresh load: cursor + seen reset, first page. */
+  const freshLoad = useCallback(
+    async (mode: Mode) => {
+      const req = ++reqIdRef.current;
+      modeRef.current = mode;
+      nextRef.current = "";
+      seenRef.current = new Set();
+      setHasMore(false);
+      setLoading(true);
+      setError("");
+      try {
+        const page = await fetchMode(mode, "");
+        if (req !== reqIdRef.current) return; // stale — newer load started
+        setGifs(unique(page.items));
+        nextRef.current = page.next || "";
+        setHasMore(!!page.next);
+      } catch {
+        if (req !== reqIdRef.current) return;
+        setError("GIFs nahi aye — dobara try karo");
+        setGifs([]);
+      } finally {
+        if (req === reqIdRef.current) setLoading(false);
+      }
+    },
+    [fetchMode, unique]
+  );
+
+  /** Next page via KLIPY `next` cursor. */
+  const loadMore = useCallback(async () => {
+    const pos = nextRef.current;
+    if (!pos || loadingMore) return;
+    const mode = modeRef.current;
     setLoadingMore(true);
     try {
-      const off = offsetRef.current + LIMIT;
-      const res = await searchGifs(query, LIMIT, off);
-      setGifs((prev) => [...prev, ...res]);
-      offsetRef.current = off;
-      setHasMore(res.length >= LIMIT);
+      const page = await fetchMode(mode, pos);
+      if (modeRef.current !== mode) return; // mode changed mid-flight — discard
+      const fresh = unique(page.items);
+      if (fresh.length) setGifs((prev) => [...prev, ...fresh]);
+      nextRef.current = page.next || "";
+      setHasMore(!!page.next);
+    } catch {
+      // list as-is rehne do; user button se retry kar sakta hai
     } finally {
       setLoadingMore(false);
     }
+  }, [fetchMode, unique, loadingMore]);
+
+  // Initial load (once)
+  useEffect(() => {
+    freshLoad({ kind: "cat", cat: GIF_CATEGORIES[0] });
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    load(cat);
-  }, [cat, load]);
+  const pickCat = (c: GifCategory) => {
+    if (c.id === cat.id && !searching) return; // already on it
+    if (debounce.current) clearTimeout(debounce.current);
+    setCat(c);
+    setQ("");
+    setSearching(false);
+    freshLoad({ kind: "cat", cat: c });
+  };
 
   const onSearch = (v: string) => {
     setQ(v);
     if (debounce.current) clearTimeout(debounce.current);
     if (!v.trim()) {
       setSearching(false);
-      load(cat);
+      freshLoad({ kind: "cat", cat });
       return;
     }
     setSearching(true);
-    debounce.current = setTimeout(async () => {
-      setLoading(true);
-      setError("");
-      offsetRef.current = 0;
-      setHasMore(true);
-      try {
-        const res = await searchGifs(v.trim(), LIMIT, 0);
-        setGifs(res);
-        setHasMore(res.length >= LIMIT);
-      } catch {
-        setError("GIFs nahi aye — dobara try karo");
-      } finally {
-        setLoading(false);
-      }
+    debounce.current = setTimeout(() => {
+      freshLoad({ kind: "search", query: v.trim() });
     }, 500);
   };
+
+  const retry = () => freshLoad(modeRef.current);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -100,7 +146,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
           {GIF_CATEGORIES.map((c) => (
             <button
               key={c.id}
-              onClick={() => setCat(c)}
+              onClick={() => pickCat(c)}
               className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition ${
                 cat.id === c.id ? "bg-[#5865f2] text-white" : "bg-black/5 text-[#5c5e66] hover:bg-black/10"
               }`}
@@ -121,7 +167,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
           <div className="px-2 py-8 text-center">
             <p className="text-sm text-[#80848e]">{error}</p>
             <button
-              onClick={() => (searching && q.trim() ? onSearch(q) : load(cat))}
+              onClick={retry}
               className="mt-3 rounded-full bg-[#5865f2] px-4 py-1.5 text-sm font-medium text-white"
             >
               Dobara try karo
@@ -151,10 +197,10 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
             ))}
           </div>
         )}
-        {/* Load more */}
+        {/* Load more — sirf jab KLIPY `next` cursor ho */}
         {!loading && !error && hasMore && gifs.length > 0 && (
           <button
-            onClick={() => (searching && q.trim() ? loadMoreSearch(q.trim()) : load(cat, false))}
+            onClick={loadMore}
             disabled={loadingMore}
             className="mx-auto mt-3 mb-1 flex items-center gap-2 rounded-full bg-black/5 px-5 py-2 text-sm font-medium text-[#5c5e66] transition hover:bg-black/10 active:scale-95 disabled:opacity-50"
           >

@@ -1,22 +1,39 @@
 "use client";
 // B10 — Sticker message: WhatsApp-style bubble-LESS render (transparent, sirf sticker)
+import { useState } from "react";
 import { getSticker, STICKERS } from "@/lib/games";
 import type { Message } from "@/lib/types";
+
+function UrlSticker({ url }: { url: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <p className="mt-1 text-sm italic text-[#80848e]">Sticker load nahi hua</p>;
+  }
+  return (
+    <span className="relative mt-1 inline-block">
+      {!loaded && (
+        <span className="block h-28 w-28 animate-pulse rounded-xl bg-black/5" aria-hidden />
+      )}
+      <img
+        src={url}
+        alt="Sticker"
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`max-h-44 w-auto max-w-[180px] select-none object-contain transition hover:scale-[1.04] active:scale-95 ${loaded ? "" : "absolute inset-0 h-0 w-0 opacity-0"}`}
+        style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18))" }}
+        loading="lazy"
+      />
+    </span>
+  );
+}
 
 export default function StickerMessage({ m }: { m: Message }) {
   const url = m.src || m.text;
   // URL sticker (image) — bubble-less, transparent
   if (url && /^https?:\/\//i.test(url)) {
-    return (
-      <img
-        src={url}
-        alt="Sticker"
-        draggable={false}
-        className="mt-1 max-h-44 w-auto max-w-[180px] select-none object-contain transition hover:scale-[1.04] active:scale-95"
-        style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18))" }}
-        loading="lazy"
-      />
-    );
+    return <UrlSticker url={url} />;
   }
   // Emoji sticker — bubble-less, bada emoji
   const st = getSticker(m.text);
