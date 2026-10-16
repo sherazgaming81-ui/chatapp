@@ -281,6 +281,55 @@ function DeleteZone({ chatId, chatName }: { chatId: string; chatName: string }) 
   );
 }
 
+// 9 — sab se zyada reacted messages (is chat me)
+function TopReactions({ chatId }: { chatId: string }) {
+  const messages = useStore((s) => s.messages);
+  const top = useMemo(() => {
+    return messages
+      .filter((m) => m.chatId === chatId && !m.deleted)
+      .map((m) => {
+        let total = 0;
+        const emojis: string[] = [];
+        for (const [e, u] of Object.entries(m.reactions || {})) {
+          if (e.startsWith("__poll_") || u.length === 0) continue;
+          total += u.length;
+          emojis.push(e);
+        }
+        return { m, total, emojis: emojis.slice(0, 3) };
+      })
+      .filter((x) => x.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [messages, chatId]);
+  if (top.length === 0) return null;
+  const jump = (id: string) => {
+    patchUI({ groupInfo: null });
+    setTimeout(() => {
+      document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+  };
+  const label = (m: any) =>
+    m.text ? m.text.slice(0, 60) : m.type === "image" ? "📷 Photo" : m.type === "video" ? "🎬 Video" : m.type === "voice" ? "🎤 Voice" : m.type === "gif" ? "🎞️ GIF" : m.type === "sticker" ? "✨ Sticker" : "Message";
+  return (
+    <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">
+      <h3 className="text-sm font-extrabold text-[#2f3035]">🔥 Top reactions</h3>
+      <div className="mt-2 space-y-1">
+        {top.map(({ m, total, emojis }) => (
+          <button
+            key={m.id}
+            onClick={() => jump(m.id)}
+            className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-black/[0.04] active:scale-[0.99]"
+          >
+            <span className="shrink-0 text-lg leading-none">{emojis.join(" ")}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[#5c5e66]">{label(m)}</span>
+            <span className="shrink-0 rounded-full bg-[#5865f2]/10 px-2 py-0.5 text-xs font-bold tabular-nums text-[#5865f2]">{total}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "files" }) {
   const chats = useStore((s) => s.chats);
   const members = useStore((s) => s.members);
@@ -464,6 +513,9 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
 
               {/* D11 insights */}
               <Insights chatId={chatId} />
+
+              {/* 9 — top reacted messages */}
+              <TopReactions chatId={chatId} />
 
               {/* members */}
               <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">

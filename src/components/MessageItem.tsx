@@ -1,9 +1,10 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download } from "lucide-react";
+import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download, Plus } from "lucide-react";
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { deleteMessage, hardDeleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
+import EmojiPicker from "@/components/EmojiPicker";
 import PollMessage from "@/components/PollMessage";
 import QuizMessage from "@/components/QuizMessage";
 import TicTacToeMessage from "@/components/TicTacToeMessage";
@@ -54,7 +55,7 @@ function FileCard({ m }: { m: Message }) {
   );
 }
 
-const QUICK = ["❤️", "👍", "😂", "🤲", "🌙"];
+const QUICK = ["❤️", "😂", "😮", "😢", "🙏", "👍", "🔥", "🎉"];
 const EMPTY_ARR: string[] = [];
 const EDIT_WINDOW = 15 * 60e3; // B16 — 15 min
 
@@ -173,11 +174,12 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       toggleSelect();
     }
   };
-  // Mobile: long-press (600ms) se select mode
+  // Mobile: long-press (600ms) se select mode + reaction bar (WhatsApp jesa)
   const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onTouchStartLP = () => {
     lpTimer.current = setTimeout(() => {
       toggleSelect();
+      setReactOpen(true); // long-press par 8-emoji quick bar bhi kholo
       try { navigator.vibrate?.(30); } catch { /* ignore */ }
     }, 600);
   };
@@ -185,6 +187,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
   };
   const [reactOpen, setReactOpen] = useState(false);
+  const [fullReactOpen, setFullReactOpen] = useState(false); // full emoji picker (reactions ke liye)
   const [confirmDel, setConfirmDel] = useState(false);
   // 3 — emoji burst: reaction lagao to chhota confetti burst 🎉
   const [bursts, setBursts] = useState<{ id: number; emoji: string }[]>([]);
@@ -199,6 +202,19 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     toggleReaction(m.id, emoji);
     fireBurst(emoji);
     setReactOpen(false);
+  };
+  // 1 — double-tap (mobile) / double-click (desktop) = foran ❤️ react
+  const lastTap = useRef(0);
+  const handleDoubleTap = () => {
+    if (selectMode || m.deleted) return;
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      lastTap.current = 0;
+      react("❤️");
+      try { navigator.vibrate?.(20); } catch { /* ignore */ }
+    } else {
+      lastTap.current = now;
+    }
   };
   const [deleting, setDeleting] = useState(false); // B15
   const mine = m.from === meId;
@@ -224,6 +240,8 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     const dy = e.changedTouches[0].clientY - ty.current;
     tx.current = ty.current = null;
     if (m.deleted) return;
+    // tap (swipe nahi) → double-tap detect karo = ❤️
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) { handleDoubleTap(); return; }
     if (dx > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) patchUI({ replyTo: m });
     else if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) setActionsPinned(true); // 11 — swipe left = options
   };
@@ -286,6 +304,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       onTouchMove={onTouchEndLP}
       onContextMenu={onContextMenu}
       onClick={onSelectClick}
+      onDoubleClick={() => { if (!selectMode && !m.deleted) react("❤️"); }}
       className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls} ${isSelected ? "bg-[#5865f2]/[0.08]" : ""}`}
       data-time={timeLabel}
     >
@@ -338,10 +357,28 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       {reactOpen && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setReactOpen(false)} />
-          <div className="pop-in absolute -top-12 right-4 z-30 flex gap-1 rounded-xl border border-black/10 bg-white p-1.5 soft-shadow">
+          <div className="pop-in absolute -top-12 right-4 z-30 flex items-center gap-1 rounded-xl border border-black/10 bg-white p-1.5 soft-shadow">
             {QUICK.map((e) => (
-              <button key={e} onClick={() => react(e)} className="rounded-lg p-1.5 text-xl hover:bg-black/5">{e}</button>
+              <button key={e} onClick={() => react(e)} title={e} className="rounded-lg p-1.5 text-xl transition hover:bg-black/5 active:scale-90">{e}</button>
             ))}
+            <button
+              title="Aur emojis…"
+              onClick={() => { setReactOpen(false); setFullReactOpen(true); }}
+              className="grid h-9 w-9 place-items-center rounded-lg text-[#80848e] transition hover:bg-black/5 hover:text-[#5865f2] active:scale-90"
+            >
+              <Plus size={18} />
+            </button>
+          </div>
+        </>
+      )}
+      {/* 3 — full emoji picker (koi bhi emoji = reaction) */}
+      {fullReactOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setFullReactOpen(false)} />
+          <div className="fixed inset-0 z-50 grid place-items-center p-4" onClick={() => setFullReactOpen(false)}>
+            <div className="relative h-[440px] max-h-[80vh] w-[380px] max-w-[94vw]" onClick={(e) => e.stopPropagation()}>
+              <EmojiPicker onlyEmoji fill onPick={(e) => { setFullReactOpen(false); react(e); }} onClose={() => setFullReactOpen(false)} />
+            </div>
           </div>
         </>
       )}
@@ -561,24 +598,81 @@ function ContactCard({ m }: { m: Message }) {
   );
 }
 
-function Reactions({ m, meId, onReact }: { m: Message; meId: string; onReact?: (emoji: string) => void }) {  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
+function Reactions({ m, meId, onReact }: { m: Message; meId: string; onReact?: (emoji: string) => void }) {
+  const [listFor, setListFor] = useState<string | null>(null); // 5 — kisne kya react kiya
+  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
   if (entries.length === 0) return null;
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1.5">
-      {entries.map(([emoji, users]) => {
-        const mine = users.includes(meId);
-        return (
-          <button
-            key={emoji}
-            onClick={() => { toggleReaction(m.id, emoji); onReact?.(emoji); }}
-            className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#5865f2] bg-[#5865f2]/15" : "border-black/10 bg-black/[0.04] hover:border-black/25"}`}
-          >
-            <span>{emoji}</span>
-            <span className="text-xs font-bold tabular-nums text-[#5c5e66]">{users.length}</span>
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {entries.map(([emoji, users]) => {
+          const mine = users.includes(meId);
+          return (
+            <button
+              key={emoji}
+              onClick={() => { toggleReaction(m.id, emoji); onReact?.(emoji); }}
+              title={mine ? "Hatane ke liye tap karo" : "React karo"}
+              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#5865f2] bg-[#5865f2]/15" : "border-black/10 bg-black/[0.04] hover:border-black/25"}`}
+            >
+              <span>{emoji}</span>
+              <span
+                onClick={(e) => { e.stopPropagation(); setListFor(emoji); }}
+                title="Dekho kisne react kiya"
+                className="cursor-pointer text-xs font-bold tabular-nums text-[#5c5e66] hover:text-[#5865f2] hover:underline"
+              >
+                {users.length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {listFor && <ReactionListModal m={m} meId={meId} focusEmoji={listFor} onClose={() => setListFor(null)} />}
+    </>
+  );
+}
+
+// 5 — reaction list modal: kaunsa emoji, kis-kis ne
+function ReactionListModal({ m, meId, focusEmoji, onClose }: { m: Message; meId: string; focusEmoji?: string | null; onClose: () => void }) {
+  const members = getState().members;
+  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
+  const ordered = focusEmoji
+    ? [...entries].sort((a, b) => (a[0] === focusEmoji ? -1 : b[0] === focusEmoji ? 1 : 0))
+    : entries;
+  const nameOf = (id: string) => {
+    if (id === meId) return "Aap";
+    return members.find((x) => x.id === id)?.name || "Member";
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-extrabold text-[#2f3035]">Reactions</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <div className="mt-3 space-y-3">
+          {ordered.map(([emoji, users]) => (
+            <div key={emoji}>
+              <p className="mb-1 text-sm font-bold text-[#5c5e66]">
+                <span className="mr-1 text-base">{emoji}</span> {users.length}
+              </p>
+              <div className="space-y-0.5">
+                {users.map((id) => {
+                  const mb = members.find((x) => x.id === id);
+                  return (
+                    <div key={id} className="flex items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-black/[0.03]">
+                      {mb ? <Avatar m={mb} size={28} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-xs"><User size={14} /></span>}
+                      <span className="text-sm font-semibold text-[#2f3035]">{nameOf(id)}</span>
+                      {id === meId && <span className="text-[11px] text-[#80848e]">(aap)</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

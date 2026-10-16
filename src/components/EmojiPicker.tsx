@@ -31,11 +31,17 @@ export default function EmojiPicker({
   onSticker,
   onGif,
   onClose,
+  onlyEmoji = false,
+  fill = false,
 }: {
   onPick: (e: string) => void;
   onSticker?: (id: string) => void;
   onGif?: (url: string, title?: string) => void;
   onClose: () => void;
+  /** sirf emoji tab (reactions ke liye) — GIF/Sticker tabs chhupao */
+  onlyEmoji?: boolean;
+  /** parent fixed-size box me poora bharo (absolute inset-0) */
+  fill?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("emoji");
   const [cat, setCat] = useState("recent");
@@ -58,7 +64,7 @@ export default function EmojiPicker({
     `shrink-0 rounded-full p-2 transition ${active ? "bg-[#5865f2]/15 text-[#5865f2]" : "text-[#8a8d94] hover:bg-black/5 hover:text-[#5c5e66]"}`;
 
   return (
-    <div className="pop-in absolute bottom-full left-0 z-40 mb-2 flex h-[440px] max-h-[70vh] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl">
+    <div className={`pop-in ${fill ? "absolute inset-0" : "absolute bottom-full left-0"} z-40 mb-2 flex h-[440px] max-h-[70vh] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl`}>
       {/* Search (emoji tab only — GIF/Sticker tabs have their own search) */}
       {tab === "emoji" && (
       <div className="shrink-0 px-3 pt-3">
@@ -119,7 +125,8 @@ export default function EmojiPicker({
         )}
       </div>
 
-      {/* Bottom tabs: Emoji | GIF | Sticker */}
+      {/* Bottom tabs: Emoji | GIF | Sticker (onlyEmoji par chhupao) */}
+      {!onlyEmoji && (
       <div className="flex shrink-0 border-t border-black/10">
         {(
           [
@@ -141,6 +148,7 @@ export default function EmojiPicker({
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

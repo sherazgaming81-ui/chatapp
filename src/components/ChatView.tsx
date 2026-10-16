@@ -4,7 +4,7 @@ import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X, Trash
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { markRead, loadOlderMessages, refreshChat, deleteMessage, hideMessageForMe, toggleStar, sendText } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
-import { usePrefs, wallpaperStyle, isDoodleWallpaper } from "@/lib/prefs";
+import { WallpaperLayers, ChatWallpaperBtn } from "@/components/WallpaperPicker";
 import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
@@ -86,7 +86,6 @@ export default function ChatView() {
   const meId = useStore((s) => s.me);
   const typing = useStore((s) => s.ui.typing);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
-  const prefs = usePrefs();
   const activeChat = chats.find((c) => c.id === activeChatId);
   const isDM = activeChat?.type === "dm";
   const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
@@ -296,6 +295,7 @@ export default function ChatView() {
         <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-black/5 ${searchOn ? "text-[#5865f2]" : "text-[#5c5e66]"}`} aria-label="Search">
           <Search size={20} />
         </button>
+        <ChatWallpaperBtn chatId={activeChatId} chatName={activeChat?.name} />
         <button onClick={() => patchUI({ mobileDrawer: "members" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Members">
           <Users size={20} />
         </button>
@@ -342,27 +342,16 @@ export default function ChatView() {
         </button>
       )}
 
-      {/* 15 — wallpaper blur layer (slider se control) */}
+      {/* Wallpaper system: per-chat wallpaper + blur + opacity + tint layers */}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {prefs.wallpaperBlur > 0 && (prefs.wallpaper !== "default" || prefs.wallpaperCustom) && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              ...wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom),
-              filter: `blur(${prefs.wallpaperBlur}px)`,
-              transform: "scale(1.08)",
-            }}
-          />
-        )}
+        <WallpaperLayers chatId={activeChatId} />
       <div
         ref={sc}
         onScroll={onScroll}
         onTouchStart={onTouchStartPTR}
         onTouchMove={onTouchMovePTR}
         onTouchEnd={onTouchEndPTR}
-        className={`thin-scroll relative min-h-0 flex-1 overflow-y-auto py-3 ${isDoodleWallpaper(prefs.wallpaper) ? "chat-doodle" : ""}`}
-        style={prefs.wallpaperBlur > 0 ? {} : wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom)}
+        className="thin-scroll relative min-h-0 flex-1 overflow-y-auto py-3"
       >
         {/* 13 — pull-to-refresh indicator */}
         {(ptrPull > 10 || ptrBusy) && (

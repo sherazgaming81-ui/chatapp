@@ -1052,7 +1052,23 @@ export function startRealtime() {
   });
   ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p: any) => {
     const m = toMessage(p.new);
-    update((st) => ({ messages: st.messages.map((x) => (x.id === m.id ? { ...m } : x)) }));
+    const st = getState();
+    const prev = st.messages.find((x) => x.id === m.id);
+    update((s) => ({ messages: s.messages.map((x) => (x.id === m.id ? { ...m } : x)) }));
+    // 8 — koi MERE message par react kare to halki notification
+    if (prev && m.from === st.me && prev.reactions && m.reactions) {
+      outer: for (const [emoji, users] of Object.entries(m.reactions)) {
+        if (emoji.startsWith("__poll_")) continue; // poll votes reactions nahi
+        const before = new Set(((prev.reactions as any)[emoji] || []) as string[]);
+        for (const u of users as string[]) {
+          if (u !== st.me && !before.has(u)) {
+            const nm = st.members.find((x) => x.id === u)?.name || "Kisi ne";
+            toast(`${nm} ne ${emoji} react kiya`, "Tumhare message par");
+            break outer;
+          }
+        }
+      }
+    }
   });
   // AUDIT FIX: hard delete (owner) ho to sab clients se hatao
   ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p: any) => {

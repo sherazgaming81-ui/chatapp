@@ -13,11 +13,11 @@ import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
 import { BADGES, getBadges } from "@/lib/achievements";
 import {
   getPrivacy, setPrivacy, getCompact, setCompact, getDark, setDark,
-  WALLPAPERS, getWallpaper, setWallpaper, getWallpaperCustom, setWallpaperCustom,
-  getWallpaperBlur, setWallpaperBlur, getSound, setSound,
+  getSound, setSound,
   hasPin, setPin, verifyPin, clearPin, usePrefs,
   getLastBackup, markBackupDone,
 } from "@/lib/prefs";
+import { WallpaperButton } from "@/components/WallpaperPicker";
 
 async function resizePhoto(file: File, max = 512): Promise<string> {
   const img = new Image();
@@ -249,7 +249,6 @@ function AppearanceTab() {
   const [compact, setC] = useState(getCompact());
   const [dark, setD] = useState(getDark());
   const [sound, setS] = useState(getSound());
-  const [blur, setB] = useState(getWallpaperBlur());
   const file = useRef<HTMLInputElement>(null);
 
   const toggleCompact = () => {
@@ -268,12 +267,6 @@ function AppearanceTab() {
     toast(v ? "Notification sound ON 🔊" : "Notification sound OFF 🔇", "");
   };
 
-  /* 15 — wallpaper blur slider */
-  const changeBlur = (px: number) => {
-    setB(px);
-    setWallpaperBlur(px);
-  };
-
   /* 4 — dark mode toggle 🌙 */
   const toggleDark = () => {
     const v = !dark;
@@ -281,18 +274,6 @@ function AppearanceTab() {
     setDark(v);
     toast(v ? "Dark mode ON 🌙" : "Light mode ON ☀️", "");
   };
-
-  const pickCustom = async (f: File | undefined) => {
-    if (!f || !f.type.startsWith("image/")) return;
-    try {
-      const url = await resizePhoto(f, 1024);
-      setWallpaperCustom(url);
-      setWallpaper("custom");
-      toast("Wallpaper lag gaya", "");
-    } catch { toast("Image nahi khuli", "Doosri try karo"); }
-  };
-
-  const custom = getWallpaperCustom();
 
   return (
     <div className="space-y-4">
@@ -329,52 +310,8 @@ function AppearanceTab() {
 
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Chat wallpaper</p>
-        <div className="grid grid-cols-4 gap-2">
-          {WALLPAPERS.map((w) => (
-            <button
-              key={w.id}
-              onClick={() => setWallpaper(w.id)}
-              className={`relative h-16 overflow-hidden rounded-xl border-2 transition ${prefs.wallpaper === w.id ? "border-[#5865f2]" : "border-black/10 hover:border-black/25"} ${w.id === "doodle" ? "chat-doodle" : ""}`}
-              style={w.id === "doodle" ? { backgroundColor: "#f4f5fa" } : { backgroundImage: w.css, backgroundSize: w.id === "dots" || w.id === "grid" ? "14px 14px" : undefined, backgroundColor: "#f4f5fa" }}
-              title={w.name}
-            >
-              {prefs.wallpaper === w.id && <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/25"><Check size={18} className="text-white" /></span>}
-              <span className="absolute bottom-0.5 left-1 right-1 truncate text-center text-[9px] font-bold text-[#5c5e66]">{w.name}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => setWallpaper("custom")}
-            className={`relative h-16 overflow-hidden rounded-xl border-2 transition ${prefs.wallpaper === "custom" ? "border-[#5865f2]" : "border-black/10 hover:border-black/25"}`}
-            style={custom ? { backgroundImage: `url(${custom})`, backgroundSize: "cover", backgroundPosition: "center" } : { backgroundColor: "#f4f5fa" }}
-            title="Custom"
-          >
-            {!custom && <span className="absolute inset-0 grid place-items-center"><Upload size={18} className="text-[#80848e]" /></span>}
-            {prefs.wallpaper === "custom" && <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/25"><Check size={18} className="text-white" /></span>}
-            <span className="absolute bottom-0.5 left-1 right-1 truncate text-center text-[9px] font-bold text-[#5c5e66]">Custom</span>
-          </button>
-        </div>
-        <button onClick={() => file.current?.click()} className="btn mt-2 flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm">
-          <Upload size={15} /> Apni photo lagao
-        </button>
-        <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pickCustom(e.target.files?.[0]); e.target.value = ""; }} />
-
-        {/* 15 — wallpaper blur slider */}
-        <div className="mt-3 rounded-xl bg-black/[0.03] p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-[#2f3035]">Wallpaper blur</p>
-            <span className="text-xs font-bold tabular-nums text-[#5865f2]">{blur}px</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={20}
-            value={blur}
-            onChange={(e) => changeBlur(Number(e.target.value))}
-            className="mt-2 w-full accent-[#5865f2]"
-            aria-label="Wallpaper blur"
-          />
-          <p className="mt-1 text-xs text-[#80848e]">Background ko dhundla karo</p>
-        </div>
+        <WallpaperButton />
+        <p className="mt-2 text-xs text-[#80848e]">130+ wallpapers — rang, gradients, patterns, Islamic, nature, animated aur bohat kuch! 🎨</p>
       </div>
     </div>
   );
