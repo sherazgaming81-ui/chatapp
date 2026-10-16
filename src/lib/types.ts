@@ -104,6 +104,7 @@ export interface UIState {
   settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
   createGroupOpen: boolean; // CreateGroup modal
   studioOpen: boolean; // ProfileStudio modal (Nitro-style customization)
+  selectedMsgs: string[]; // multi-select mode (WhatsApp jaisa)
 }
 
 export interface State {

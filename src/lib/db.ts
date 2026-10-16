@@ -521,10 +521,20 @@ export async function deleteMessage(id: string) {
   } catch { /* ignore */ }
 }
 
+// Placeholder ("Message delete kar diya gaya") ko poori tarah hatao — owner/staff ke liye
+export async function hardDeleteMessage(id: string) {
+  update({ messages: getState().messages.filter((m) => m.id !== id) });
+  try {
+    const { error } = await sb().from("messages").delete().eq("id", id);
+    if (error) throw error;
+  } catch { /* RLS block — local phir bhi saaf */ }
+}
+
 /* ───────── /safai: HARD DELETE (owner only, user-explicitly authorized) ─────────
    Sirf /safai ke liye — normal message delete abhi bhi soft delete hai. */
 export async function clearChat(chatId: string, count?: number) {
-  const all = getState().messages.filter((m) => m.chatId === chatId && !m.deleted);
+  // SAARI messages — deleted placeholders bhi! (koi !m.deleted filter nahi)
+  const all = getState().messages.filter((m) => m.chatId === chatId);
   const targets = count && count > 0 ? [...all].sort((a, b) => b.at - a.at).slice(0, count) : all;
   const ids = targets.map((m) => m.id);
   if (!ids.length) return 0;

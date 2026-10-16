@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download } from "lucide-react";
 import { getState, useStore, patchUI, toast } from "@/lib/store";
-import { deleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
+import { deleteMessage, hardDeleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
 import PollMessage from "@/components/PollMessage";
 import QuizMessage from "@/components/QuizMessage";
@@ -70,9 +70,9 @@ function Ticks({ m, inverted = false }: { m: Message; inverted?: boolean }) {
   }, [m.id, m.at, readers.length]);
   const age = Date.now() - m.at;
   const st = m.status || (readers.length > 0 ? "read" : age < 3000 ? "sent" : "delivered");
-  const cSent = inverted ? "text-white/70" : "text-[#80848e]";
-  const cRead = inverted ? "text-white" : "text-[#5865f2]";
-  const cDel = inverted ? "text-white/70" : "text-[#80848e]";
+  const cSent = inverted ? "text-[#54656f]" : "text-[#80848e]";
+  const cRead = inverted ? "text-[#53bdeb]" : "text-[#5865f2]";
+  const cDel = inverted ? "text-[#54656f]" : "text-[#80848e]";
   if (st === "sent") return <Check size={13} className={`inline ${cSent}`} />;
   return (
     <span key={st} className="tick-pop">
@@ -154,6 +154,36 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const meId = useStore((s) => s.me);
   const messages = useStore((s) => s.messages);
   const infoOpen = useStore((s) => s.ui.infoMsg === m.id);
+  const selectedMsgs = useStore((s) => s.ui.selectedMsgs);
+  const isSelected = selectedMsgs.includes(m.id);
+  const selectMode = selectedMsgs.length > 0;
+  const toggleSelect = () => {
+    const cur = getState().ui.selectedMsgs;
+    const next = cur.includes(m.id) ? cur.filter((id) => id !== m.id) : [...cur, m.id];
+    patchUI({ selectedMsgs: next });
+  };
+  // Ctrl/Cmd+click (PC) se select toggle
+  const onSelectClick = (e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSelect();
+    } else if (selectMode) {
+      e.stopPropagation();
+      toggleSelect();
+    }
+  };
+  // Mobile: long-press (600ms) se select mode
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onTouchStartLP = () => {
+    lpTimer.current = setTimeout(() => {
+      toggleSelect();
+      try { navigator.vibrate?.(30); } catch { /* ignore */ }
+    }, 600);
+  };
+  const onTouchEndLP = () => {
+    if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+  };
   const [reactOpen, setReactOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   // 3 — emoji burst: reaction lagao to chhota confetti burst 🎉
@@ -230,8 +260,17 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
 
   if (m.deleted) {
     return (
-      <div className="msg-row px-4 py-0.5">
-        <p className="text-sm italic text-[#80848e]">Message delete kar diya gaya</p>
+      <div className="msg-row group flex items-center gap-2 px-4 py-0.5">
+        <p className="flex-1 text-sm italic text-[#80848e]">Message delete kar diya gaya</p>
+        {(mine || staff) && (
+          <button
+            onClick={() => hardDeleteMessage(m.id)}
+            title="Hamesha ke liye hatao"
+            className="rounded-lg p-1.5 text-[#80848e] opacity-0 transition hover:bg-[#ed4245]/10 hover:text-[#ed4245] group-hover:opacity-100"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     );
   }
@@ -242,12 +281,24 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   return (
     <div
       id={`msg-${m.id}`}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
+      onTouchStart={(e) => { onTouchStart(e); onTouchStartLP(); }}
+      onTouchEnd={(e) => { onTouchEnd(e); onTouchEndLP(); }}
+      onTouchMove={onTouchEndLP}
       onContextMenu={onContextMenu}
-      className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls}`}
+      onClick={onSelectClick}
+      className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls} ${isSelected ? "bg-[#5865f2]/[0.08]" : ""}`}
       data-time={timeLabel}
     >
+      {/* multi-select checkbox */}
+      {selectMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleSelect(); }}
+          className={`absolute left-1 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border-2 transition ${isSelected ? "border-[#5865f2] bg-[#5865f2] text-white" : "border-black/20 bg-white"}`}
+          aria-label={isSelected ? "Deselect" : "Select"}
+        >
+          {isSelected && <Check size={14} strokeWidth={3} />}
+        </button>
+      )}
       {/* 11 — swipe-left par mobile action sheet khulti hai */}
       {actionsPinned && (
         <>
@@ -282,6 +333,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         )}
         {/* TASK 2: delete button sab messages par — options permission ke hisab se */}
         <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#5c5e66] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
+        <button title="Select" onClick={() => { setCtxOpen(false); toggleSelect(); }} className={`p-2 hover:bg-black/5 ${isSelected ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}><Check size={16} /></button>
       </div>
       {reactOpen && (
         <>
@@ -334,14 +386,14 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
             )}
             {replySrc && (
               <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 ${mine ? "bg-black/15" : "bg-black/[0.05]"}`}>
-                <p className="text-xs font-bold" style={{ color: mine ? "#fff" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyMember?.name || "Member"}</p>
-                <p className={`truncate text-xs italic ${mine ? "text-white/80" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
+                <p className="text-xs font-bold" style={{ color: mine ? "#111b21" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyMember?.name || "Member"}</p>
+                <p className={`truncate text-xs italic ${mine ? "text-[#111b21]/70" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
               </div>
             )}
             <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
               {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
             </p>
-            {extractUrls(m.text).slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} />)}
+            {extractUrls(m.text).slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} mine={mine} />)}
             <span className="mt-1 flex items-center justify-end gap-1">
               <span className="bubble-time">{fmtTime(m.at)}{m.edited ? " · edited" : ""}</span>
               {mine && <Ticks m={m} inverted />}
@@ -357,7 +409,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <span className="w-10 shrink-0 select-none pt-1 text-right text-[10px] tabular-nums text-[#80848e] opacity-0 group-hover:opacity-100">{fmtTime(m.at)}{mine && <> <Ticks m={m} /></>}</span>
           <div className="min-w-0 flex-1">
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
-            <MsgBody m={m} query={query} />
+            <MsgBody m={m} query={query} mine={mine} />
             <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
         </div>
@@ -373,7 +425,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
               <span className="text-[11px] font-medium text-[#80848e]">{fmtDayLabel(m.at)} {fmtTime(m.at)}{m.edited ? " · edited" : ""}{mine && <> <Ticks m={m} /></>}</span>
             </p>
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
-            <MsgBody m={m} query={query} />
+            <MsgBody m={m} query={query} mine={mine} />
             <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
         </div>
@@ -392,7 +444,7 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
   );
 }
 
-function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
+function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; mine?: boolean }) {
   if (m.type === "image" && m.src) {
     return (
       <div className="mt-1">
@@ -416,7 +468,7 @@ function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
       <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#2f3035]">
         {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
       </p>
-      {urls.slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} />)}
+      {urls.slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} mine={mine} />)}
     </>
   );
 }

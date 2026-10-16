@@ -1,8 +1,8 @@
 "use client";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X } from "lucide-react";
-import { getState, useStore, patchUI } from "@/lib/store";
-import { markRead, loadOlderMessages, refreshChat } from "@/lib/db";
+import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X, Trash2, Star, Forward } from "lucide-react";
+import { getState, useStore, patchUI, toast } from "@/lib/store";
+import { markRead, loadOlderMessages, refreshChat, deleteMessage, hideMessageForMe, toggleStar, sendText } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
 import { usePrefs, wallpaperStyle, isDoodleWallpaper } from "@/lib/prefs";
 import MessageItem from "@/components/MessageItem";
@@ -28,6 +28,52 @@ function ChatSkeleton() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ───────── Multi-select action bar (WhatsApp jaisa) ───────── */
+function SelectActionBar({ activeChatId }: { activeChatId: string | undefined }) {
+  const selected = useStore((s) => s.ui.selectedMsgs);
+  const meId = useStore((s) => s.me);
+  if (!selected.length) return null;
+  const s = getState();
+  const msgs = selected.map((id) => s.messages.find((m) => m.id === id)).filter(Boolean);
+  const staff = (s.members.find((x) => x.id === meId)?.role || "member") !== "member";
+  const clear = () => patchUI({ selectedMsgs: [] });
+
+  const doDelete = async () => {
+    // Permission: apna msg ya staff → for-all; warna for-me
+    for (const m of msgs) {
+      if (!m || m.deleted) continue;
+      const mine = m.from === meId;
+      if (mine || staff) await deleteMessage(m.id);
+      else hideMessageForMe(m.id);
+    }
+    toast(`${msgs.length} message delete`, "");
+    clear();
+  };
+  const doStar = () => {
+    for (const m of msgs) if (m && !m.deleted) toggleStar(m.id);
+    toast(`${msgs.length} starred`, "");
+    clear();
+  };
+  const doForward = async () => {
+    if (!activeChatId) return;
+    for (const m of msgs) {
+      if (!m || m.deleted || m.type !== "text" || !m.text) continue;
+      await sendText(activeChatId, `↪️ ${m.text}`);
+    }
+    toast(`${msgs.length} forward ho gaya`, "");
+    clear();
+  };
+  return (
+    <div className="pop-in flex shrink-0 items-center gap-1 border-b border-black/10 bg-[#5865f2] px-3 py-2 text-white">
+      <button onClick={clear} className="rounded-md p-2 hover:bg-white/15" aria-label="Cancel"><X size={18} /></button>
+      <span className="min-w-0 flex-1 text-sm font-bold">{selected.length} selected</span>
+      <button onClick={doForward} title="Forward" className="rounded-md p-2 hover:bg-white/15"><Forward size={18} /></button>
+      <button onClick={doStar} title="Star" className="rounded-md p-2 hover:bg-white/15"><Star size={18} /></button>
+      <button onClick={doDelete} title="Delete" className="rounded-md p-2 hover:bg-white/15"><Trash2 size={18} /></button>
     </div>
   );
 }
@@ -60,6 +106,7 @@ export default function ChatView() {
       prevChatRef.current = activeChatId;
       setSkel(true);
       setHasMore(true);
+      patchUI({ selectedMsgs: [] }); // chat badlo to selection saaf
       const t = setTimeout(() => setSkel(false), 550);
       return () => clearTimeout(t);
     }
@@ -278,6 +325,8 @@ export default function ChatView() {
           <button onClick={() => { setSearchOn(false); setQ(""); }} className="rounded-md p-1.5 text-[#5c5e66] hover:bg-black/5" aria-label="Band"><X size={18} /></button>
         </div>
       )}
+
+      <SelectActionBar activeChatId={activeChatId} />
 
       {pinnedMsgs.length > 0 && (
         <button

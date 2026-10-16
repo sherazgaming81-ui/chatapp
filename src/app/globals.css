@@ -333,13 +333,13 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
 .bubble { position: relative; max-width: min(78%, 480px); padding: 8px 12px 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); word-wrap: break-word; }
 .bubble-mine {
   margin-left: auto;
-  background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
-  color: #fff;
+  background: #d9fdd3;
+  color: #111b21;
   border-radius: 16px 6px 16px 16px;
 }
 .bubble-mine::before {
   content: ""; position: absolute; top: 0; right: -7px;
-  border: 8px solid transparent; border-top-color: #4d59d8; border-right: 0;
+  border: 8px solid transparent; border-top-color: #d9fdd3; border-right: 0;
 }
 .bubble-theirs {
   margin-right: auto;
@@ -355,7 +355,7 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
 }
 .bubble-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
 .bubble-time { font-size: 10.5px; opacity: 0.75; font-weight: 600; white-space: nowrap; }
-.bubble-mine .bubble-time { color: rgba(255,255,255,0.85); }
+.bubble-mine .bubble-time { color: rgba(17,27,33,0.6); }
 .bubble-theirs .bubble-time { color: #80848e; }
 
 /* 7 — chat doodle background (WhatsApp jaisa halka pattern) */

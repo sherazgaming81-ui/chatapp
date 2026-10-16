@@ -24,6 +24,7 @@ const initialUI: UIState = {
   settingsOpen: false,
   createGroupOpen: false,
   studioOpen: false,
+  selectedMsgs: [], // multi-select mode (WhatsApp jaisa)
 };
 
 let state: State = {

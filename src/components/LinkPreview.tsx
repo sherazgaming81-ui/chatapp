@@ -39,7 +39,7 @@ export function LinkedText({ text, query = "" }: { text: string; query?: string 
 interface OG { title: string; desc: string; img: string; domain: string }
 const cache = new Map<string, OG | null>();
 
-export function LinkPreviewCard({ url }: { url: string }) {
+export function LinkPreviewCard({ url, mine = false }: { url: string; mine?: boolean }) {
   const [og, setOg] = useState<OG | null | undefined>(cache.has(url) ? cache.get(url)! : undefined);
 
   useEffect(() => {
@@ -65,11 +65,11 @@ export function LinkPreviewCard({ url }: { url: string }) {
 
   if (og === undefined) {
     return (
-      <div className="mt-2 flex animate-pulse gap-3 rounded-xl border border-black/10 bg-black/[0.03] p-3">
-        <div className="h-14 w-14 shrink-0 rounded-lg bg-black/10" />
+      <div className={`mt-2 flex animate-pulse gap-3 rounded-xl border p-3 ${mine ? "border-white/20 bg-white/10" : "border-black/10 bg-black/[0.03]"}`}>
+        <div className={`h-14 w-14 shrink-0 rounded-lg ${mine ? "bg-white/20" : "bg-black/10"}`} />
         <div className="flex-1 space-y-2 py-1">
-          <div className="h-3 w-3/4 rounded bg-black/10" />
-          <div className="h-3 w-1/2 rounded bg-black/10" />
+          <div className={`h-3 w-3/4 rounded ${mine ? "bg-white/20" : "bg-black/10"}`} />
+          <div className={`h-3 w-1/2 rounded ${mine ? "bg-white/20" : "bg-black/10"}`} />
         </div>
       </div>
     );
@@ -81,20 +81,20 @@ export function LinkPreviewCard({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-2 flex gap-3 overflow-hidden rounded-xl border border-black/10 bg-white transition hover:border-[#5865f2]/50 soft-shadow"
+      className={`mt-2 flex gap-3 overflow-hidden rounded-xl border transition soft-shadow ${mine ? "border-white/20 bg-[#075e54] hover:border-white/40" : "border-black/10 bg-white hover:border-[#5865f2]/50"}`}
       onClick={(e) => e.stopPropagation()}
     >
       {og.img ? (
         <img src={og.img} alt="" className="h-20 w-24 shrink-0 object-cover" loading="lazy" />
       ) : (
-        <span className="grid h-20 w-24 shrink-0 place-items-center bg-[#5865f2]/10 text-[#5865f2]">
+        <span className={`grid h-20 w-24 shrink-0 place-items-center ${mine ? "bg-white/10 text-white" : "bg-[#5865f2]/10 text-[#5865f2]"}`}>
           <ExternalLink size={20} />
         </span>
       )}
       <span className="min-w-0 flex-1 py-2 pr-3">
-        <span className="block text-xs font-bold uppercase tracking-wide text-[#80848e]">{og.domain}</span>
-        <span className="block truncate text-sm font-bold text-[#2f3035]">{og.title}</span>
-        {og.desc && <span className="block truncate text-xs text-[#5c5e66]">{og.desc}</span>}
+        <span className={`block text-xs font-bold uppercase tracking-wide ${mine ? "text-white/70" : "text-[#80848e]"}`}>{og.domain}</span>
+        <span className={`block truncate text-sm font-bold ${mine ? "text-white" : "text-[#2f3035]"}`}>{og.title}</span>
+        {og.desc && <span className={`block truncate text-xs ${mine ? "text-white/70" : "text-[#5c5e66]"}`}>{og.desc}</span>}
       </span>
     </a>
   );
