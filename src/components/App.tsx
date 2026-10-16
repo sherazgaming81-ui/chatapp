@@ -211,13 +211,13 @@ export default function App() {
     if (!isChecklistDone()) setChecklistOpen(true);
   };
 
+  if (loading) return <Loader />;
   if (!session) return (
     <>
       {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
       <Login />
     </>
   );
-  if (loading) return <Loader />;
 
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
