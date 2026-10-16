@@ -78,6 +78,7 @@ export interface UIState {
   groupInfo: null | { chatId: string; view: "info" | "media" | "files" }; // D1/D5/I13 group info panel
   globalSearchOpen: boolean; // I15 global search overlay
   jumpToMsg: string | null; // I15 — message id to scroll to after search jump
+  settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
 }
 
 export interface State {

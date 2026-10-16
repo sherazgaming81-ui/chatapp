@@ -3,6 +3,7 @@
 // Query patterns verified against the live project.
 import { supabase, MAIN_GROUP_ID, setMainGroupId, OWNER_EMAIL } from "./supabase";
 import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role } from "./types";
+import { unlockBadge } from "./achievements";
 
 const sb = () => supabase();
 const uid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -110,6 +111,8 @@ export async function load(userId: string, email: string): Promise<boolean> {
       if (email.toLowerCase() === OWNER_EMAIL.toLowerCase()) {
         await sb().from("user_roles").upsert({ user_id: userId, role: "owner" });
       }
+      // Phase 6 — F12: naya user → profile wizard dikhao
+      try { localStorage.setItem(`chatsapp:newuser:${userId}`, "1"); } catch { /* ignore */ }
     } else {
       await sb().from("profiles").update({ online: true, last_seen: Date.now() }).eq("id", userId);
     }
@@ -268,6 +271,7 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
   } catch {
     toast("Message nahi gaya", "Internet check karo");
   }
+  checkMessageBadges();
   return m;
 }
 
@@ -291,6 +295,7 @@ export async function sendMedia(chatId: string, file: File, kind: "image" | "voi
   } catch {
     toast("Media nahi gaya", "Internet check karo");
   }
+  checkMessageBadges();
   return m;
 }
 
@@ -298,6 +303,16 @@ export async function deleteMessage(id: string) {
   update({ messages: getState().messages.map((m) => (m.id === id ? { ...m, deleted: true, text: "", src: undefined } : m)) });
   try {
     await sb().from("messages").update({ is_deleted: true, text: "" }).eq("id", id);
+  } catch { /* ignore */ }
+}
+
+/* ───────── Phase 6 — F6 badges: message-count based ───────── */
+function checkMessageBadges() {
+  try {
+    const s = getState();
+    const mine = s.messages.filter((m) => m.from === s.me && !m.deleted).length;
+    if (mine >= 1) unlockBadge("pehla-salam");
+    if (mine >= 100) unlockBadge("mehfil");
   } catch { /* ignore */ }
 }
 
@@ -579,6 +594,42 @@ export async function setGroupPhoto(chatId: string, dataUrl: string) {
   }
 }
 
+/* ───────── Phase 6 — F9 auto welcome message ───────── */
+export async function getWelcomeEnabled(chatId: string): Promise<boolean> {
+  try {
+    const { data } = await sb().from("group_settings").select("value").eq("key", `welcome_${chatId}`).single();
+    // default ON (pehli dafa key nahi hogi → welcome bhejo)
+    if (!data) return true;
+    return data.value !== false && data.value?.on !== false;
+  } catch { return true; }
+}
+export async function setWelcomeEnabled(chatId: string, on: boolean) {
+  await setGroupSetting(`welcome_${chatId}`, { on });
+}
+/** Naye member ke liye welcome bhejo — claim flag se duplicate roko. Sirf staff call kare. */
+export async function maybeWelcomeMember(chatId: string, newUserId: string, newUserName: string) {
+  try {
+    const me = getState().me;
+    if (!me || newUserId === me) return;
+    if (!(await getWelcomeEnabled(chatId))) return;
+    // distributed claim: pehle flag insert karo — duplicate key par fail = koi aur bhej chuka
+    const flagKey = `welcomed_${chatId}_${newUserId}`;
+    const { error } = await sb().from("group_settings").insert({ key: flagKey, value: { by: me, at: Date.now() } });
+    if (error) return; // kisi aur ne claim kar liya
+    const s = getState();
+    const m: Message = {
+      id: uid("m"), from: me, chatId, type: "text",
+      text: `Assalam-o-Alaikum ${newUserName}! 🌙 Madrasa Group me khush amdeed!`,
+      at: Date.now(), reactions: {},
+    };
+    update({ messages: [...s.messages, m] });
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: me, type: "text",
+      text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { /* ignore */ }
+}
+
 // ───────── D11 group insights — REAL data only, Supabase se count ─────────
 export interface GroupInsights {
   perDay: { label: string; count: number; key: string }[];
@@ -678,6 +729,18 @@ export function startRealtime() {
           : x
       ),
     }));
+  });
+  // Phase 6 — F9: naya member join kare to auto welcome (sirf staff bhejega)
+  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, (p: any) => {
+    try {
+      const st = getState();
+      const meM = st.members.find((x) => x.id === st.me);
+      const staff = meM && (meM.role === "owner" || meM.role === "admin" || meM.role === "mod");
+      if (!staff || !MAIN_GROUP_ID) return;
+      const nm = p.new?.display_name || "Dost";
+      // thodi delay taake profile poori tarah ban jaye, phir welcome
+      setTimeout(() => { maybeWelcomeMember(MAIN_GROUP_ID, p.new.id, nm); }, 4000);
+    } catch { /* ignore */ }
   });
   const refreshMod = () => {
     // light moderation refresh

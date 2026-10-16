@@ -1,10 +1,15 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
 import { isStaff } from "@/lib/types";
+import { trackActiveDay } from "@/lib/achievements";
 import Login from "@/components/Login";
 import Loader from "@/components/Loader";
+import WelcomeSplash from "@/components/WelcomeSplash";
+import ProfileWizard from "@/components/ProfileWizard";
+import SetupChecklist, { isChecklistDone } from "@/components/SetupChecklist";
+import AchievementToasts from "@/components/AchievementToasts";
 import ServerRail from "@/components/ServerRail";
 import Sidebar from "@/components/Sidebar";
 import ChatView from "@/components/ChatView";
@@ -27,8 +32,22 @@ export default function App() {
   const tab = useStore((s) => s.ui.tab);
   const starredOpen = useStore((s) => s.ui.starredOpen);
   const me = useStore((s) => s.members.find((m) => m.id === s.me));
+  const meId = useStore((s) => s.me);
   const prefs = usePrefs();
   const started = useRef(false);
+
+  // Phase 6 — onboarding state
+  const [welcomeSeen, setWelcomeSeen] = useState(() => {
+    try { return localStorage.getItem("chatsapp:welcome:seen") === "1"; } catch { return true; }
+  });
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const onboardChecked = useRef(false);
+
+  const dismissWelcome = () => {
+    try { localStorage.setItem("chatsapp:welcome:seen", "1"); } catch { /* ignore */ }
+    setWelcomeSeen(true);
+  };
 
   useEffect(() => {
     let rt: { stop(): void; sendTyping(): void } | null = null;
@@ -67,7 +86,10 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false } });
+        onboardChecked.current = false;
+        setWizardOpen(false);
+        setChecklistOpen(false);
       }
       // initial null (login page) → do nothing, just show Login
     });
@@ -82,7 +104,37 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!session) return <Login />;
+  /* ───────── Phase 6 — onboarding flow ───────── */
+  useEffect(() => {
+    if (!session || loading || onboardChecked.current) return;
+    onboardChecked.current = true;
+    trackActiveDay(); // F6 sathi badge
+    try {
+      const wizDone = localStorage.getItem(`chatsapp:wizard:done:${meId}`) === "1";
+      const isNew = localStorage.getItem(`chatsapp:newuser:${meId}`) === "1";
+      if (isNew && !wizDone) {
+        setWizardOpen(true);
+        return;
+      }
+      if (!isChecklistDone()) setChecklistOpen(true);
+    } catch { /* ignore */ }
+  }, [session, loading, meId]);
+
+  const finishWizard = () => {
+    try {
+      localStorage.setItem(`chatsapp:wizard:done:${meId}`, "1");
+      localStorage.removeItem(`chatsapp:newuser:${meId}`);
+    } catch { /* ignore */ }
+    setWizardOpen(false);
+    if (!isChecklistDone()) setChecklistOpen(true);
+  };
+
+  if (!session) return (
+    <>
+      {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
+      <Login />
+    </>
+  );
   if (loading) return <Loader />;
 
   const owner = isStaff(me);
@@ -118,6 +170,13 @@ export default function App() {
       <GlobalVideoBar />
       {/* ★ E6 — App Lock */}
       <AppLock />
+      {/* ★ Phase 6 — onboarding */}
+      <AchievementToasts />
+      {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
+      {wizardOpen && <ProfileWizard onDone={finishWizard} />}
+      {checklistOpen && !wizardOpen && (
+        <SetupChecklist onDone={() => setChecklistOpen(false)} onOpenProfile={() => patchUI({ settingsOpen: true })} />
+      )}
     </div>
   );
 }

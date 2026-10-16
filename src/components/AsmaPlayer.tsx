@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ASMA_UL_HUSNA, ASMA_FAZILAT } from "@/lib/asma";
 import { toast } from "@/lib/store";
+import { unlockBadge } from "@/lib/achievements";
 import {
   useVideo, onVideoEnded, attachVideo,
   videoPlay, videoToggle, videoStop, videoSeekFrac, videoSkip, videoToggleMute,
@@ -265,7 +266,7 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
           />
         )}
         {mode === "flash" && <Flashcards />}
-        {mode === "quiz" && <Quiz onMaster={() => unlock("quiz10")} />}
+        {mode === "quiz" && <Quiz onMaster={() => { unlock("quiz10"); unlockBadge("naam-yaad"); }} />}
         {mode === "memorize" && <Memorize onReveal25={() => unlock("mem25")} />}
 
         {/* ═══ video player — video element VideoStage me hai, yahan portal slot hai ═══ */}

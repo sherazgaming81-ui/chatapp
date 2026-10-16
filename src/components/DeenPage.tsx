@@ -8,6 +8,7 @@ import QuranReader from "@/components/QuranReader";
 import AsmaPlayer from "@/components/AsmaPlayer";
 import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
 import { useVideo, getSavedProgress, videoPlay, fmtVideoTime } from "@/lib/videoPlayer";
+import { unlockBadge } from "@/lib/achievements";
 
 /* ★ AsmaPlayer wrapper — pehli open ke baad unmount nahi hota, sirf hidden.
    Video element zinda rehta hai → background play kabhi nahi rukti. */
@@ -253,7 +254,7 @@ export default function DeenPage() {
 
           {/* Quran reader entry */}
           <button
-            onClick={() => setQuranOpen(true)}
+            onClick={() => { setQuranOpen(true); unlockBadge("quran-khawan"); }}
             className="flex w-full items-center gap-4 rounded-2xl border border-[#5865f2]/20 bg-white/70 p-4 text-left transition hover:border-[#5865f2]/40 hover:bg-white active:scale-[0.99] soft-shadow"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#5865f2]/10 font-quran text-2xl text-[#5865f2]" dir="rtl" lang="ar">ٱقْرَأْ</span>

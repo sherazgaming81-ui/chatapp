@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   X, ChevronLeft, Pencil, Check, Images, FolderOpen, ScrollText,
-  BarChart3, Camera, ShieldCheck,
+  BarChart3, Camera, ShieldCheck, PartyPopper,
 } from "lucide-react";
 import { useStore, patchUI, toast } from "@/lib/store";
 import {
   getGroupInsights, getChatCounts, setGroupDesc, setGroupRules, setGroupPhoto,
+  getWelcomeEnabled, setWelcomeEnabled,
   type GroupInsights,
 } from "@/lib/db";
 import { Avatar, Badge, fmtTime, fmtFull, nameColor } from "@/components/ui";
@@ -176,6 +177,39 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
           {canEdit ? "Abhi koi rules nahi — Edit dabakar likho ✍️" : "Abhi koi rules nahi hain."}
         </p>
       )}
+    </section>
+  );
+}
+
+/* ───────── F9 — auto welcome message toggle (staff only) ───────── */
+function WelcomeToggle({ chatId }: { chatId: string }) {
+  const [on, setOn] = useState(true);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { getWelcomeEnabled(chatId).then(setOn).catch(() => {}); }, [chatId]);
+  const toggle = async () => {
+    setBusy(true);
+    const next = !on;
+    await setWelcomeEnabled(chatId, next);
+    setOn(next);
+    setBusy(false);
+    toast(next ? "Welcome message on 🎉" : "Welcome message off", next ? "Naye members ko khush amdeed milegi" : "");
+  };
+  return (
+    <section className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white/60 p-4">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#23a55a]/10 text-[#1a7a55]">
+        <PartyPopper size={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-extrabold text-[#2f3035]">Welcome message</p>
+        <p className="text-xs text-[#80848e]">Naye member par auto khush amdeed</p>
+      </div>
+      <button
+        onClick={toggle} disabled={busy}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? "bg-[#23a55a]" : "bg-black/20"} disabled:opacity-60`}
+        aria-label="Welcome toggle"
+      >
+        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-6" : "left-1"}`} />
+      </button>
     </section>
   );
 }
@@ -357,6 +391,9 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
 
               {/* D12 rules */}
               <RulesCard chatId={chatId} canEdit={canEdit} />
+
+              {/* F9 welcome message toggle (staff only) */}
+              {canEdit && <WelcomeToggle chatId={chatId} />}
 
               {/* D11 insights */}
               <Insights chatId={chatId} />

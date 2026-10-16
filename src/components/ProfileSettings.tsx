@@ -1,7 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  X, Camera, LogOut, Check, Shield, Lock, Palette, Database,
+  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy,
   User as UserIcon, Eye, EyeOff, Download, KeyRound, Trash2, Upload,
 } from "lucide-react";
 import { getState, useStore, toast, update } from "@/lib/store";
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { signOut, savePrivacyServer } from "@/lib/db";
 import { Avatar } from "@/components/ui";
 import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
+import { BADGES, getBadges } from "@/lib/achievements";
 import {
   getPrivacy, setPrivacy, getCompact, setCompact,
   WALLPAPERS, getWallpaper, setWallpaper, getWallpaperCustom, setWallpaperCustom,
@@ -29,13 +30,14 @@ async function resizePhoto(file: File, max = 512): Promise<string> {
   return cv.toDataURL("image/jpeg", 0.85);
 }
 
-type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup";
+type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup" | "badges";
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "profile", label: "Profile", icon: UserIcon },
   { id: "privacy", label: "Privacy", icon: Shield },
   { id: "lock", label: "App Lock", icon: Lock },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "backup", label: "Backup", icon: Database },
+  { id: "badges", label: "Badges", icon: Trophy },
 ];
 
 const AUDIENCE_LABELS: Record<PrivacyAudience, string> = {
@@ -368,14 +370,42 @@ function BackupTab() {
   );
 }
 
+/* ───────── F6 — Badges gallery ───────── */
+function BadgesTab() {
+  const [mine, setMine] = useState<string[]>([]);
+  useEffect(() => { setMine(getBadges()); }, []);
+  return (
+    <div>
+      <h4 className="mb-1 text-base font-extrabold text-[#2f3035]">Mere Badges 🏆</h4>
+      <p className="mb-4 text-xs text-[#80848e]">{mine.length}/{BADGES.length} hasil kiye</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        {BADGES.map((b) => {
+          const got = mine.includes(b.id);
+          return (
+            <div
+              key={b.id}
+              className={`rounded-2xl border p-4 text-center ${got ? "border-[#d4af37]/50 bg-gradient-to-br from-[#d4af37]/15 to-[#d4af37]/5" : "border-black/10 bg-black/[0.02] opacity-60"}`}
+            >
+              <p className={`text-3xl ${got ? "" : "grayscale"}`}>{b.icon}</p>
+              <p className="mt-2 text-sm font-extrabold text-[#2f3035]">{b.title}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-[#80848e]">{b.desc}</p>
+              {got && <p className="mt-2 inline-block rounded-full bg-[#d4af37]/20 px-2 py-0.5 text-[10px] font-bold text-[#8a6d1a]">✓ Hasil</p>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ───────── Main settings modal ───────── */
 export default function ProfileSettings({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("profile");
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[380px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-black/10 bg-white soft-shadow">
+      <div className="fixed inset-0 z-[96] bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] w-[380px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-black/10 bg-white soft-shadow">
         <div className="flex shrink-0 items-center justify-between border-b border-black/10 px-4 py-3">
           <h3 className="text-lg font-extrabold tracking-tight text-[#2f3035]">Settings</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
@@ -397,6 +427,7 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
           {tab === "lock" && <LockTab />}
           {tab === "appearance" && <AppearanceTab />}
           {tab === "backup" && <BackupTab />}
+          {tab === "badges" && <BadgesTab />}
         </div>
       </div>
     </>

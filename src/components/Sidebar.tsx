@@ -17,7 +17,8 @@ export default function Sidebar() {
   const group = chats.find((c) => c.type === "group");
   const dms = chats.filter((c) => c.type === "dm");
   const [menu, setMenu] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpen = useStore((s) => s.ui.settingsOpen);
+  const setSettingsOpen = (v: boolean) => patchUI({ settingsOpen: v });
 
   const pick = (id: string) => patchUI({ tab: "chat", starredOpen: false, activeChatId: id, replyTo: null, mobileDrawer: "none" });
   const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
