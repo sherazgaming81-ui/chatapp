@@ -285,7 +285,7 @@ export default function ChatView() {
       )}
 
       {/* 15 — wallpaper blur layer (slider se control) */}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {prefs.wallpaperBlur > 0 && (prefs.wallpaper !== "default" || prefs.wallpaperCustom) && (
           <div
             aria-hidden
