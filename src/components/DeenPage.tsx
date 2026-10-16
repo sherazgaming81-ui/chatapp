@@ -168,7 +168,7 @@ export default function DeenPage() {
   const isNext = (k: PrayerKey) => k === nx.key;
 
   return (
-    <div className="glass relative flex min-w-0 flex-1 flex-col rounded-2xl">
+    <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/10 px-4">
         <button onClick={() => patchUI({ tab: "chat" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5" aria-label="Wapas">
           <ChevronLeft size={20} />
