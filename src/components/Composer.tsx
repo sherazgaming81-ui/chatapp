@@ -66,6 +66,10 @@ export default function Composer({ chatId }: { chatId: string }) {
     const me = members.find((m) => m.id === meId);
     return me?.mutedUntil !== undefined && (me.mutedUntil === null || me.mutedUntil > Date.now());
   })();
+  const banned = (() => {
+    const me = members.find((m) => m.id === meId);
+    return !!me?.banned;
+  })();
 
   useEffect(() => {
     if (!recording) return;
@@ -292,7 +296,11 @@ export default function Composer({ chatId }: { chatId: string }) {
           <button onClick={() => { patchUI({ editingMsg: null }); setText(""); }} className="rounded-md p-1 text-[#80848e] hover:bg-black/10" aria-label="Cancel edit"><X size={15} /></button>
         </div>
       )}
-      {muted ? (
+      {banned ? (
+        <div className="rounded-lg border border-[#ed4245]/30 bg-[#ed4245]/[0.07] px-4 py-3.5 text-center text-sm font-semibold text-[#ed4245]">
+          🚫 Aap ban ho — owner ne ban kiya hai
+        </div>
+      ) : muted ? (
         <div className="rounded-lg border border-[#ed4245]/30 bg-[#ed4245]/[0.07] px-4 py-3.5 text-center text-sm font-semibold text-[#ed4245]">
           Aap mute ho — message nahi bhej sakte
         </div>

@@ -335,6 +335,9 @@ export async function refreshChat(chatId: string): Promise<void> {
 export async function sendText(chatId: string, text: string, replyTo?: string): Promise<Message | null> {
   const s = getState();
   if (!text.trim() || !chatId) return null;
+  // Ban check — banned user message nahi bhej sakta
+  const meMember = s.members.find((m) => m.id === s.me);
+  if (meMember?.banned) { toast("🚫 Aap ban ho", "Owner ne ban kiya hai"); return null; }
   // Phase 8 — slow mode + auto-mod (owner.ts se, lazy import taake circular na ho)
   try {
     const ow = await import("./owner");
