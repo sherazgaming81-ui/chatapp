@@ -33,6 +33,7 @@ let state: State = {
   messages: [],
   chats: [],
   pins: {},
+  unread: {},
   starred: [],
   groupRules: {},
   groupDescs: {},
@@ -55,7 +56,12 @@ export function update(patch: Partial<State> | ((s: State) => Partial<State>)) {
 }
 
 export function patchUI(patch: Partial<UIState>) {
-  state = { ...state, ui: { ...state.ui, ...patch } };
+  // WhatsApp-style: jis chat ko kholo, uske unread reset
+  let unread = state.unread;
+  if (patch.activeChatId && unread[patch.activeChatId]) {
+    unread = { ...unread, [patch.activeChatId]: 0 };
+  }
+  state = { ...state, unread, ui: { ...state.ui, ...patch } };
   emit();
 }
 

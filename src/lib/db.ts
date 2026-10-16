@@ -246,6 +246,19 @@ export async function load(userId: string, email: string): Promise<boolean> {
     const { preloadOwnerSettings } = await import("./owner");
     preloadOwnerSettings(allChatIds).catch(() => {});
   } catch { /* ignore */ }
+  // WhatsApp-style: reload par bhi unread badges (lastRead ke baad wale dusron ke msgs)
+  let unread: Record<string, number> = {};
+  try {
+    for (const c of chats) {
+      let lastId: string | null = null;
+      try { lastId = localStorage.getItem(`chatsapp:lastRead:${c.id}`); } catch { /* ignore */ }
+      if (!lastId) continue; // kabhi khola hi nahi → 0
+      const cms = messages.filter((m) => m.chatId === c.id && m.from !== userId && !m.deleted);
+      const idx = cms.findIndex((m) => m.id === lastId);
+      const n = idx === -1 ? 0 : cms.length - idx - 1;
+      if (n > 0) unread[c.id] = n;
+    }
+  } catch { /* ignore */ }
   update({
     me: userId,
     session: true,
@@ -254,6 +267,7 @@ export async function load(userId: string, email: string): Promise<boolean> {
     messages,
     chats,
     pins,
+    unread,
     groupRules,
     groupDescs,
     starred: getStarred(),
@@ -279,6 +293,45 @@ export async function savePrivacyServer(userId: string, pr: { lastSeen: string; 
 }
 
 // ───────── writes ─────────
+/* ───────── 19 — lazy load purane messages (upar scroll par) ───────── */
+export async function loadOlderMessages(chatId: string, before: number, limit = 60): Promise<boolean> {
+  try {
+    const { data } = await sb()
+      .from("messages")
+      .select("*")
+      .eq("chat_id", chatId)
+      .lt("created_at", new Date(before).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!data || data.length === 0) return false;
+    const older = data.map(toMessage).reverse();
+    const s = getState();
+    const ids = new Set(s.messages.map((m) => m.id));
+    const fresh = older.filter((m) => !ids.has(m.id));
+    if (fresh.length > 0) update({ messages: [...fresh, ...s.messages] });
+    return data.length >= limit; // aur hain ya nahi
+  } catch { return false; }
+}
+
+/* ───────── 13 — pull-to-refresh: taaza messages lao ───────── */
+export async function refreshChat(chatId: string): Promise<void> {
+  try {
+    const { data } = await sb()
+      .from("messages")
+      .select("*")
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (!data) return;
+    const fresh = data.map(toMessage).reverse();
+    const freshIds = new Set(fresh.map((m) => m.id));
+    const s = getState();
+    // dusre chats untouched + is chat ke purane (jo fresh me nahi) + taaza
+    const kept = s.messages.filter((m) => m.chatId !== chatId || !freshIds.has(m.id));
+    update({ messages: [...kept, ...fresh] });
+  } catch { /* ignore */ }
+}
+
 export async function sendText(chatId: string, text: string, replyTo?: string): Promise<Message | null> {
   const s = getState();
   if (!text.trim() || !chatId) return null;
@@ -770,7 +823,13 @@ export function startRealtime() {
       } else {
         chats = chats.map((c) => (c.id === m.chatId ? { ...c, lastAt: m.at } : c));
       }
-      return { messages: [...st.messages, m], chats };
+      // WhatsApp-style unread: jo chat khuli nahi, uska count barhao (khud ke msg pehle hi filtered)
+      let unread = st.unread;
+      const activeId = st.ui.activeChatId || st.chats[0]?.id;
+      if (m.chatId && m.chatId !== activeId && !m.deleted) {
+        unread = { ...unread, [m.chatId]: (unread[m.chatId] || 0) + 1 };
+      }
+      return { messages: [...st.messages, m], chats, unread };
     });
     // Phase 7 — paheli ka jawab check karo
     if (m.type === "text" && m.text) {

@@ -2,14 +2,35 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X } from "lucide-react";
 import { getState, useStore, patchUI } from "@/lib/store";
-import { markRead } from "@/lib/db";
+import { markRead, loadOlderMessages, refreshChat } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
-import { usePrefs, wallpaperStyle } from "@/lib/prefs";
+import { usePrefs, wallpaperStyle, isDoodleWallpaper } from "@/lib/prefs";
 import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
 
 const EMPTY_ARR: string[] = [];
+
+/* 2 — skeleton shimmer rows (chat switch par) */
+function ChatSkeleton() {
+  return (
+    <div className="space-y-4 px-4 py-3" aria-hidden>
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const mine = i % 3 === 0;
+        return (
+          <div key={i} className={`flex gap-3 ${mine ? "justify-end" : ""}`}>
+            {!mine && <div className="skel h-10 w-10 shrink-0 !rounded-full" />}
+            <div className="min-w-0 flex-1 space-y-2" style={{ maxWidth: "75%" }}>
+              {!mine && <div className="skel h-3 w-24" />}
+              <div className="skel h-4 w-full" />
+              <div className="skel h-4" style={{ width: `${55 + ((i * 37) % 30)}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ChatView() {
   const chats = useStore((s) => s.chats);
@@ -24,6 +45,49 @@ export default function ChatView() {
   const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
   const sc = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
+
+  /* 19 — lazy load purane messages (upar scroll par) */
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+
+  /* 2 — chat switch par skeleton shimmer */
+  const [skel, setSkel] = useState(false);
+  const prevChatRef = useRef(activeChatId);
+  useEffect(() => {
+    if (prevChatRef.current !== activeChatId) {
+      prevChatRef.current = activeChatId;
+      setSkel(true);
+      setHasMore(true);
+      const t = setTimeout(() => setSkel(false), 550);
+      return () => clearTimeout(t);
+    }
+  }, [activeChatId]);
+
+  /* 13 — pull to refresh (mobile) */
+  const [ptrY, setPtrY] = useState<number | null>(null);
+  const [ptrPull, setPtrPull] = useState(0);
+  const [ptrBusy, setPtrBusy] = useState(false);
+  const onTouchStartPTR = (e: React.TouchEvent) => {
+    const el = sc.current;
+    if (el && el.scrollTop <= 0) setPtrY(e.touches[0].clientY);
+    else setPtrY(null);
+  };
+  const onTouchMovePTR = (e: React.TouchEvent) => {
+    if (ptrY === null || ptrBusy) return;
+    const d = e.touches[0].clientY - ptrY;
+    if (d > 0) setPtrPull(Math.min(110, d));
+  };
+  const onTouchEndPTR = async () => {
+    if (ptrY === null) return;
+    const pulled = ptrPull;
+    setPtrY(null); setPtrPull(0);
+    if (pulled > 70 && activeChatId && !ptrBusy) {
+      setPtrBusy(true);
+      try { await refreshChat(activeChatId); } catch { /* ignore */ }
+      setPtrBusy(false);
+    }
+  };
 
   const msgs = useMemo(
     () => messages.filter((m) => m.chatId === activeChatId && m.type !== "system"),
@@ -51,6 +115,22 @@ export default function ChatView() {
     const el = sc.current;
     if (!el) return;
     setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    /* 19 — bilkul upar pahunche to purane messages lao (scroll position bachao) */
+    if (el.scrollTop < 80 && hasMore && !loadingMoreRef.current && activeChatId && msgs.length > 0) {
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      const prevH = el.scrollHeight;
+      const oldest = msgs[0].at;
+      loadOlderMessages(activeChatId, oldest).then((more) => {
+        setHasMore(more);
+        requestAnimationFrame(() => {
+          const el2 = sc.current;
+          if (el2) el2.scrollTop = el2.scrollHeight - prevH;
+        });
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      });
+    }
   };
 
   // A8 — group by day for sticky headers
@@ -207,10 +287,31 @@ export default function ChatView() {
       <div
         ref={sc}
         onScroll={onScroll}
-        className="thin-scroll min-h-0 flex-1 overflow-y-auto py-3"
+        onTouchStart={onTouchStartPTR}
+        onTouchMove={onTouchMovePTR}
+        onTouchEnd={onTouchEndPTR}
+        className={`thin-scroll min-h-0 flex-1 overflow-y-auto py-3 ${isDoodleWallpaper(prefs.wallpaper) ? "chat-doodle" : ""}`}
         style={wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom)}
       >
-        {msgs.length === 0 ? (
+        {/* 13 — pull-to-refresh indicator */}
+        {(ptrPull > 10 || ptrBusy) && (
+          <div className="flex justify-center py-1" style={{ height: ptrBusy ? 36 : undefined, opacity: Math.min(1, ptrPull / 70) }}>
+            <span className={`grid h-8 w-8 place-items-center rounded-full bg-white soft-shadow ${ptrBusy ? "ptr-spinner" : ""}`} style={{ transform: ptrBusy ? undefined : `rotate(${ptrPull * 2.4}deg)` }}>
+              <ChevronDown size={18} className="text-[#5865f2]" />
+            </span>
+          </div>
+        )}
+        {/* 19 — purane load ho rahe hain */}
+        {loadingMore && (
+          <div className="flex justify-center gap-1.5 py-2">
+            <i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" />
+            <i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" />
+            <i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" />
+          </div>
+        )}
+        {skel ? (
+          <ChatSkeleton />
+        ) : msgs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-[#5865f2]/10">
               {isDM ? <span className="text-2xl">👋</span> : <Hash size={28} className="text-[#5865f2]" />}
@@ -222,7 +323,7 @@ export default function ChatView() {
           sections.map((sec) => (
             <div key={sec.key}>
               <div className="sticky top-0 z-[5] flex justify-center py-1.5">
-                <span className="rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[11px] font-bold text-[#5c5e66] shadow-sm backdrop-blur">{sec.label}</span>
+                <span key={sec.key} className="date-pill rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[11px] font-bold text-[#5c5e66] shadow-sm backdrop-blur">{sec.label}</span>
               </div>
               {sec.msgs.map((m, i) => {
                 const prev = sec.msgs[i - 1];

@@ -90,6 +90,7 @@ export interface State {
   messages: Message[];
   chats: ChatMeta[];
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
+  unread: Record<string, number>; // chatId -> unread count (WhatsApp-style badges)
   starred: string[]; // B13 — starred message ids (localStorage-backed)
   groupRules: Record<string, { text: string; updatedAt: number; updatedBy: string }>; // D12 — chatId -> rules
   groupDescs: Record<string, string>; // D1 — chatId -> group description

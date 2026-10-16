@@ -17,7 +17,7 @@ const EMPTY_ARR: string[] = [];
 const EDIT_WINDOW = 15 * 60e3; // B16 — 15 min
 
 // A11 — animated ticks: single grey (sent) → double grey (delivered) → double Blurple (read)
-function Ticks({ m }: { m: Message }) {
+function Ticks({ m, inverted = false }: { m: Message; inverted?: boolean }) {
   const [, force] = useState(0);
   const readers = (m.readBy || []).filter((id) => id !== m.from);
   useEffect(() => {
@@ -28,10 +28,13 @@ function Ticks({ m }: { m: Message }) {
   }, [m.id, m.at, readers.length]);
   const age = Date.now() - m.at;
   const st = m.status || (readers.length > 0 ? "read" : age < 3000 ? "sent" : "delivered");
-  if (st === "sent") return <Check size={13} className="inline text-[#80848e]" />;
+  const cSent = inverted ? "text-white/70" : "text-[#80848e]";
+  const cRead = inverted ? "text-white" : "text-[#5865f2]";
+  const cDel = inverted ? "text-white/70" : "text-[#80848e]";
+  if (st === "sent") return <Check size={13} className={`inline ${cSent}`} />;
   return (
     <span key={st} className="tick-pop">
-      <CheckCheck size={15} className={`inline ${st === "read" ? "text-[#5865f2]" : "text-[#80848e]"}`} />
+      <CheckCheck size={15} className={`inline ${st === "read" ? cRead : cDel}`} />
     </span>
   );
 }
@@ -82,6 +85,25 @@ function VoiceBubble({ m }: { m: Message }) {
   );
 }
 
+/* 18 — blur-up image: pehle dhundla placeholder, load par clear */
+function BlurImage({ src, onOpen }: { src: string; onOpen: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <button onClick={onOpen} className="mt-1.5 block cursor-zoom-in" title="Bara dekho">
+      <span className={`block overflow-hidden rounded-xl border border-black/10 soft-shadow ${loaded ? "" : "skel"}`}>
+        <img
+          src={src}
+          alt=""
+          onLoad={() => setLoaded(true)}
+          className={`max-h-72 w-auto object-cover transition hover:brightness-[0.97] ${loaded ? "blur-up done" : "blur-up"}`}
+          loading="lazy"
+          draggable={false}
+        />
+      </span>
+    </button>
+  );
+}
+
 export default function MessageItem({ m, member, prevSame, query = "" }: { m: Message; member?: Member; prevSame: boolean; query?: string }) {
   const meId = useStore((s) => s.me);
   const messages = useStore((s) => s.messages);
@@ -98,9 +120,10 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const isPinned = pinnedIds.includes(m.id);
   const canEdit = mine && m.type === "text" && !m.deleted && Date.now() - m.at < EDIT_WINDOW; // B16
 
-  // A3 — swipe right to reply (mobile touch)
+  // A3 — swipe right to reply (mobile touch) · 11 — swipe LEFT = options
   const tx = useRef<number | null>(null);
   const ty = useRef<number | null>(null);
+  const [actionsPinned, setActionsPinned] = useState(false); // 11 — mobile par swipe-left se actions khulen
   const onTouchStart = (e: React.TouchEvent) => {
     tx.current = e.touches[0].clientX;
     ty.current = e.touches[0].clientY;
@@ -110,8 +133,14 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     const dx = e.changedTouches[0].clientX - tx.current;
     const dy = e.changedTouches[0].clientY - ty.current;
     tx.current = ty.current = null;
-    if (dx > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && !m.deleted) patchUI({ replyTo: m });
+    if (m.deleted) return;
+    if (dx > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) patchUI({ replyTo: m });
+    else if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) setActionsPinned(true); // 11 — swipe left = options
   };
+
+  // 1 — naya message slide-in (sirf taaza messages, dobara render par nahi)
+  const [fresh] = useState(() => Date.now() - m.at < 8000);
+  const slideCls = fresh ? "msg-slide-in" : "";
 
   const doDelete = () => {
     setConfirmDel(false);
@@ -129,14 +158,30 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
 
   const name = member?.name || "Member";
   const color = member ? nameColor(member) : "#5c5e66";
+  const timeLabel = `${fmtDayLabel(m.at)} ${fmtTime(m.at)}`;
   return (
     <div
       id={`msg-${m.id}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      className={`msg-row group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""}`}
+      className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls}`}
+      data-time={timeLabel}
     >
-      <div className="msg-actions absolute -top-4 right-4 z-10 flex overflow-hidden rounded-lg border border-black/10 bg-white soft-shadow">
+      {/* 11 — swipe-left par mobile action sheet khulti hai */}
+      {actionsPinned && (
+        <>
+          <div className="fixed inset-0 z-20 md:hidden" onClick={() => setActionsPinned(false)} />
+          <div className="swipe-actions-bar pop-in fixed bottom-20 left-4 right-4 z-30 flex justify-around rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:hidden">
+            <button onClick={() => { patchUI({ replyTo: m }); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Reply size={20} /><span className="text-[10px] font-bold">Reply</span></button>
+            <button onClick={() => { toggleReaction(m.id, "❤️"); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><span className="text-xl">❤️</span><span className="text-[10px] font-bold">React</span></button>
+            <button onClick={() => { toggleStar(m.id); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Star size={20} /><span className="text-[10px] font-bold">Star</span></button>
+            {(mine || staff) && (
+              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#ed4245] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Delete</span></button>
+            )}
+          </div>
+        </>
+      )}
+      <div className={`msg-actions absolute -top-4 z-10 flex overflow-hidden rounded-lg border border-black/10 bg-white soft-shadow ${mine ? "right-4" : "left-14"} ${actionsPinned ? "!opacity-100" : ""}`}>
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
         <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
@@ -183,6 +228,34 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-[#5865f2]">📢 Elaan · {name}</p>
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2f3035]">{m.text}</p>
         </div>
+      ) : m.type === "text" ? (
+        /* 6 — WhatsApp-style bubble (tails ke sath) */
+        <>
+        <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+          <div className={`bubble ${mine ? "bubble-mine" : "bubble-theirs"}`}>
+            {!mine && !prevSame && (
+              <p className="bubble-name" style={{ color }}>{name}</p>
+            )}
+            {replySrc && (
+              <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 ${mine ? "bg-black/15" : "bg-black/[0.05]"}`}>
+                <p className="text-xs font-bold" style={{ color: mine ? "#fff" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyMember?.name || "Member"}</p>
+                <p className={`truncate text-xs italic ${mine ? "text-white/80" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
+              </div>
+            )}
+            <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+              {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
+            </p>
+            {extractUrls(m.text).slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} />)}
+            <span className="mt-1 flex items-center justify-end gap-1">
+              <span className="bubble-time">{fmtTime(m.at)}{m.edited ? " · edited" : ""}</span>
+              {mine && <Ticks m={m} inverted />}
+            </span>
+          </div>
+        </div>
+        <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+          <Reactions m={m} meId={meId} />
+        </div>
+        </>
       ) : prevSame ? (
         <div className="flex gap-4">
           <span className="w-10 shrink-0 select-none pt-1 text-right text-[10px] tabular-nums text-[#80848e] opacity-0 group-hover:opacity-100">{fmtTime(m.at)}{mine && <> <Ticks m={m} /></>}</span>
@@ -228,9 +301,7 @@ function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
     return (
       <div className="mt-1">
         {m.caption && <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2f3035]"><Hi text={m.caption} q={query} /></p>}
-        <button onClick={() => patchUI({ viewer: { msgId: m.id } })} className="mt-1.5 block cursor-zoom-in" title="Bara dekho">
-          <img src={m.src} alt="" className="max-h-72 rounded-xl border border-black/10 object-cover soft-shadow transition hover:brightness-[0.97]" loading="lazy" draggable={false} />
-        </button>
+        <BlurImage src={m.src} onOpen={() => patchUI({ viewer: { msgId: m.id } })} />
       </div>
     );
   }

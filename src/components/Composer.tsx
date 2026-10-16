@@ -85,6 +85,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       return;
     }
     if (!text.trim()) return;
+    try { navigator.vibrate?.(12); } catch { /* 14 — halki haptic feedback */ }
     // command execution
     if (text.startsWith("/")) {
       if (execCommand(text)) { setText(""); patchUI({ replyTo: null }); ta.current?.focus(); }

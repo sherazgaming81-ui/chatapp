@@ -10,20 +10,27 @@ const LS = {
   del(k: string) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
 };
 
-/* ───────── reactive prefs snapshot (compact + wallpaper update live) ───────── */
-interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; }
-let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null };
+/* ───────── reactive prefs snapshot (compact + wallpaper + dark update live) ───────── */
+interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; dark: boolean; }
+let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null, dark: false };
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach((l) => { try { l(); } catch { /* ignore */ } }); }
+/* 4 — dark mode: <html> par .dark class lagao */
+function applyDark(d: boolean) {
+  try {
+    if (typeof document !== "undefined") document.documentElement.classList.toggle("dark", d);
+  } catch { /* ignore */ }
+}
 function readSnap(): PrefsSnap {
   return {
     compact: LS.get("chatsapp:compact") === "1",
     wallpaper: LS.get("chatsapp:wallpaper") || "default",
     wallpaperCustom: LS.get("chatsapp:wallpaper:custom"),
+    dark: LS.get("chatsapp:dark") === "1",
   };
 }
-function refresh() { snap = readSnap(); emit(); }
-if (typeof window !== "undefined") snap = readSnap();
+function refresh() { snap = readSnap(); applyDark(snap.dark); emit(); }
+if (typeof window !== "undefined") { snap = readSnap(); applyDark(snap.dark); }
 // SSR/prerender ke liye server snapshot (client hydration par real snap ayega)
 const serverSnap: PrefsSnap = { ...snap };
 export function usePrefs(): PrefsSnap {
@@ -68,6 +75,13 @@ export function setCompact(v: boolean) {
   refresh();
 }
 
+/* ───────── 4 — dark mode toggle 🌙 ───────── */
+export const getDark = () => LS.get("chatsapp:dark") === "1";
+export function setDark(v: boolean) {
+  LS.set("chatsapp:dark", v ? "1" : "0");
+  refresh();
+}
+
 /* ───────── A13 — wallpapers (CSS only — koi external image nahi) ───────── */
 export interface WallpaperDef { id: string; name: string; css: string; dark?: boolean }
 export const WALLPAPERS: WallpaperDef[] = [
@@ -79,6 +93,7 @@ export const WALLPAPERS: WallpaperDef[] = [
   { id: "dots", name: "Dots", css: "radial-gradient(#5865f214 1.5px, transparent 1.5px)", dark: false },
   { id: "grid", name: "Grid", css: "linear-gradient(#5865f20d 1px, transparent 1px), linear-gradient(90deg, #5865f20d 1px, transparent 1px)", dark: false },
   { id: "night", name: "Night Sky", css: "linear-gradient(180deg, #2b2d3112 0%, #1e1f2214 100%)" },
+  { id: "doodle", name: "Doodle 🎨", css: "doodle" },
 ];
 export function getWallpaper(): string { return LS.get("chatsapp:wallpaper") || "default"; }
 export function setWallpaper(id: string) { LS.set("chatsapp:wallpaper", id); refresh(); }
@@ -92,10 +107,14 @@ export function wallpaperStyle(wallpaper: string, custom: string | null): React.
     return { backgroundImage: `url(${custom})`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" };
   }
   const def = WALLPAPERS.find((w) => w.id === wallpaper);
-  if (!def || def.id === "default") return {};
+  if (!def || def.id === "default" || def.id === "doodle") return {};
   const style: React.CSSProperties = { backgroundImage: def.css };
   if (def.id === "dots" || def.id === "grid") style.backgroundSize = "22px 22px";
   return style;
+}
+/* 7 — doodle wallpaper active hai ya nahi (ChatView class lagata hai) */
+export function isDoodleWallpaper(wallpaper: string): boolean {
+  return wallpaper === "doodle";
 }
 
 /* ───────── E6 — app lock PIN (hashed, kabhi plain nahi) ───────── */

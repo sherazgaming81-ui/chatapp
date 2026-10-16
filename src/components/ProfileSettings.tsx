@@ -11,7 +11,7 @@ import { Avatar } from "@/components/ui";
 import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
 import { BADGES, getBadges } from "@/lib/achievements";
 import {
-  getPrivacy, setPrivacy, getCompact, setCompact,
+  getPrivacy, setPrivacy, getCompact, setCompact, getDark, setDark,
   WALLPAPERS, getWallpaper, setWallpaper, getWallpaperCustom, setWallpaperCustom,
   hasPin, setPin, verifyPin, clearPin, usePrefs,
   getLastBackup, markBackupDone,
@@ -237,6 +237,7 @@ function LockTab() {
 function AppearanceTab() {
   const prefs = usePrefs();
   const [compact, setC] = useState(getCompact());
+  const [dark, setD] = useState(getDark());
   const file = useRef<HTMLInputElement>(null);
 
   const toggleCompact = () => {
@@ -244,6 +245,14 @@ function AppearanceTab() {
     setC(v);
     setCompact(v);
     toast(v ? "Compact mode ON" : "Comfortable mode ON", v ? "Zyada messages ek screen par" : "");
+  };
+
+  /* 4 — dark mode toggle 🌙 */
+  const toggleDark = () => {
+    const v = !dark;
+    setD(v);
+    setDark(v);
+    toast(v ? "Dark mode ON 🌙" : "Light mode ON ☀️", "");
   };
 
   const pickCustom = async (f: File | undefined) => {
@@ -262,6 +271,16 @@ function AppearanceTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-xl bg-black/[0.03] p-3">
         <div>
+          <p className="text-sm font-bold text-[#2f3035]">Dark mode 🌙</p>
+          <p className="text-xs text-[#80848e]">Raat ko ankhon ke liye aram</p>
+        </div>
+        <button onClick={toggleDark} className={`relative h-7 w-12 shrink-0 rounded-full transition ${dark ? "bg-[#5865f2]" : "bg-black/15"}`} aria-label="Dark mode">
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${dark ? "left-6" : "left-1"}`} />
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl bg-black/[0.03] p-3">
+        <div>
           <p className="text-sm font-bold text-[#2f3035]">Compact mode</p>
           <p className="text-xs text-[#80848e]">Chhoti bubbles, zyada messages</p>
         </div>
@@ -277,8 +296,8 @@ function AppearanceTab() {
             <button
               key={w.id}
               onClick={() => setWallpaper(w.id)}
-              className={`relative h-16 overflow-hidden rounded-xl border-2 transition ${prefs.wallpaper === w.id ? "border-[#5865f2]" : "border-black/10 hover:border-black/25"}`}
-              style={{ backgroundImage: w.css, backgroundSize: w.id === "dots" || w.id === "grid" ? "14px 14px" : undefined, backgroundColor: "#f4f5fa" }}
+              className={`relative h-16 overflow-hidden rounded-xl border-2 transition ${prefs.wallpaper === w.id ? "border-[#5865f2]" : "border-black/10 hover:border-black/25"} ${w.id === "doodle" ? "chat-doodle" : ""}`}
+              style={w.id === "doodle" ? { backgroundColor: "#f4f5fa" } : { backgroundImage: w.css, backgroundSize: w.id === "dots" || w.id === "grid" ? "14px 14px" : undefined, backgroundColor: "#f4f5fa" }}
               title={w.name}
             >
               {prefs.wallpaper === w.id && <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/25"><Check size={18} className="text-white" /></span>}

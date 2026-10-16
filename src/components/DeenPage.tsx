@@ -47,6 +47,27 @@ function fmtCountdown(ms: number) {
   return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+/* 16 — agli namaz tak live progress ring (pichli namaz se agli tak) */
+function PrayerRing({ nxKey, nxAt, times }: { nxKey: PrayerKey; nxAt: number; times: Record<PrayerKey, Date> }) {
+  const idx = PRAYER_ORDER.indexOf(nxKey);
+  const prevKey = PRAYER_ORDER[(idx - 1 + PRAYER_ORDER.length) % PRAYER_ORDER.length];
+  let start = times[prevKey].getTime();
+  if (start > nxAt) start -= 24 * 3600e3; // pichli namaz kal ki thi
+  const nowMs = Date.now();
+  const frac = Math.min(1, Math.max(0, (nowMs - start) / Math.max(1, nxAt - start)));
+  const R = 30, C = 2 * Math.PI * R;
+  return (
+    <svg className="prayer-ring absolute -right-3 -top-3 h-28 w-28 opacity-90" viewBox="0 0 72 72" aria-hidden>
+      <circle className="ring-bg" cx="36" cy="36" r={R} fill="none" strokeWidth="5" />
+      <circle
+        className="ring-fg" cx="36" cy="36" r={R} fill="none" strokeWidth="5"
+        strokeDasharray={C} strokeDashoffset={C * (1 - frac)}
+      />
+      <text x="36" y="40" textAnchor="middle" fill="#fff" fontSize="13" fontWeight="800">{Math.round(frac * 100)}%</text>
+    </svg>
+  );
+}
+
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <section className={`glass rounded-2xl p-4 sm:p-5 ${className}`}>{children}</section>;
 }
@@ -223,12 +244,13 @@ export default function DeenPage() {
         </div>
       </header>
 
-      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+      <div className="thin-scroll islamic-pattern min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="mx-auto max-w-2xl space-y-3">
           <AzaanAlertTop loc={loc} />
           <CelebrationBanner loc={loc} />
           {/* Hijri + next prayer hero */}
-          <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] p-5 text-white soft-shadow">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] p-5 text-white soft-shadow">
+            <PrayerRing nxKey={nx.key} nxAt={nx.at.getTime()} times={times} />
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/75">Agli namaz</p>
             <p className="mt-1 text-3xl font-extrabold tracking-tight">{PRAYER_NAMES[nx.key]}</p>
             <p className="mt-0.5 text-lg font-bold tabular-nums text-white/90">{fmtCountdown(nx.at.getTime() - now.getTime())} <span className="text-sm font-medium">· {fmtTime(nx.at.getTime())}</span></p>

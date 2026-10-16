@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { MessageCircle, Moon, Settings } from "lucide-react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
 import { isStaff } from "@/lib/types";
@@ -37,6 +38,14 @@ export default function App() {
   const prefs = usePrefs();
   const started = useRef(false);
 
+  // WhatsApp-style: browser tab title me total unread count — (3) ChatsApp
+  const totalUnread = useStore((s) => Object.values(s.unread).reduce((a, b) => a + (b || 0), 0));
+  useEffect(() => {
+    try {
+      document.title = totalUnread > 0 ? `(${totalUnread}) ChatsApp` : "ChatsApp";
+    } catch { /* ignore */ }
+  }, [totalUnread]);
+
   // Phase 6 — onboarding state
   const [welcomeSeen, setWelcomeSeen] = useState(() => {
     try { return localStorage.getItem("chatsapp:welcome:seen") === "1"; } catch { return true; }
@@ -49,6 +58,39 @@ export default function App() {
     try { localStorage.setItem("chatsapp:welcome:seen", "1"); } catch { /* ignore */ }
     setWelcomeSeen(true);
   };
+
+  /* 20 — offline indicator */
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    try { setIsOnline(navigator.onLine); } catch { /* ignore */ }
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  /* 3 — ripple effect (saare .btn par) */
+  useEffect(() => {
+    const h = (e: PointerEvent) => {
+      const t = (e.target as HTMLElement).closest?.(".btn") as HTMLElement | null;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      const s = Math.max(r.width, r.height);
+      const ink = document.createElement("span");
+      ink.className = "ripple-ink";
+      ink.style.width = ink.style.height = `${s}px`;
+      ink.style.left = `${e.clientX - r.left - s / 2}px`;
+      ink.style.top = `${e.clientY - r.top - s / 2}px`;
+      t.appendChild(ink);
+      setTimeout(() => ink.remove(), 650);
+    };
+    document.addEventListener("pointerdown", h);
+    return () => document.removeEventListener("pointerdown", h);
+  }, []);
 
   useEffect(() => {
     let rt: { stop(): void; sendTyping(): void } | null = null;
@@ -89,7 +131,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
         onboardChecked.current = false;
         setWizardOpen(false);
         setChecklistOpen(false);
@@ -147,7 +189,17 @@ export default function App() {
   const compactCls = prefs.compact ? "compact" : "";
 
   return (
-    <div className={`flex h-full min-w-0 flex-1 ${compactCls}`}>
+    <div className={`flex h-full min-w-0 flex-1 flex-col ${compactCls}`}>
+      {/* 20 — offline banner */}
+      {!isOnline && (
+        <div className="offline-banner z-[100] flex shrink-0 items-center justify-center gap-2 bg-[#ed4245] px-4 py-2 text-sm font-bold text-white">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+          </span>
+          Offline ho — reconnecting… 📡
+        </div>
+      )}
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
@@ -163,6 +215,30 @@ export default function App() {
           </button>
         )}
         {main}
+        {/* 12 — mobile bottom navigation */}
+        <nav className="mobile-nav grid shrink-0 grid-cols-3" aria-label="Navigation">
+          <button
+            onClick={() => patchUI({ tab: "chat" })}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" && !showDeen ? "text-[#5865f2]" : "text-[#80848e]"}`}
+          >
+            <MessageCircle size={21} />
+            Chats
+          </button>
+          <button
+            onClick={() => patchUI({ tab: "deen" })}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showDeen ? "text-[#5865f2]" : "text-[#80848e]"}`}
+          >
+            <Moon size={21} />
+            Deen
+          </button>
+          <button
+            onClick={() => patchUI({ settingsOpen: true })}
+            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#80848e] transition active:text-[#5865f2]"
+          >
+            <Settings size={21} />
+            Settings
+          </button>
+        </nav>
       </div>
       <ProfileModal />
       <MediaViewer />

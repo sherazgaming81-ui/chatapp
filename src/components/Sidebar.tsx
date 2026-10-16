@@ -6,6 +6,7 @@ import { Avatar, Badge, fmtTime } from "@/components/ui";
 import { signOut } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import ProfileSettings from "@/components/ProfileSettings";
+import UnreadBadge from "@/components/UnreadBadge";
 
 export default function Sidebar() {
   const chats = useStore((s) => s.chats);
@@ -14,6 +15,7 @@ export default function Sidebar() {
   const meId = useStore((s) => s.me);
   const me = members.find((m) => m.id === meId);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
+  const unread = useStore((s) => s.unread);
   const groups = chats.filter((c) => c.type === "group");
   const group = groups[0];
   const dms = chats.filter((c) => c.type === "dm");
@@ -60,6 +62,7 @@ export default function Sidebar() {
               >
                 <Hash size={18} className="shrink-0 opacity-70" />
                 <span className="truncate">{g.name}</span>
+                <UnreadBadge count={unread[g.id] || 0} />
               </button>
             ))}
             <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#80848e]/50" title="Jald aa raha hai">
@@ -90,6 +93,7 @@ export default function Sidebar() {
                     <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#2f3035]"}`}>{other?.name || dm.name}</span>
                     {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
                   </span>
+                  <UnreadBadge count={unread[dm.id] || 0} />
                 </button>
               );
             })}

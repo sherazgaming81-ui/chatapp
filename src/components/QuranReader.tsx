@@ -168,7 +168,7 @@ function Reader({ surah, scrollTo }: { surah: number; scrollTo?: number }) {
           </div>
         )}
         {data && (
-          <div className="mx-auto max-w-2xl">
+          <div key={surah} className="page-turn mx-auto max-w-2xl">
             {/* Surah header: Arabic naam + English naam + Makki/Madani + ayat count */}
             <div className="soft-shadow mt-4 rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-4 text-center">
               <p className="font-quran text-[30px] leading-snug text-[#2f3035]" dir="rtl" lang="ar">{data.meta.name}</p>

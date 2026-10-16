@@ -2,6 +2,7 @@
 import { X, Plus } from "lucide-react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
+import UnreadBadge from "@/components/UnreadBadge";
 
 function Drawer({ side, onClose, children, title }: { side: "left" | "right"; onClose(): void; children: React.ReactNode; title: string }) {
   return (
@@ -25,6 +26,7 @@ export default function MobileDrawers() {
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
+  const unread = useStore((s) => s.unread);
   const close = () => patchUI({ mobileDrawer: "none" });
   const pick = (id: string) => patchUI({ tab: "chat", activeChatId: id, replyTo: null, mobileDrawer: "none" });
   const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
@@ -49,6 +51,7 @@ export default function MobileDrawers() {
               <span className={`block truncate text-sm font-bold ${activeChatId === group.id ? "text-white" : "text-[#2f3035]"}`}>{group.name}</span>
               <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#80848e]"}`}>group</span>
             </span>
+            <UnreadBadge count={unread[group.id] || 0} />
           </button>
         ))}
         {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#80848e]">Direct messages</p>}
@@ -63,6 +66,7 @@ export default function MobileDrawers() {
                 <span className={`block truncate text-sm font-bold ${active ? "text-white" : "text-[#2f3035]"}`}>{other?.name || dm.name}</span>
                 {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.text?.slice(0, 30) || "media"} · {fmtTime(lm.at)}</span>}
               </span>
+              <UnreadBadge count={unread[dm.id] || 0} />
             </button>
           );
         })}
