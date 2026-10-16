@@ -18,6 +18,8 @@ import GroupInfo from "@/components/GroupInfo";
 import GlobalSearch from "@/components/GlobalSearch";
 import Toasts from "@/components/Toasts";
 import GlobalVideoBar from "@/components/GlobalVideoBar";
+import AppLock from "@/components/AppLock";
+import { usePrefs } from "@/lib/prefs";
 
 export default function App() {
   const session = useStore((s) => s.session);
@@ -25,6 +27,7 @@ export default function App() {
   const tab = useStore((s) => s.ui.tab);
   const starredOpen = useStore((s) => s.ui.starredOpen);
   const me = useStore((s) => s.members.find((m) => m.id === s.me));
+  const prefs = usePrefs();
   const started = useRef(false);
 
   useEffect(() => {
@@ -86,9 +89,10 @@ export default function App() {
   const showOwner = tab === "owner" && owner;
   const showDeen = tab === "deen";
   const main = starredOpen ? <StarredView /> : showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
+  const compactCls = prefs.compact ? "compact" : "";
 
   return (
-    <div className="flex h-full min-w-0 flex-1">
+    <div className={`flex h-full min-w-0 flex-1 ${compactCls}`}>
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
@@ -112,6 +116,8 @@ export default function App() {
       <Toasts />
       {/* ★ Asma-ul-Husna mini-player — video chal rahi ho aur player band ho to */}
       <GlobalVideoBar />
+      {/* ★ E6 — App Lock */}
+      <AppLock />
     </div>
   );
 }

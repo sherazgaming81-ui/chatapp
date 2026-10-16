@@ -4,6 +4,7 @@ import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X } from
 import { getState, useStore, patchUI } from "@/lib/store";
 import { markRead } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
+import { usePrefs, wallpaperStyle } from "@/lib/prefs";
 import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
@@ -17,6 +18,7 @@ export default function ChatView() {
   const meId = useStore((s) => s.me);
   const typing = useStore((s) => s.ui.typing);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
+  const prefs = usePrefs();
   const activeChat = chats.find((c) => c.id === activeChatId);
   const isDM = activeChat?.type === "dm";
   const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
@@ -202,7 +204,12 @@ export default function ChatView() {
         </button>
       )}
 
-      <div ref={sc} onScroll={onScroll} className="thin-scroll min-h-0 flex-1 overflow-y-auto py-3">
+      <div
+        ref={sc}
+        onScroll={onScroll}
+        className="thin-scroll min-h-0 flex-1 overflow-y-auto py-3"
+        style={wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom)}
+      >
         {msgs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-[#5865f2]/10">

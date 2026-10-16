@@ -15,23 +15,30 @@ export function nameColor(m: Member): string {
   return `hsl(${hueFor(m.id)} 60% 38%)`;
 }
 
-export function Avatar({ m, size = 40, showDot = false }: { m: Pick<Member, "id" | "name" | "avatar" | "online">; size?: number; showDot?: boolean }) {
+export function Avatar({ m, size = 40, showDot = false, meId }: { m: Pick<Member, "id" | "name" | "avatar" | "online" | "privacy">; size?: number; showDot?: boolean; meId?: string }) {
   const initial = (m.name || "?").trim()[0]?.toUpperCase() || "?";
+  // E1 privacy — photo/online audience respect karo
+  let avatar = m.avatar;
+  let online = m.online;
+  if (meId && meId !== m.id && m.privacy) {
+    if (m.privacy.photo === "nobody") avatar = undefined;
+    if (m.privacy.online === "nobody") online = false;
+  }
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       <span
         className="grid h-full w-full place-items-center overflow-hidden rounded-full font-bold text-white soft-shadow"
         style={{
           fontSize: size * 0.42,
-          background: m.avatar ? undefined : `linear-gradient(135deg, hsl(${hueFor(m.id)} 65% 55%), hsl(${(hueFor(m.id) + 40) % 360} 65% 45%))`,
+          background: avatar ? undefined : `linear-gradient(135deg, hsl(${hueFor(m.id)} 65% 55%), hsl(${(hueFor(m.id) + 40) % 360} 65% 45%))`,
         }}
       >
-        {m.avatar ? <img src={m.avatar} alt="" className="h-full w-full object-cover" draggable={false} /> : initial}
+        {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} /> : initial}
       </span>
       {showDot && (
         <span
           className="absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-white"
-          style={{ width: size * 0.34, height: size * 0.34, background: m.online ? "#23a55a" : "#80848e" }}
+          style={{ width: size * 0.34, height: size * 0.34, background: online ? "#23a55a" : "#80848e" }}
         />
       )}
     </span>

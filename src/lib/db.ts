@@ -8,6 +8,17 @@ const sb = () => supabase();
 const uid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 // ───────── row mappers ─────────
+function toPrivacy(p: any) {
+  // Supabase columns (agar hon) warna undefined → DEFAULT_PRIVACY
+  const g = (v: any) => (v === "everyone" || v === "contacts" || v === "nobody" ? v : undefined);
+  const pr = {
+    lastSeen: g(p.privacy_lastseen),
+    photo: g(p.privacy_photo),
+    about: g(p.privacy_about),
+    online: g(p.privacy_online),
+  };
+  return Object.values(pr).every((v) => v === undefined) ? undefined : pr;
+}
 function toMember(p: any, role: Role, mute: any, ban: any, warns: any[]): Member {
   return {
     id: p.id,
@@ -20,6 +31,7 @@ function toMember(p: any, role: Role, mute: any, ban: any, warns: any[]): Member
     banned: !!ban,
     mutedUntil: mute ? (mute.until === 0 ? null : mute.until) : undefined,
     warns: (warns || []).map((w: any) => ({ reason: w.reason || "Warning", at: 0 })),
+    privacy: toPrivacy(p),
   };
 }
 
@@ -203,6 +215,12 @@ export async function load(userId: string, email: string): Promise<boolean> {
   } catch { /* keep going */ }
 
   const prev = getState();
+  // E1 — apni privacy localStorage se merge karo (server columns na hon to bhi kaam kare)
+  try {
+    const { getPrivacy } = await import("./prefs");
+    const myPr = getPrivacy(userId);
+    members = members.map((m) => (m.id === userId ? { ...m, privacy: m.privacy || myPr } : m));
+  } catch { /* ignore */ }
   update({
     me: userId,
     session: true,
@@ -217,6 +235,22 @@ export async function load(userId: string, email: string): Promise<boolean> {
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
   return true;
+}
+
+// ───────── E1 — privacy server sync (best-effort; columns na hon to local hi) ─────────
+export async function savePrivacyServer(userId: string, pr: { lastSeen: string; photo: string; about: string; online: string }) {
+  try {
+    await sb().from("profiles").update({
+      privacy_lastseen: pr.lastSeen,
+      privacy_photo: pr.photo,
+      privacy_about: pr.about,
+      privacy_online: pr.online,
+    }).eq("id", userId);
+  } catch { /* columns may not exist — localStorage is source of truth */ }
+  // apne member object me foran reflect karo
+  try {
+    update({ members: getState().members.map((m) => (m.id === userId ? { ...m, privacy: { ...pr } as any } : m)) });
+  } catch { /* ignore */ }
 }
 
 // ───────── writes ─────────

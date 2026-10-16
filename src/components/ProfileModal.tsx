@@ -4,6 +4,7 @@ import { X, AtSign, VolumeX, Volume2, AlertTriangle, Gavel, ShieldCheck, Crown }
 import { useStore, patchUI, toast } from "@/lib/store";
 import { setMute, setBan, addWarn, setRole, sendText } from "@/lib/db";
 import { Avatar, Badge, nameColor, fmtLastSeen } from "@/components/ui";
+import { visibleOnline, visibleLastSeen, visibleAbout } from "@/lib/prefs";
 import { isStaff } from "@/lib/types";
 
 const MUTE_OPTS = [
@@ -39,15 +40,23 @@ export default function ProfileModal() {
         <div className="h-20 bg-gradient-to-r from-[#5865f2] to-[#9b7bff]" />
         <button onClick={close} className="absolute right-3 top-3 rounded-full bg-black/30 p-1.5 text-white hover:bg-black/50"><X size={16} /></button>
         <div className="-mt-10 px-5 pb-5">
-          <Avatar m={m} size={72} showDot />
+          <Avatar m={m} size={72} showDot meId={meId} />
           <h3 className="mt-2 text-xl font-extrabold tracking-tight" style={{ color: nameColor(m) }}>{m.name}<Badge role={m.role} /></h3>
-          <p className="text-xs text-[#80848e]">{m.online ? "● Online" : `○ ${fmtLastSeen(m.lastSeen)}`}</p>
-          {m.about && (
-            <div className="mt-3 rounded-xl bg-black/[0.04] p-3">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#80848e]">About</p>
-              <p className="text-sm text-[#2f3035]">{m.about}</p>
-            </div>
-          )}
+          {(() => {
+            // E1 privacy respect
+            const on = isMe ? m.online : visibleOnline(meId, m);
+            const ls = isMe ? m.lastSeen : visibleLastSeen(meId, m);
+            return <p className="text-xs text-[#80848e]">{on ? "● Online" : ls > 0 ? `○ ${fmtLastSeen(ls)}` : "○ Offline"}</p>;
+          })()}
+          {(() => {
+            const about = isMe ? m.about : visibleAbout(meId, m);
+            return about ? (
+              <div className="mt-3 rounded-xl bg-black/[0.04] p-3">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#80848e]">About</p>
+                <p className="text-sm text-[#2f3035]">{about}</p>
+              </div>
+            ) : null;
+          })()}
           {m.warns.length > 0 && <p className="mt-2 text-xs font-semibold text-[#b36b00]">⚠️ {m.warns.length} warning{m.warns.length > 1 ? "s" : ""}</p>}
 
           <div className="mt-4 space-y-2">

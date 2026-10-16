@@ -110,6 +110,20 @@ a:hover { text-decoration: underline; }
 .msg-row:hover .msg-actions { opacity: 1; }
 @media (hover: none) { .msg-row .msg-actions { opacity: 1; } }
 
+/* ── A18 compact mode — chhoti spacing, zyada messages ek screen par ── */
+.compact .msg-row { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+.compact .msg-row.mt-\[17px\] { margin-top: 8px !important; }
+.compact .msg-row .text-\[15px\] { font-size: 13.5px !important; }
+.compact .thin-scroll { row-gap: 0 !important; }
+
+/* ── E6 app lock pop ── */
+@keyframes lockpop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.lock-pop { animation: lockpop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
 /* ── loading animation ── */
 @keyframes loadpulse {
   0%, 100% { transform: scale(1); opacity: 1; }

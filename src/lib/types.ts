@@ -2,6 +2,21 @@
 
 export type Role = "owner" | "admin" | "mod" | "member";
 
+// E1 — privacy audiences
+export type PrivacyAudience = "everyone" | "contacts" | "nobody";
+export interface PrivacySettings {
+  lastSeen: PrivacyAudience;
+  photo: PrivacyAudience;
+  about: PrivacyAudience;
+  online: PrivacyAudience;
+}
+export const DEFAULT_PRIVACY: PrivacySettings = {
+  lastSeen: "everyone",
+  photo: "everyone",
+  about: "everyone",
+  online: "everyone",
+};
+
 export interface Member {
   id: string;
   name: string;
@@ -13,6 +28,7 @@ export interface Member {
   banned: boolean;
   mutedUntil: number | null | undefined; // null => forever
   warns: { reason: string; at: number }[];
+  privacy?: PrivacySettings; // E1 — audience settings (default: everyone)
 }
 
 export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact";
