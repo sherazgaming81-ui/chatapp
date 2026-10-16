@@ -17,6 +17,7 @@ import Sidebar from "@/components/Sidebar";
 import ChatView from "@/components/ChatView";
 import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
+import ProfileStudio from "@/components/ProfileStudio";
 import OwnerPanel from "@/components/OwnerPanel";
 import DeenPage from "@/components/DeenPage";
 import { GlobalAzaanAlert } from "@/components/DeenExtras";
@@ -168,7 +169,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], hiddenForMe: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], hiddenForMe: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false, studioOpen: false } });
         onboardChecked.current = false;
         setWizardOpen(false);
         setChecklistOpen(false);
@@ -281,6 +282,7 @@ export default function App() {
         </nav>
       </div>
       <ProfileModal />
+      <ProfileStudio />
       <MediaViewer />
       <GroupInfo />
       <GlobalSearch />

@@ -23,6 +23,7 @@ const initialUI: UIState = {
   jumpToMsg: null,
   settingsOpen: false,
   createGroupOpen: false,
+  studioOpen: false,
 };
 
 let state: State = {

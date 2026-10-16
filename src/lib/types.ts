@@ -17,6 +17,25 @@ export const DEFAULT_PRIVACY: PrivacySettings = {
   online: "everyone",
 };
 
+/** Discord-Nitro-style profile customization (sab free) */
+export interface ProfileStyle {
+  banner: string; // banner id
+  effect: string; // effect id (none/sparkle/petals/fireflies/rain/crescent)
+  frame: string; // avatar frame id
+  nameStyle: string; // name style id
+  accent: string; // accent color hex
+  badges: string[]; // badge ids (max 4)
+}
+
+export const DEFAULT_PROFILE_STYLE: ProfileStyle = {
+  banner: "blurple",
+  effect: "none",
+  frame: "none",
+  nameStyle: "plain",
+  accent: "#5865f2",
+  badges: [],
+};
+
 export interface Member {
   id: string;
   name: string;
@@ -29,6 +48,7 @@ export interface Member {
   mutedUntil: number | null | undefined; // null => forever
   warns: { reason: string; at: number }[];
   privacy?: PrivacySettings; // E1 — audience settings (default: everyone)
+  style?: ProfileStyle; // Nitro-style profile customization
 }
 
 export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "riddle";
@@ -80,6 +100,7 @@ export interface UIState {
   jumpToMsg: string | null; // I15 — message id to scroll to after search jump
   settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
   createGroupOpen: boolean; // CreateGroup modal
+  studioOpen: boolean; // ProfileStudio modal (Nitro-style customization)
 }
 
 export interface State {

@@ -21,6 +21,12 @@ function toPrivacy(p: any) {
   return Object.values(pr).every((v) => v === undefined) ? undefined : pr;
 }
 function toMember(p: any, role: Role, mute: any, ban: any, warns: any[]): Member {
+  let style: Member["style"];
+  try {
+    const ps = (p as any).profile_style;
+    if (ps && typeof ps === "object" && typeof ps.banner === "string") style = ps;
+    else if (typeof ps === "string") { const q = JSON.parse(ps); if (q && typeof q.banner === "string") style = q; }
+  } catch { /* ignore */ }
   return {
     id: p.id,
     name: p.display_name || "Member",
@@ -33,6 +39,7 @@ function toMember(p: any, role: Role, mute: any, ban: any, warns: any[]): Member
     mutedUntil: mute ? (mute.until === 0 ? null : mute.until) : undefined,
     warns: (warns || []).map((w: any) => ({ reason: w.reason || "Warning", at: 0 })),
     privacy: toPrivacy(p),
+    style,
   };
 }
 
@@ -259,6 +266,14 @@ export async function load(userId: string, email: string): Promise<boolean> {
       if (n > 0) unread[c.id] = n;
     }
   } catch { /* ignore */ }
+  // apni profile style localStorage se hydrate karo (DB column na ho to bhi kaam kare)
+  try {
+    const myStyle = getProfileStyle();
+    if (myStyle) {
+      const mi = members.findIndex((x: Member) => x.id === userId);
+      if (mi >= 0 && !members[mi].style) members[mi] = { ...members[mi], style: myStyle };
+    }
+  } catch { /* ignore */ }
   update({
     me: userId,
     session: true,
@@ -293,6 +308,26 @@ export async function savePrivacyServer(userId: string, pr: { lastSeen: string; 
 }
 
 // ───────── writes ─────────
+// ───────── Profile style (Nitro-style) — localStorage primary, Supabase best-effort ─────────
+const STYLE_KEY = "chatsapp:profile-style";
+export function getProfileStyle(): import("./types").ProfileStyle | null {
+  try {
+    const raw = localStorage.getItem(STYLE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (p && typeof p.banner === "string") return p;
+  } catch { /* ignore */ }
+  return null;
+}
+export async function saveProfileStyle(userId: string, style: import("./types").ProfileStyle) {
+  try { localStorage.setItem(STYLE_KEY, JSON.stringify(style)); } catch { /* ignore */ }
+  try {
+    await sb().from("profiles").update({ profile_style: style }).eq("id", userId);
+  } catch { /* column may not exist — localStorage is source of truth */ }
+  try {
+    update({ members: getState().members.map((m) => (m.id === userId ? { ...m, style } : m)) });
+  } catch { /* ignore */ }
+}
 /* ───────── 19 — lazy load purane messages (upar scroll par) ───────── */
 export async function loadOlderMessages(chatId: string, before: number, limit = 60): Promise<boolean> {
   try {
