@@ -87,7 +87,24 @@ export async function load(userId: string, email: string): Promise<boolean> {
       const { data: chats } = await sb().from("chats").select("id,type,name,photo_url,is_main_group").limit(20);
       chatRows = chats || [];
     }
-    const main = chatRows.find((c: any) => c.is_main_group) || chatRows.find((c: any) => c.type === "group") || chatRows[0];
+    let main = chatRows.find((c: any) => c.is_main_group) || chatRows.find((c: any) => c.type === "group") || null;
+    // FIX: agar user ke paas sirf DMs hain (main group nahi mila), to real main group dhoondo aur auto-join karo
+    // (RLS fix ke baad is_main_group=true sab authenticated users dekh sakte hain)
+    if (!main) {
+      try {
+        const { data: mg } = await sb().from("chats").select("id,type,name,photo_url,is_main_group").eq("is_main_group", true).maybeSingle();
+        if (mg?.id) {
+          main = mg;
+          // user ko main group me add karo (agar pehle se nahi)
+          try {
+            const { data: ex2 } = await sb().from("chat_participants").select("chat_id").eq("chat_id", mg.id).eq("user_id", userId).maybeSingle();
+            if (!ex2) await sb().from("chat_participants").insert({ chat_id: mg.id, user_id: userId });
+          } catch { /* ignore */ }
+          if (!chatRows.find((c: any) => c.id === mg.id)) chatRows.push(mg);
+        }
+      } catch { /* ignore */ }
+    }
+    if (!main) main = chatRows[0] || null;
     if (main?.id) {
       setMainGroupId(main.id);
       if (!myChatIds.includes(main.id)) myChatIds.push(main.id);
