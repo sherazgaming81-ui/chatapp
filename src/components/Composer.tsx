@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, clearChat, postSystem } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -406,6 +406,7 @@ export default function Composer({ chatId }: { chatId: string }) {
             <EmojiPicker
               onPick={insertEmoji}
               onSticker={(id) => { setEmojiOpen(false); sendSticker(chatId, id); }}
+              onGif={(url, title) => { setEmojiOpen(false); sendGif(chatId, url, title); }}
               onClose={() => setEmojiOpen(false)}
             />
           </div>

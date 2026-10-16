@@ -439,8 +439,26 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
     <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
       <Reply size={13} className="shrink-0" />
       <span className="font-semibold" style={{ color: replyMember ? nameColor(replyMember) : undefined }}>{replyMember?.name || "Member"}</span>
-      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "file" ? `📁 ${replySrc.fileName || "File"}` : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
+      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "file" ? `📁 ${replySrc.fileName || "File"}` : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "gif" ? "🎞️ GIF" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
     </div>
+  );
+}
+
+/* ───────── GIF message: animated, rounded corners, tap → fullscreen ───────── */
+function GifMessage({ m }: { m: Message }) {
+  const url = m.src || m.text;
+  if (!url) return <p className="text-sm italic text-[#80848e]">GIF load nahi hua</p>;
+  return (
+    <button
+      onClick={() => patchUI({ viewer: { msgId: m.id } })}
+      className="relative mt-1 block w-56 max-w-full cursor-zoom-in overflow-hidden rounded-xl soft-shadow transition hover:brightness-95 active:scale-[0.98]"
+      title="Bada dekho"
+    >
+      <img src={url} alt="GIF" draggable={false} className="block h-auto w-full object-cover" loading="lazy" />
+      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
+        GIF
+      </span>
+    </button>
   );
 }
 
@@ -459,6 +477,7 @@ function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; 
   if (m.type === "tictactoe") return <TicTacToeMessage m={m} />;
   if (m.type === "riddle") return <RiddleMessage m={m} />;
   if (m.type === "sticker") return <StickerMessage m={m} />;
+  if (m.type === "gif") return <GifMessage m={m} />;
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
   if (m.type === "file") return <FileCard m={m} />;

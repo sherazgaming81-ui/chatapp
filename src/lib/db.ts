@@ -1420,11 +1420,26 @@ export async function checkRiddleAnswer(chatId: string, text: string, senderId: 
 export async function sendSticker(chatId: string, stickerId: string): Promise<Message | null> {
   const s = getState();
   if (!chatId || !stickerId) return null;
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "sticker", text: stickerId, at: Date.now(), reactions: {} };
+  const isUrl = /^https?:\/\//i.test(stickerId);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "sticker", text: isUrl ? "" : stickerId, at: Date.now(), reactions: {} };
+  if (isUrl) m.src = stickerId;
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "sticker",
-    text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+    text: m.text, media_url: m.src || "", reply_to: null, created_at: m.at, read_by: [],
   }, "Sticker nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+
+/** GIF bhejo (animated image URL — GIPHY/Tenor waghera se) */
+export async function sendGif(chatId: string, gifUrl: string, gifTitle?: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !gifUrl) return null;
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gif", text: gifTitle || "GIF", src: gifUrl, at: Date.now(), reactions: {} };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "gif",
+    text: m.text, media_url: gifUrl, reply_to: null, created_at: m.at, read_by: [],
+  }, "GIF nahi gaya");
   if (!ok) return null;
   return m;
 }

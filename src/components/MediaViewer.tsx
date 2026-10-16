@@ -15,7 +15,7 @@ export default function MediaViewer() {
   const images = useMemo(() => {
     const s = getState();
     const chatId = s.ui.activeChatId;
-    return s.messages.filter((m) => m.chatId === chatId && m.type === "image" && m.src && !m.deleted);
+    return s.messages.filter((m) => m.chatId === chatId && (m.type === "image" || m.type === "gif") && m.src && !m.deleted);
   }, [viewer]);
 
   useEffect(() => {

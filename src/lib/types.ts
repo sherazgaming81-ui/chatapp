@@ -51,7 +51,7 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "riddle" | "file";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file";
 
 export interface Message {
   id: string;

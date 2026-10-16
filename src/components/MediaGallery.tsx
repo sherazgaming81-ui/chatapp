@@ -99,7 +99,7 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
   const [tab, setTab] = useState<Tab>("photos");
 
   const photos = useMemo(
-    () => messages.filter((m) => m.chatId === chatId && m.type === "image" && m.src && !m.deleted).slice().reverse(),
+    () => messages.filter((m) => m.chatId === chatId && (m.type === "image" || m.type === "gif") && m.src && !m.deleted).slice().reverse(),
     [messages, chatId]
   );
   const audios = useMemo(

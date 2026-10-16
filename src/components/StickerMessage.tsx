@@ -1,18 +1,33 @@
 "use client";
-// B10 — Sticker message: CSS-based sticker render
+// B10 — Sticker message: WhatsApp-style bubble-LESS render (transparent, sirf sticker)
 import { getSticker, STICKERS } from "@/lib/games";
 import type { Message } from "@/lib/types";
 
 export default function StickerMessage({ m }: { m: Message }) {
+  const url = m.src || m.text;
+  // URL sticker (image) — bubble-less, transparent
+  if (url && /^https?:\/\//i.test(url)) {
+    return (
+      <img
+        src={url}
+        alt="Sticker"
+        draggable={false}
+        className="mt-1 max-h-44 w-auto max-w-[180px] select-none object-contain transition hover:scale-[1.04] active:scale-95"
+        style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18))" }}
+        loading="lazy"
+      />
+    );
+  }
+  // Emoji sticker — bubble-less, bada emoji
   const st = getSticker(m.text);
   if (!st) return <p className="text-sm italic text-[#80848e]">Sticker load nahi hua</p>;
   return (
     <div
-      className="mt-1 inline-flex max-w-[220px] flex-col items-center rounded-2xl px-5 py-4 text-center soft-shadow transition hover:scale-[1.03] active:scale-95"
-      style={{ background: st.bg }}
+      className="mt-1 inline-flex select-none flex-col items-center text-center transition hover:scale-[1.04] active:scale-95"
+      style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18))" }}
     >
-      <span className="text-5xl leading-none drop-shadow">{st.emoji}</span>
-      <span className="mt-2 text-[15px] font-extrabold leading-tight" style={{ color: st.fg }}>{st.text}</span>
+      <span className="text-7xl leading-none">{st.emoji}</span>
+      {st.text && <span className="mt-1 text-[13px] font-bold leading-tight text-[#2f3035]">{st.text}</span>}
     </div>
   );
 }

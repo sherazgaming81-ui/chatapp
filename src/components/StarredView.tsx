@@ -31,7 +31,7 @@ function StarredRow({ m }: { m: Message }) {
             <span className="text-[11px] text-[#80848e]">{fmtDayLabel(m.at)} {fmtTime(m.at)}</span>
           </span>
           <span className="block truncate text-sm text-[#2f3035]">
-            {m.text || (m.type === "image" ? "📷 Photo" : m.type === "voice" ? "🎙️ Voice note" : m.type === "poll" ? "📊 Poll" : m.type === "location" ? "📍 Location" : m.type === "contact" ? "👤 Contact" : "Message")}
+            {m.text || (m.type === "image" ? "📷 Photo" : m.type === "gif" ? "🎞️ GIF" : m.type === "voice" ? "🎙️ Voice note" : m.type === "poll" ? "📊 Poll" : m.type === "sticker" ? "🎨 Sticker" : m.type === "location" ? "📍 Location" : m.type === "contact" ? "👤 Contact" : "Message")}
           </span>
         </span>
       </button>
