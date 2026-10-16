@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui";
 export default function ServerRail() {
   const chats = useStore((s) => s.chats);
   const members = useStore((s) => s.members);
+  const tab = useStore((s) => s.ui.tab);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
   const group = chats.find((c) => c.type === "group");
   const dms = chats.filter((c) => c.type === "dm");
@@ -25,6 +26,14 @@ export default function ServerRail() {
       )}
 
       {dms.length > 0 && <div className="my-1 h-0.5 w-8 rounded-full bg-black/15" />}
+
+      {/* Deen tab */}
+      <button onClick={() => patchUI({ tab: "deen" })} title="Deen" className="group relative">
+        <span className={`grid h-12 w-12 place-items-center bg-gradient-to-br from-[#23a55a] to-[#1a7a55] text-2xl soft-shadow transition-all duration-200 ${tab === "deen" ? "rounded-2xl" : "rounded-full group-hover:rounded-2xl"}`}>
+          🕌
+        </span>
+        {tab === "deen" && <span className="absolute -left-[13px] top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full bg-[#5865f2]" />}
+      </button>
 
       {dms.map((dm) => {
         const other = members.find((m) => m.id === dm.otherId);

@@ -130,6 +130,10 @@ a:hover { text-decoration: underline; }
 @keyframes popin { from { transform: scale(0.94) translateY(8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
 .pop-in { animation: popin 0.2s ease-out; }
 
+/* message jump flash */
+@keyframes msgflash { 0% { background: rgba(88,101,242,0.18); } 100% { background: transparent; } }
+.msg-row.flash { animation: msgflash 1.6s ease-out; border-radius: 8px; }
+
 /* inputs */
 .field {
   background: rgba(255, 255, 255, 0.75);
@@ -140,3 +144,8 @@ a:hover { text-decoration: underline; }
 }
 .field:focus { border-color: #5865f2; box-shadow: 0 0 0 2px rgba(88,101,242,0.18); }
 .field::placeholder { color: #80848e; }
+
+/* ── PC web: thora zoom out (user request) ── */
+@media (min-width: 1024px) {
+  html { zoom: 0.9; }
+}

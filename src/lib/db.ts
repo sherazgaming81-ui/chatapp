@@ -164,6 +164,16 @@ export async function load(userId: string, email: string): Promise<boolean> {
     chats.sort((a, b) => (a.type === "group" ? -1 : b.type === "group" ? 1 : b.lastAt - a.lastAt));
   } catch { /* keep going */ }
 
+  // 5. pinned messages per chat (from group_settings)
+  let pins: Record<string, string[]> = {};
+  try {
+    const { data } = await sb().from("group_settings").select("key,value").like("key", "pinned_%");
+    (data || []).forEach((r: any) => {
+      const cid = String(r.key).replace(/^pinned_/, "");
+      if (Array.isArray(r.value)) pins[cid] = r.value.filter((x: any) => typeof x === "string");
+    });
+  } catch { /* keep going */ }
+
   const prev = getState();
   update({
     me: userId,
@@ -172,6 +182,7 @@ export async function load(userId: string, email: string): Promise<boolean> {
     members,
     messages,
     chats,
+    pins,
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
   return true;
@@ -271,8 +282,7 @@ export async function setRole(userId: string, role: Role) {
   } catch { /* ignore */ }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, role } : m)) });
 }
-export async function postAnnouncement(text: string) {
-  const s = getState();
+export async function postAnnouncement(text: string) {  const s = getState();
   if (!MAIN_GROUP_ID || !text.trim()) return;
   const m: Message = { id: uid("m"), from: s.me, chatId: MAIN_GROUP_ID, type: "announcement", text: text.trim(), at: Date.now(), reactions: {} };
   update({ messages: [...s.messages, m] });
@@ -282,6 +292,25 @@ export async function postAnnouncement(text: string) {
       text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
     });
   } catch { /* ignore */ }
+}
+
+// ───────── pins (stored in group_settings as pinned_<chatId> → string[]) ─────────
+export async function getPins(chatId: string): Promise<string[]> {
+  try {
+    const { data } = await sb().from("group_settings").select("value").eq("key", `pinned_${chatId}`).single();
+    const v = data?.value;
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
+export async function togglePin(chatId: string, msgId: string): Promise<string[]> {
+  const s = getState();
+  const cur = s.pins[chatId] || [];
+  const next = cur.includes(msgId) ? cur.filter((x) => x !== msgId) : [...cur, msgId];
+  update({ pins: { ...s.pins, [chatId]: next } });
+  try {
+    await sb().from("group_settings").upsert({ key: `pinned_${chatId}`, value: next });
+  } catch { /* ignore — local still works */ }
+  return next;
 }
 
 // ───────── presence ─────────
@@ -352,6 +381,16 @@ export function startRealtime() {
   ch.on("postgres_changes", { event: "*", schema: "public", table: "mutes", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
   ch.on("postgres_changes", { event: "*", schema: "public", table: "bans", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
   ch.on("postgres_changes", { event: "*", schema: "public", table: "warns", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
+
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "group_settings" }, (p: any) => {
+    const key = p.new?.key || p.old?.key || "";
+    if (typeof key === "string" && key.startsWith("pinned_")) {
+      const cid = key.replace(/^pinned_/, "");
+      const v = p.new?.value;
+      const ids = Array.isArray(v) ? v.filter((x: any) => typeof x === "string") : [];
+      update((st) => ({ pins: { ...st.pins, [cid]: ids } }));
+    }
+  });
 
   ch.on("presence", { event: "sync" }, () => {
     const ids = Object.keys(ch.presenceState());

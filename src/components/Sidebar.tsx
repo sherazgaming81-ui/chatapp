@@ -5,6 +5,7 @@ import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
 import { signOut } from "@/lib/db";
 import { isStaff } from "@/lib/types";
+import ProfileSettings from "@/components/ProfileSettings";
 
 export default function Sidebar() {
   const chats = useStore((s) => s.chats);
@@ -16,6 +17,7 @@ export default function Sidebar() {
   const group = chats.find((c) => c.type === "group");
   const dms = chats.filter((c) => c.type === "dm");
   const [menu, setMenu] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const pick = (id: string) => patchUI({ tab: "chat", activeChatId: id, replyTo: null, mobileDrawer: "none" });
   const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
@@ -85,8 +87,9 @@ export default function Sidebar() {
             </span>
           </button>
           <button className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Mic"><Mic size={18} /></button>
-          <button className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Settings"><Settings size={18} /></button>
+          <button onClick={() => setSettingsOpen(true)} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Settings"><Settings size={18} /></button>
         </div>
+        {settingsOpen && <ProfileSettings onClose={() => setSettingsOpen(false)} />}
         {menu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />

@@ -35,7 +35,20 @@ export default function ChatView() {
   };
 
   const typer = members.find((m) => m.id === typing[0]);
-  const pinned = msgs.filter((m) => (m as any).pinned && !m.deleted).slice(-1)[0];
+  const pinIds = useStore((s) => (activeChatId ? s.pins[activeChatId] || [] : []));
+  const pinnedMsgs = useMemo(
+    () => pinIds.map((id) => messages.find((m) => m.id === id && !m.deleted)).filter(Boolean) as typeof messages,
+    [pinIds, messages]
+  );
+  const [pinIdx, setPinIdx] = useState(0);
+  const jumpTo = (id: string) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 1600);
+    }
+  };
 
   return (
     <div className="glass relative flex min-w-0 flex-1 flex-col rounded-2xl">
@@ -66,11 +79,18 @@ export default function ChatView() {
         </button>
       </header>
 
-      {pinned && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-black/10 bg-[#5865f2]/[0.06] px-4 py-1.5 text-[13px]">
+      {pinnedMsgs.length > 0 && (
+        <button
+          onClick={() => { const p = pinnedMsgs[pinIdx % pinnedMsgs.length]; if (p) { jumpTo(p.id); setPinIdx((i) => i + 1); } }}
+          className="flex shrink-0 items-center gap-2 border-b border-black/10 bg-[#5865f2]/[0.06] px-4 py-1.5 text-left text-[13px] transition hover:bg-[#5865f2]/[0.1]"
+          title="Pin par jao"
+        >
           <Pin size={14} className="shrink-0 text-[#5865f2]" />
-          <span className="truncate text-[#5c5e66]">{pinned.text?.slice(0, 80)}</span>
-        </div>
+          <span className="min-w-0 flex-1 truncate text-[#5c5e66]">
+            {pinnedMsgs[pinIdx % pinnedMsgs.length]?.text?.slice(0, 80) || "📌"}
+          </span>
+          {pinnedMsgs.length > 1 && <span className="shrink-0 text-xs font-bold text-[#5865f2]">{(pinIdx % pinnedMsgs.length) + 1}/{pinnedMsgs.length}</span>}
+        </button>
       )}
 
       <div ref={sc} onScroll={onScroll} className="thin-scroll min-h-0 flex-1 overflow-y-auto py-3">

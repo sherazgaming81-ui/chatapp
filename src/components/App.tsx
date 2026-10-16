@@ -11,6 +11,7 @@ import ChatView from "@/components/ChatView";
 import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
 import OwnerPanel from "@/components/OwnerPanel";
+import DeenPage from "@/components/DeenPage";
 import Toasts from "@/components/Toasts";
 
 export default function App() {
@@ -77,18 +78,27 @@ export default function App() {
 
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
+  const showDeen = tab === "deen";
+  const main = showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
 
   return (
     <div className="flex h-full min-w-0 flex-1">
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">{showOwner ? <OwnerPanel /> : <ChatView />}</div>
-        <MemberList />
+        {!showDeen && <Sidebar />}
+        <div className="flex min-w-0 flex-1 flex-col">{main}</div>
+        {!showDeen && <MemberList />}
       </div>
       {/* mobile: single column + drawers (handled inside ChatView/Sidebar) */}
-      <div className="flex min-w-0 flex-1 flex-col md:hidden">{showOwner ? <OwnerPanel /> : <ChatView />}</div>
+      <div className="flex min-w-0 flex-1 flex-col md:hidden">
+        {!showDeen && (
+          <button onClick={() => patchUI({ tab: "deen" })} className="mx-3 mb-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#23a55a]/15 to-[#23a55a]/5 px-4 py-2.5 text-sm font-bold text-[#1a7a55]">
+            <span className="text-lg">🕌</span> Deen — namaz, tasbeeh, qibla
+          </button>
+        )}
+        {main}
+      </div>
       <ProfileModal />
       <Toasts />
     </div>

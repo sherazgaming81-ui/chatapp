@@ -22,6 +22,7 @@ let state: State = {
   members: [],
   messages: [],
   chats: [],
+  pins: {},
   ui: { ...initialUI },
 };
 

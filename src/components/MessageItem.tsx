@@ -1,8 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
-import { Reply, Smile, Trash2, Play, Pause } from "lucide-react";
+import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff } from "lucide-react";
 import { getState, useStore, patchUI } from "@/lib/store";
-import { deleteMessage, toggleReaction } from "@/lib/db";
+import { deleteMessage, toggleReaction, togglePin } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
 import type { Member, Message } from "@/lib/types";
 
@@ -44,6 +44,9 @@ export default function MessageItem({ m, member, prevSame }: { m: Message; membe
   const mine = m.from === meId;
   const replySrc = m.replyTo ? messages.find((x) => x.id === m.replyTo) : null;
   const replyMember = replySrc ? getState().members.find((x) => x.id === replySrc.from) : null;
+  const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
+  const pinnedIds = useStore((s) => s.pins[m.chatId] || []);
+  const isPinned = pinnedIds.includes(m.id);
 
   if (m.deleted) {
     return (
@@ -55,13 +58,14 @@ export default function MessageItem({ m, member, prevSame }: { m: Message; membe
 
   const name = member?.name || "Member";
   const color = member ? nameColor(member) : "#5c5e66";
-  const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
-
   return (
-    <div className={`msg-row group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035]`}>
+    <div id={`msg-${m.id}`} className={`msg-row group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035]`}>
       <div className="msg-actions absolute -top-4 right-4 z-10 flex overflow-hidden rounded-lg border border-black/10 bg-white soft-shadow">
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
+        {staff && (
+          <button title={isPinned ? "Unpin" : "Pin"} onClick={() => togglePin(m.chatId, m.id)} className={`p-2 hover:bg-black/5 ${isPinned ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{isPinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
+        )}
         {(mine || staff) && (
           <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#5c5e66] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
         )}

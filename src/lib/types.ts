@@ -43,7 +43,7 @@ export interface ChatMeta {
 }
 
 export interface UIState {
-  tab: "chat" | "owner";
+  tab: "chat" | "owner" | "deen";
   activeChatId: string | null;
   toasts: { id: string; title: string; body: string }[];
   typing: string[]; // member ids currently typing in active chat
@@ -61,6 +61,7 @@ export interface State {
   members: Member[];
   messages: Message[];
   chats: ChatMeta[];
+  pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
   ui: UIState;
 }
 
