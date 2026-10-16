@@ -59,6 +59,9 @@ export interface UIState {
   viewer: { msgId: string } | null; // A7 full-screen media viewer
   starredOpen: boolean; // B13 starred messages page
   asmaOpen: boolean; // Asma-ul-Husna player overlay (Deen)
+  groupInfo: null | { chatId: string; view: "info" | "media" | "files" }; // D1/D5/I13 group info panel
+  globalSearchOpen: boolean; // I15 global search overlay
+  jumpToMsg: string | null; // I15 — message id to scroll to after search jump
 }
 
 export interface State {
@@ -70,6 +73,8 @@ export interface State {
   chats: ChatMeta[];
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
   starred: string[]; // B13 — starred message ids (localStorage-backed)
+  groupRules: Record<string, { text: string; updatedAt: number; updatedBy: string }>; // D12 — chatId -> rules
+  groupDescs: Record<string, string>; // D1 — chatId -> group description
   ui: UIState;
 }
 

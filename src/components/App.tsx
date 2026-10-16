@@ -14,6 +14,8 @@ import OwnerPanel from "@/components/OwnerPanel";
 import DeenPage from "@/components/DeenPage";
 import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
+import GroupInfo from "@/components/GroupInfo";
+import GlobalSearch from "@/components/GlobalSearch";
 import Toasts from "@/components/Toasts";
 import GlobalVideoBar from "@/components/GlobalVideoBar";
 
@@ -62,7 +64,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null } });
       }
       // initial null (login page) → do nothing, just show Login
     });
@@ -105,6 +107,8 @@ export default function App() {
       </div>
       <ProfileModal />
       <MediaViewer />
+      <GroupInfo />
+      <GlobalSearch />
       <Toasts />
       {/* ★ Asma-ul-Husna mini-player — video chal rahi ho aur player band ho to */}
       <GlobalVideoBar />

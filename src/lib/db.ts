@@ -180,6 +180,28 @@ export async function load(userId: string, email: string): Promise<boolean> {
     });
   } catch { /* keep going */ }
 
+  // 6. group rules + descriptions (D1/D12)
+  let groupRules: Record<string, { text: string; updatedAt: number; updatedBy: string }> = {};
+  let groupDescs: Record<string, string> = {};
+  try {
+    const { data } = await sb().from("group_settings").select("key,value").or("key.like.rules_%,key.like.desc_%");
+    (data || []).forEach((r: any) => {
+      const k = String(r.key);
+      if (k.startsWith("rules_")) {
+        const cid = k.replace(/^rules_/, "");
+        const v = r.value;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          groupRules[cid] = { text: String((v as any).text || ""), updatedAt: Number((v as any).updatedAt) || 0, updatedBy: String((v as any).updatedBy || "") };
+        } else if (typeof v === "string" && v) {
+          groupRules[cid] = { text: v, updatedAt: 0, updatedBy: "" };
+        }
+      } else if (k.startsWith("desc_")) {
+        const v = r.value;
+        groupDescs[k.replace(/^desc_/, "")] = typeof v === "string" ? v : String(v ?? "");
+      }
+    });
+  } catch { /* keep going */ }
+
   const prev = getState();
   update({
     me: userId,
@@ -189,6 +211,8 @@ export async function load(userId: string, email: string): Promise<boolean> {
     messages,
     chats,
     pins,
+    groupRules,
+    groupDescs,
     starred: getStarred(),
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
@@ -498,6 +522,85 @@ export async function togglePin(chatId: string, msgId: string): Promise<string[]
   return next;
 }
 
+// ───────── D1/D12 group meta (group_settings: desc_<chatId>, rules_<chatId>) ─────────
+export async function setGroupSetting(key: string, value: any) {
+  try { await sb().from("group_settings").upsert({ key, value }); } catch { /* ignore */ }
+}
+export interface GroupRules { text: string; updatedAt: number; updatedBy: string }
+export async function setGroupDesc(chatId: string, desc: string) {
+  update({ groupDescs: { ...getState().groupDescs, [chatId]: desc } });
+  await setGroupSetting(`desc_${chatId}`, desc);
+}
+export async function setGroupRules(chatId: string, text: string) {
+  const r: GroupRules = { text, updatedAt: Date.now(), updatedBy: getState().me };
+  update({ groupRules: { ...getState().groupRules, [chatId]: r } });
+  await setGroupSetting(`rules_${chatId}`, r);
+}
+export async function setGroupPhoto(chatId: string, dataUrl: string) {
+  update({ chats: getState().chats.map((c) => (c.id === chatId ? { ...c, photo: dataUrl } : c)) });
+  try {
+    await sb().from("chats").update({ photo_url: dataUrl }).eq("id", chatId);
+  } catch {
+    toast("Photo save nahi hui", "Dobara koshish karo");
+  }
+}
+
+// ───────── D11 group insights — REAL data only, Supabase se count ─────────
+export interface GroupInsights {
+  perDay: { label: string; count: number; key: string }[];
+  perHour: number[]; // 24 buckets
+  top: { id: string; count: number }[];
+  total: number;
+  media: number;
+}
+export async function getGroupInsights(chatId: string): Promise<GroupInsights | null> {
+  try {
+    const weekAgo = Date.now() - 7 * 86400e3;
+    const { data, error } = await sb().from("messages")
+      .select("sender_id,created_at,type")
+      .eq("chat_id", chatId)
+      .gte("created_at", weekAgo)
+      .limit(5000);
+    if (error) return null;
+    const rows = (data || []) as any[];
+    const days: { label: string; count: number; key: string }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const label = i === 0 ? "Aaj" : i === 1 ? "Kal" : d.toLocaleDateString("ur-Latn", { weekday: "short" });
+      days.push({ label, count: 0, key });
+    }
+    const perHour = new Array(24).fill(0);
+    const bySender = new Map<string, number>();
+    let media = 0;
+    for (const r of rows) {
+      const at = Number(r.created_at) || 0;
+      const d = new Date(at);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const day = days.find((x) => x.key === key);
+      if (day) day.count++;
+      perHour[d.getHours()]++;
+      bySender.set(r.sender_id, (bySender.get(r.sender_id) || 0) + 1);
+      if (r.type === "image" || r.type === "voice") media++;
+    }
+    const top = [...bySender.entries()]
+      .map(([id, count]) => ({ id, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    return { perDay: days, perHour, top, total: rows.length, media };
+  } catch { return null; }
+}
+export async function getChatCounts(chatId: string): Promise<{ messages: number; media: number }> {
+  try {
+    const [{ count: messages }, { count: media }] = await Promise.all([
+      sb().from("messages").select("id", { count: "exact", head: true }).eq("chat_id", chatId),
+      sb().from("messages").select("id", { count: "exact", head: true }).eq("chat_id", chatId).in("type", ["image", "voice"]),
+    ]);
+    return { messages: messages || 0, media: media || 0 };
+  } catch { return { messages: 0, media: 0 }; }
+}
+
 // ───────── presence ─────────
 export function touchPresence(online: boolean) {
   try {
@@ -574,6 +677,19 @@ export function startRealtime() {
       const v = p.new?.value;
       const ids = Array.isArray(v) ? v.filter((x: any) => typeof x === "string") : [];
       update((st) => ({ pins: { ...st.pins, [cid]: ids } }));
+    } else if (typeof key === "string" && key.startsWith("rules_")) {
+      // D12 — rules realtime
+      const cid = key.replace(/^rules_/, "");
+      const v = p.new?.value;
+      const r = v && typeof v === "object" && !Array.isArray(v)
+        ? { text: String((v as any).text || ""), updatedAt: Number((v as any).updatedAt) || 0, updatedBy: String((v as any).updatedBy || "") }
+        : { text: typeof v === "string" ? v : "", updatedAt: Date.now(), updatedBy: "" };
+      update((st) => ({ groupRules: { ...st.groupRules, [cid]: r } }));
+    } else if (typeof key === "string" && key.startsWith("desc_")) {
+      // D1 — description realtime
+      const cid = key.replace(/^desc_/, "");
+      const v = p.new?.value;
+      update((st) => ({ groupDescs: { ...st.groupDescs, [cid]: typeof v === "string" ? v : String(v ?? "") } }));
     }
   });
 

@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Hash, Menu, Users, Pin, Search, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X } from "lucide-react";
 import { getState, useStore, patchUI } from "@/lib/store";
 import { markRead } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
@@ -109,6 +109,16 @@ export default function ChatView() {
       setTimeout(() => el.classList.remove("flash"), 1600);
     }
   };
+  // I15 — global search se jump
+  const jumpToMsg = useStore((s) => s.ui.jumpToMsg);
+  useEffect(() => {
+    if (!jumpToMsg) return;
+    const t = setTimeout(() => {
+      jumpTo(jumpToMsg);
+      patchUI({ jumpToMsg: null });
+    }, 450);
+    return () => clearTimeout(t);
+  }, [jumpToMsg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="glass relative flex min-w-0 flex-1 flex-col rounded-2xl">
@@ -117,20 +127,34 @@ export default function ChatView() {
           <Menu size={20} />
         </button>
         {isDM ? (
-          dmOther ? <Avatar m={dmOther} size={28} showDot /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#5865f2] text-sm font-bold text-white">@</span>
+          <>
+            {dmOther ? <Avatar m={dmOther} size={28} showDot /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#5865f2] text-sm font-bold text-white">@</span>}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{dmOther?.name || activeChat?.name}</h1>
+            </div>
+          </>
         ) : (
-          <Hash size={20} className="shrink-0 text-[#80848e]" />
+          <button
+            onClick={() => activeChatId && patchUI({ groupInfo: { chatId: activeChatId, view: "info" } })}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-black/[0.04] active:scale-[0.99]"
+            aria-label="Group info kholo"
+          >
+            <Hash size={20} className="shrink-0 text-[#80848e]" />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{activeChat?.name || "Chat"}</h1>
+              <p className="truncate text-xs text-[#80848e]">Group info ke liye tap karo 👆</p>
+            </div>
+          </button>
         )}
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{isDM ? dmOther?.name || activeChat?.name : activeChat?.name || "Chat"}</h1>
-          {!isDM && <p className="truncate text-xs text-[#80848e]">Madrasa doston ka group</p>}
-        </div>
         {typer && (
           <span className="hidden items-center gap-1.5 text-xs font-semibold text-[#23a55a] sm:flex">
             <span className="flex gap-0.5"><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /></span>
             {typer.name.split(" ")[0]} likh raha hai…
           </span>
         )}
+        <button onClick={() => patchUI({ globalSearchOpen: true })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5" aria-label="Global search" title="Poori app me talash">
+          <Globe size={20} />
+        </button>
         <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-black/5 ${searchOn ? "text-[#5865f2]" : "text-[#5c5e66]"}`} aria-label="Search">
           <Search size={20} />
         </button>

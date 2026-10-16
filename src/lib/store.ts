@@ -18,6 +18,9 @@ const initialUI: UIState = {
   viewer: null,
   starredOpen: false,
   asmaOpen: false,
+  groupInfo: null,
+  globalSearchOpen: false,
+  jumpToMsg: null,
 };
 
 let state: State = {
@@ -29,6 +32,8 @@ let state: State = {
   chats: [],
   pins: {},
   starred: [],
+  groupRules: {},
+  groupDescs: {},
   ui: { ...initialUI },
 };
 

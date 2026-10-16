@@ -134,6 +134,10 @@ a:hover { text-decoration: underline; }
 @keyframes msgflash { 0% { background: rgba(88,101,242,0.18); } 100% { background: transparent; } }
 .msg-row.flash { animation: msgflash 1.6s ease-out; border-radius: 8px; }
 
+/* D1 — group info slide-over */
+@keyframes slideinright { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.slide-in-right { animation: slideinright 0.22s ease-out; }
+
 /* B15 — delete shrink+fade (200ms) */
 .msg-row.deleting { transform: scale(0.94); opacity: 0; transition: transform 200ms ease, opacity 200ms ease; }
 
