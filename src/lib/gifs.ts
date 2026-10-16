@@ -70,12 +70,12 @@ function fromGiphyJson(d: any): GifItem[] {
 
 // ---- live GIPHY (skipped forever once it fails) ----
 let giphyDead = false;
-async function giphyFetch(path: string, limit: number): Promise<GifItem[] | null> {
+async function giphyFetch(path: string, limit: number, offset = 0): Promise<GifItem[] | null> {
   if (giphyDead) return null;
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(`${GIPHY}${path}&api_key=${GIPHY_KEY}&limit=${limit}&rating=g&lang=en`, { signal: ctl.signal });
+    const r = await fetch(`${GIPHY}${path}&api_key=${GIPHY_KEY}&limit=${limit}&offset=${offset}&rating=g&lang=en`, { signal: ctl.signal });
     clearTimeout(t);
     if (!r.ok) throw new Error("giphy " + r.status);
     const items = fromGiphyJson(await r.json());
@@ -152,10 +152,15 @@ function cached(key: string, make: () => GifItem[]): GifItem[] {
   return v;
 }
 
-/** Live GIPHY search → curated fallback. */
-export async function searchGifs(query: string, limit = 24): Promise<GifItem[]> {
+/** Live GIPHY search → curated fallback. Supports offset for pagination. */
+export async function searchGifs(query: string, limit = 24, offset = 0): Promise<GifItem[]> {
   const q = query.trim();
-  if (!q) return trendingGifs(limit);
+  if (!q) return trendingGifs(limit, offset);
+  // Don't use cache for paginated requests
+  if (offset > 0) {
+    const live = await giphyFetch(`/search?q=${encodeURIComponent(q)}`, limit, offset);
+    return live ?? [];
+  }
   const key = "s:" + q.toLowerCase();
   const hit = cache.get(key);
   if (hit) return hit.slice(0, limit);
@@ -165,8 +170,12 @@ export async function searchGifs(query: string, limit = 24): Promise<GifItem[]> 
   return res.slice(0, limit);
 }
 
-/** Live GIPHY trending → curated mix fallback. */
-export async function trendingGifs(limit = 24): Promise<GifItem[]> {
+/** Live GIPHY trending → curated mix fallback. Supports offset for pagination. */
+export async function trendingGifs(limit = 24, offset = 0): Promise<GifItem[]> {
+  if (offset > 0) {
+    const live = await giphyFetch(`/trending?`, limit, offset);
+    return live ?? [];
+  }
   const hit = cache.get("trending");
   if (hit) return hit.slice(0, limit);
   const live = await giphyFetch(`/trending?`, limit);
@@ -175,10 +184,14 @@ export async function trendingGifs(limit = 24): Promise<GifItem[]> {
   return res.slice(0, limit);
 }
 
-/** Category GIFs. "trending" → trendingGifs. */
-export async function categoryGifs(cat: string, limit = 24): Promise<GifItem[]> {
-  if (cat === "trending") return trendingGifs(limit);
+/** Category GIFs. "trending" → trendingGifs. Supports offset for pagination. */
+export async function categoryGifs(cat: string, limit = 24, offset = 0): Promise<GifItem[]> {
+  if (cat === "trending") return trendingGifs(limit, offset);
   const meta = GIF_CATEGORIES.find((c) => c.id === cat);
+  if (offset > 0) {
+    const live = meta?.query ? await giphyFetch(`/search?q=${encodeURIComponent(meta.query)}`, limit, offset) : null;
+    return live ?? [];
+  }
   const key = "c:" + cat;
   const hit = cache.get(key);
   if (hit) return hit.slice(0, limit);
@@ -243,9 +256,9 @@ export const CURATED: Record<string, [string, string][]> = {
 };
 /**
  * UI-friendly wrapper used by GifPicker — accepts a full GifCategory object
- * or a plain category id string.
+ * or a plain category id string. Supports offset for pagination.
  */
-export async function fetchCategoryGifs(c: GifCategory | string, limit = 24): Promise<GifItem[]> {
+export async function fetchCategoryGifs(c: GifCategory | string, limit = 24, offset = 0): Promise<GifItem[]> {
   const id = typeof c === "string" ? c : c.id;
-  return categoryGifs(id, limit);
+  return categoryGifs(id, limit, offset);
 }

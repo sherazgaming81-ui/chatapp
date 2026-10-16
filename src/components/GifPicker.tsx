@@ -9,19 +9,47 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
   const [q, setQ] = useState("");
   const [gifs, setGifs] = useState<GifItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [searching, setSearching] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const LIMIT = 24;
 
-  const load = useCallback(async (c: GifCategory) => {
-    setLoading(true);
+  const load = useCallback(async (c: GifCategory, fresh = true) => {
+    if (fresh) {
+      setLoading(true);
+      offsetRef.current = 0;
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError("");
     try {
-      setGifs(await fetchCategoryGifs(c));
+      const off = fresh ? 0 : offsetRef.current + LIMIT;
+      const res = await fetchCategoryGifs(c, LIMIT, off);
+      setGifs((prev) => (fresh ? res : [...prev, ...res]));
+      offsetRef.current = off;
+      setHasMore(res.length >= LIMIT);
     } catch {
-      setError("GIFs nahi aye — dobara try karo");
+      if (fresh) setError("GIFs nahi aye — dobara try karo");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  const loadMoreSearch = useCallback(async (query: string) => {
+    setLoadingMore(true);
+    try {
+      const off = offsetRef.current + LIMIT;
+      const res = await searchGifs(query, LIMIT, off);
+      setGifs((prev) => [...prev, ...res]);
+      offsetRef.current = off;
+      setHasMore(res.length >= LIMIT);
+    } finally {
+      setLoadingMore(false);
     }
   }, []);
 
@@ -118,6 +146,16 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
               </button>
             ))}
           </div>
+        )}
+        {/* Load more */}
+        {!loading && !error && hasMore && gifs.length > 0 && (
+          <button
+            onClick={() => (searching && q.trim() ? loadMoreSearch(q.trim()) : load(cat, false))}
+            disabled={loadingMore}
+            className="mx-auto mt-3 mb-1 flex items-center gap-2 rounded-full bg-black/5 px-5 py-2 text-sm font-medium text-[#5c5e66] transition hover:bg-black/10 active:scale-95 disabled:opacity-50"
+          >
+            {loadingMore ? "Load ho raha…" : "⬇️ Aur dekho"}
+          </button>
         )}
       </div>
     </div>

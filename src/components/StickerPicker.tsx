@@ -37,12 +37,12 @@ const CATS = [
   { id: "birthday", name: "Birthday", icon: "🎂", q: "happy birthday" },
 ];
 
-async function fetchStickers(query: string): Promise<GiphySticker[]> {
+async function fetchStickers(query: string, offset = 0): Promise<GiphySticker[]> {
   const url = query.trim()
     ? `https://api.giphy.com/v1/stickers/search?api_key=${API_KEY}&q=${encodeURIComponent(
         query.trim()
-      )}&limit=${LIMIT}&rating=g`
-    : `https://api.giphy.com/v1/stickers/trending?api_key=${API_KEY}&limit=${LIMIT}&rating=g`;
+      )}&limit=${LIMIT}&offset=${offset}&rating=g`
+    : `https://api.giphy.com/v1/stickers/trending?api_key=${API_KEY}&limit=${LIMIT}&offset=${offset}&rating=g`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("giphy fetch failed");
   const json = await res.json();
@@ -61,20 +61,36 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
   const [q, setQ] = useState("");
   const [items, setItems] = useState<GiphySticker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  const load = useCallback(async (query: string) => {
-    setLoading(true);
+  const load = useCallback(async (query: string, fresh = true) => {
+    if (fresh) {
+      setLoading(true);
+      setOffset(0);
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError(false);
     try {
-      setItems(await fetchStickers(query));
+      const off = fresh ? 0 : offset + LIMIT;
+      const res = await fetchStickers(query, off);
+      setItems((prev) => (fresh ? res : [...prev, ...res]));
+      setOffset(off);
+      setHasMore(res.length >= LIMIT);
     } catch {
-      setError(true);
-      setItems([]);
+      if (fresh) {
+        setError(true);
+        setItems([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }, [offset]);
 
   // Category change → immediate load
   const pickCat = (id: string) => {
@@ -188,6 +204,16 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
               </button>
             ))}
           </div>
+        )}
+        {/* Load more */}
+        {!loading && !error && hasMore && items.length > 0 && (
+          <button
+            onClick={() => load(searching ? q : CATS.find((x) => x.id === cat)?.q ?? "", false)}
+            disabled={loadingMore}
+            className="mx-auto mt-3 mb-1 flex items-center gap-2 rounded-full bg-black/5 px-5 py-2 text-sm font-medium text-[#5c5e66] transition hover:bg-black/10 active:scale-95 disabled:opacity-50"
+          >
+            {loadingMore ? "Load ho raha…" : "⬇️ Aur dekho"}
+          </button>
         )}
       </div>
     </div>
