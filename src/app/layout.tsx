@@ -5,6 +5,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ChatsApp",
   description: "Madrasa doston ke liye apni chat — tez, saaf, apni.",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

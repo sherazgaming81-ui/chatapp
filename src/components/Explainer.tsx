@@ -1,12 +1,30 @@
 "use client";
 // 10-scene explainer video — 3s per scene (30s total). Pure CSS animations, 60fps.
 // Video-player style: play/pause, seek bar, scene markers, time display, "Dobara".
+// SFX (Web Audio): whoosh on scene change, pop on elements. Sound toggle.
+// Real Karachi prayer times (Aladhan API) in Deen scene. ChatsApp logo in scenes 1 & 10.
 // WHITE/light theme.
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { MoonSvg } from "@/components/MoonPage";
+import { playWhoosh, playPop } from "@/lib/sfx";
+import { getSound, setSound } from "@/lib/prefs";
 
 const SCENE_LEN = 3; // seconds per scene
+
+// Fallback: verified real Karachi times (16 Oct 2026, Hanafi/MWL)
+const FALLBACK_TIMES = ["5:14 AM", "12:18 PM", "4:27 PM", "6:04 PM", "7:20 PM"];
+const PRAYER_NAMES = ["Fajr", "Zuhr", "Asr", "Maghrib", "Isha"];
+
+function to12h(t24: string): string {
+  const m = t24.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return t24;
+  let h = parseInt(m[1], 10);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m[2]} ${ap}`;
+}
+
 const SCENES = [
   { cap: "Assalam-o-Alaikum! 🌙", sub: "ChatsApp — Baatein, ab aur qareeb", bg: "linear-gradient(135deg,#e8ebff,#f7f8ff)" },
   { cap: "Madrasa Group", sub: "Apne doston se juro — elaan aur baatein", bg: "linear-gradient(135deg,#dcf5e9,#f2fdf7)" },
@@ -20,12 +38,11 @@ const SCENES = [
   { cap: "Chalo shuru karte hain! 🚀", sub: "Baatein, ab aur qareeb", bg: "linear-gradient(135deg,#e8ebff,#dcf5e9)" },
 ];
 
-function Scene({ n }: { n: number }) {
+function Scene({ n, times }: { n: number; times: string[] }) {
   if (n === 0) return (
     <div className="flex flex-col items-center">
-      <div className="ex-pop grid h-24 w-24 place-items-center rounded-[28px] bg-gradient-to-br from-[#5865f2] to-[#9b7bff] soft-shadow">
-        <span className="text-5xl font-bold text-white">م</span>
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="ChatsApp" className="ex-pop h-24 w-24 rounded-[28px] soft-shadow" />
       <div className="ex-in mt-4 flex gap-1.5" style={{ animationDelay: ".5s" }}>
         {[0, 1, 2].map((i) => <span key={i} className="ex-typing h-2 w-2 rounded-full bg-[#5865f2]" style={{ animationDelay: `${i * 0.18}s` }} />)}
       </div>
@@ -58,7 +75,10 @@ function Scene({ n }: { n: number }) {
         <path d="M64 14a38 38 0 1 0 22 68 30 30 0 1 1-22-68z" fill="#f2c94c" />
       </svg>
       <div className="ex-in space-y-1.5 rounded-2xl bg-white p-3.5 text-left text-sm font-bold text-[#2f3035] soft-shadow" style={{ animationDelay: ".4s" }}>
-        {["🕌 Fajr 5:12", "🕌 Zuhr 12:30", "🕌 Asr 4:05", "🕌 Maghrib 6:41"].map((x) => <p key={x}>{x}</p>)}
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[#80848e]">Karachi · Aaj</p>
+        {PRAYER_NAMES.map((nm, i) => (
+          <p key={nm}>🕌 {nm} <span className="tabular-nums text-[#5865f2]">{times[i]}</span></p>
+        ))}
       </div>
     </div>
   );
@@ -111,13 +131,16 @@ function Scene({ n }: { n: number }) {
       </div>
     </div>
   );
+  // Scene 10 — ChatsApp logo + brand
   return (
     <div className="flex flex-col items-center">
       <span className="ex-pop text-7xl">🚀</span>
-      <div className="ex-in mt-3 flex gap-1" style={{ animationDelay: ".4s" }}>
-        {["م", "C", "h", "a", "t", "s"].map((c, i) => (
-          <span key={i} className="ex-pop grid h-9 w-9 place-items-center rounded-xl bg-[#5865f2] text-lg font-bold text-white" style={{ animationDelay: `${0.5 + i * 0.12}s` }}>{c}</span>
-        ))}
+      <div className="ex-in mt-4 flex items-center gap-3" style={{ animationDelay: ".4s" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="ChatsApp logo" className="ex-pop h-14 w-14 rounded-2xl soft-shadow" style={{ animationDelay: ".5s" }} />
+        <span className="ex-pop text-3xl font-extrabold tracking-tight text-[#2f3035]" style={{ animationDelay: ".65s" }}>
+          Chats<span className="text-[#23a55a]">App</span>
+        </span>
       </div>
     </div>
   );
@@ -132,7 +155,40 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
   const total = SCENES.length * SCENE_LEN;
   const [t, setT] = useState(0);
   const [play, setPlay] = useState(true);
+  const [soundOn, setSoundOn] = useState(true);
+  const [times, setTimes] = useState<string[]>(FALLBACK_TIMES);
   const raf = useRef(0), last = useRef(0);
+  const lastScene = useRef(-1);
+  const barRef = useRef<HTMLDivElement>(null);
+  const tRef = useRef(0);
+  tRef.current = t;
+  const onEndRef = useRef(onEnd);
+  onEndRef.current = onEnd;
+
+  // Sound preference
+  useEffect(() => { setSoundOn(getSound()); }, []);
+
+  // Real Karachi prayer times (Aladhan API) — fail ho to fallback
+  useEffect(() => {
+    let live = true;
+    fetch("https://api.aladhan.com/v1/timingsByCity?city=Karachi&country=Pakistan&method=1")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!live) return;
+        const tm = d?.data?.timings;
+        if (tm) {
+          setTimes([
+            to12h(tm.Fajr || "05:14"),
+            to12h(tm.Dhuhr || "12:18"),
+            to12h(tm.Asr || "16:27"),
+            to12h(tm.Maghrib || "18:04"),
+            to12h(tm.Isha || "19:20"),
+          ]);
+        }
+      })
+      .catch(() => { /* fallback rehne do */ });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     if (!play) return;
@@ -140,24 +196,63 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
     const tick = (n: number) => {
       const dt = (n - last.current) / 1000;
       last.current = n;
-      setT((x) => {
-        const v = x + dt;
-        if (v >= total) { setPlay(false); onEnd?.(); return total; }
-        return v;
-      });
+      const nt = Math.min(total, tRef.current + dt);
+      tRef.current = nt;
+      setT(nt);
+      if (nt >= total) { setPlay(false); onEndRef.current?.(); return; }
+      // Progress bar — direct DOM update (no React re-render, no CSS transition)
+      if (barRef.current) {
+        barRef.current.style.width = `${(nt / total) * 100}%`;
+      }
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-  }, [play, total, onEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [play, total]);
 
   const sc = Math.min(SCENES.length - 1, Math.floor(t / SCENE_LEN));
   const S = SCENES[sc];
 
+  // Scene change par whoosh SFX
+  useEffect(() => {
+    if (lastScene.current !== sc) {
+      lastScene.current = sc;
+      if (soundOn && t > 0.1) {
+        playWhoosh();
+        // Elements ke liye subtle pops (staggered)
+        playPop(0.35); playPop(0.6); playPop(0.85);
+      }
+    }
+  }, [sc, soundOn, t]);
+
+  // Bar ko seek/replay par sync karo
+  useEffect(() => {
+    if (barRef.current) barRef.current.style.width = `${(t / total) * 100}%`;
+  }, [t, total]);
+
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setT(Math.max(0, Math.min(total - 0.01, ((e.clientX - r.left) / r.width) * total)));
+    const nt = Math.max(0, Math.min(total - 0.01, ((e.clientX - r.left) / r.width) * total));
+    tRef.current = nt;
+    setT(nt);
+    lastScene.current = Math.floor(nt / SCENE_LEN); // seek par dobara whoosh nahi
   };
+
+  const replay = () => {
+    tRef.current = 0;
+    setT(0);
+    lastScene.current = -1;
+    setPlay(true);
+  };
+
+  const toggleSound = () => {
+    const v = !soundOn;
+    setSoundOn(v);
+    setSound(v);
+  };
+
+  const ended = t >= total - 0.01;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-3xl border border-black/10 bg-white soft-shadow">
@@ -168,13 +263,20 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
         onClick={() => setPlay((p) => !p)}
       >
         <div key={sc} className="flex flex-col items-center">
-          <Scene n={sc} />
+          <Scene n={sc} times={times} />
           <h3 className="ex-in mt-5 text-2xl font-extrabold tracking-tight text-[#2f3035]" style={{ animationDelay: ".3s" }}>{S.cap}</h3>
           <p className="ex-in mt-1 text-sm font-medium text-[#5c5e66]" style={{ animationDelay: ".5s" }}>{S.sub}</p>
         </div>
-        {!play && t < total && (
+        {!play && !ended && (
           <div className="absolute inset-0 grid place-items-center bg-black/10">
             <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-[#2f3035] soft-shadow">
+              <Play size={26} fill="currentColor" className="ml-1" />
+            </span>
+          </div>
+        )}
+        {ended && (
+          <div className="absolute inset-0 grid place-items-center bg-black/10" onClick={(e) => { e.stopPropagation(); replay(); }}>
+            <span className="grid h-16 w-16 cursor-pointer place-items-center rounded-full bg-[#5865f2] text-white soft-shadow transition active:scale-95">
               <Play size={26} fill="currentColor" className="ml-1" />
             </span>
           </div>
@@ -186,20 +288,32 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
       {/* controls */}
       <div className="flex items-center gap-3 bg-white px-3.5 py-3">
         <button
-          onClick={() => { if (t >= total - 0.01) setT(0); setPlay((p) => !p); }}
+          onClick={() => { if (ended) { replay(); } else setPlay((p) => !p); }}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5865f2] text-white transition active:scale-95"
           aria-label={play ? "Roko" : "Chalao"}
         >
           {play ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
         </button>
         <div className="relative h-2.5 flex-1 cursor-pointer rounded-full bg-black/10" onClick={seek}>
-          <div className="h-full rounded-full bg-gradient-to-r from-[#5865f2] to-[#9b7bff] transition-[width]" style={{ width: `${(t / total) * 100}%` }} />
+          {/* Direct DOM width updates — koi CSS transition nahi (RAF lag fix) */}
+          <div ref={barRef} className="h-full rounded-full bg-gradient-to-r from-[#5865f2] to-[#9b7bff]" style={{ width: "0%" }} />
           {SCENES.map((_, i) => i > 0 && (
-            <span key={i} className="absolute top-0 h-full w-[2px] bg-white/90" style={{ left: `${(i / SCENES.length) * 100}%` }} />
+            <span
+              key={i}
+              className={`absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full transition-colors ${i <= sc ? "bg-[#5865f2]" : "bg-white/90"}`}
+              style={{ left: `calc(${(i / SCENES.length) * 100}% - 1px)` }}
+            />
           ))}
         </div>
         <button
-          onClick={() => { setT(0); setPlay(true); }}
+          onClick={toggleSound}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#5c5e66] hover:bg-black/5"
+          aria-label={soundOn ? "Sound band karo" : "Sound chalao"}
+        >
+          {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
+        </button>
+        <button
+          onClick={replay}
           className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5c5e66] hover:bg-black/5"
         >
           Dobara
