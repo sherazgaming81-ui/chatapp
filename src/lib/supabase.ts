@@ -1,0 +1,23 @@
+"use client";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+let client: SupabaseClient | null = null;
+
+export function supabase(): SupabaseClient {
+  if (client) return client;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  client = createClient(url, key, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    realtime: { params: { eventsPerSecond: 20 } },
+  });
+  return client;
+}
+
+export { OWNER_EMAIL } from "./types";
+
+// Resolved dynamically in db.load() — NEVER hardcode a chat id.
+export let MAIN_GROUP_ID = "";
+export function setMainGroupId(id: string) {
+  MAIN_GROUP_ID = id;
+}
