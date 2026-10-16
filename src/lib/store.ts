@@ -13,6 +13,8 @@ const initialUI: UIState = {
   showMembers: true,
   mobileDrawer: "none",
   confirmBan: null,
+  editingMsg: null,
+  infoMsg: null,
 };
 
 let state: State = {

@@ -54,6 +54,15 @@ export function fmtDayLabel(at: number): string {
   if (diff === 1) return "kal";
   return d.toLocaleDateString("ur-Latn", { day: "numeric", month: "short" });
 }
+export function fmtDayHeader(at: number): string {
+  const d = new Date(at);
+  const now = new Date();
+  const day = (x: Date) => x.getFullYear() * 1000 + Math.floor(x.getMonth() * 30 + x.getDate());
+  const diff = day(now) - day(d);
+  if (diff <= 0) return "Aaj";
+  if (diff === 1) return "Kal";
+  return d.toLocaleDateString("ur-Latn", { day: "numeric", month: "short" });
+}
 export function fmtFull(at: number): string {
   return `${fmtDayLabel(at)} ${fmtTime(at)}`;
 }

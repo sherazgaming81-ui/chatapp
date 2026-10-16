@@ -31,6 +31,8 @@ export interface Message {
   src?: string; // media_url (image / voice)
   dur?: number; // voice seconds
   caption?: string;
+  readBy?: string[]; // user ids that read it (from messages.read_by)
+  status?: "sent" | "delivered" | "read"; // optional explicit tick state
 }
 
 export interface ChatMeta {
@@ -52,6 +54,8 @@ export interface UIState {
   showMembers: boolean; // right sidebar (desktop)
   mobileDrawer: "none" | "channels" | "members";
   confirmBan: string | null;
+  editingMsg: Message | null; // B16 edit mode
+  infoMsg: string | null; // A17 seen-by modal (message id)
 }
 
 export interface State {

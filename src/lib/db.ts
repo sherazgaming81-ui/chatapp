@@ -33,12 +33,13 @@ function toMessage(r: any): Message {
     text: r.text || "",
     at: r.created_at || Date.now(),
     replyTo: r.reply_to || undefined,
-    edited: false,
+    edited: !!(r as any).edited,
     reactions: (r as any).reactions || {},
     src: r.media_url || undefined,
     dur: (r as any).duration || undefined,
     caption: (r as any).caption || undefined,
     deleted: !!r.is_deleted,
+    readBy: Array.isArray(r.read_by) ? r.read_by.filter((x: any) => typeof x === "string") : [],
   };
 }
 
@@ -233,6 +234,52 @@ export async function deleteMessage(id: string) {
   update({ messages: getState().messages.map((m) => (m.id === id ? { ...m, deleted: true, text: "", src: undefined } : m)) });
   try {
     await sb().from("messages").update({ is_deleted: true, text: "" }).eq("id", id);
+  } catch { /* ignore */ }
+}
+
+// B16 — edit own text message (15 min window enforced by caller)
+export async function editMessage(msgId: string, text: string) {
+  const t = text.trim();
+  if (!t) return;
+  update({ messages: getState().messages.map((m) => (m.id === msgId ? { ...m, text: t, edited: true } : m)) });
+  patchUI({ editingMsg: null });
+  try {
+    await sb().from("messages").update({ text: t, edited: true }).eq("id", msgId);
+  } catch {
+    // edited column may not exist — text-only fallback
+    try { await sb().from("messages").update({ text: t }).eq("id", msgId); } catch { /* ignore */ }
+  }
+}
+
+// A9/A11/A17 — mark others' messages in this chat as read (best-effort)
+export function markRead(chatId: string) {
+  try {
+    if (!chatId || typeof document === "undefined" || document.hidden) return;
+    const s = getState();
+    const me = s.me;
+    if (!me) return;
+    const unread = s.messages.filter(
+      (m) => m.chatId === chatId && m.from !== me && !m.deleted && !(m.readBy || []).includes(me)
+    );
+    if (unread.length > 0) {
+      update({
+        messages: s.messages.map((m) =>
+          m.chatId === chatId && m.from !== me && !m.deleted && !(m.readBy || []).includes(me)
+            ? { ...m, readBy: [...(m.readBy || []), me] }
+            : m
+        ),
+      });
+      // server sync — latest 30, fire and forget (RLS may block; local still works)
+      unread.slice(-30).forEach((m) => {
+        const arr = [...(m.readBy || []).filter((x) => x !== me), me];
+        sb().from("messages").update({ read_by: arr }).eq("id", m.id).then(() => {}, () => {});
+      });
+    }
+    // remember last-read position per chat
+    const last = [...s.messages].reverse().find((m) => m.chatId === chatId && !m.deleted);
+    if (last) {
+      try { localStorage.setItem(`chatsapp:lastRead:${chatId}`, last.id); } catch { /* ignore */ }
+    }
   } catch { /* ignore */ }
 }
 

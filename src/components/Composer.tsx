@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin } from "@/lib/db";
+import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 
 // ───────── command palette ─────────
@@ -27,6 +27,7 @@ function findMemberByName(members: { id: string; name: string }[], raw: string) 
 
 export default function Composer({ chatId }: { chatId: string }) {
   const replyTo = useStore((s) => s.ui.replyTo);
+  const editingMsg = useStore((s) => s.ui.editingMsg);
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me);
   const [text, setText] = useState("");
@@ -37,6 +38,19 @@ export default function Composer({ chatId }: { chatId: string }) {
   const file = useRef<HTMLInputElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
   const typingSent = useRef(0);
+
+  // A19 — per-chat drafts in localStorage
+  useEffect(() => {
+    try { setText(localStorage.getItem(`chatsapp:draft:${chatId}`) || ""); } catch { setText(""); }
+    patchUI({ editingMsg: null, replyTo: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
+  // B16 — entering edit mode fills composer
+  useEffect(() => {
+    if (editingMsg) { setText(editingMsg.text); ta.current?.focus(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingMsg?.id]);
 
   const replyMember = replyTo ? members.find((m) => m.id === replyTo.from) : null;
   const muted = (() => {
@@ -51,7 +65,17 @@ export default function Composer({ chatId }: { chatId: string }) {
   }, [recording]);
 
   const send = () => {
-    if (muted || !text.trim()) return;
+    if (muted) return;
+    // B16 — edit mode: save instead of send
+    if (editingMsg) {
+      if (!text.trim()) return;
+      editMessage(editingMsg.id, text);
+      setText("");
+      try { localStorage.removeItem(`chatsapp:draft:${chatId}`); } catch { /* ignore */ }
+      ta.current?.focus();
+      return;
+    }
+    if (!text.trim()) return;
     // command execution
     if (text.startsWith("/")) {
       if (execCommand(text)) { setText(""); patchUI({ replyTo: null }); ta.current?.focus(); }
@@ -59,6 +83,7 @@ export default function Composer({ chatId }: { chatId: string }) {
     }
     sendText(chatId, text, replyTo?.id);
     setText("");
+    try { localStorage.removeItem(`chatsapp:draft:${chatId}`); } catch { /* ignore */ }
     patchUI({ replyTo: null });
     ta.current?.focus();
   };
@@ -120,6 +145,10 @@ export default function Composer({ chatId }: { chatId: string }) {
 
   const onType = (v: string) => {
     setText(v);
+    // A19 — save draft (skip while editing)
+    if (!editingMsg) {
+      try { localStorage.setItem(`chatsapp:draft:${chatId}`, v); } catch { /* ignore */ }
+    }
     const now = Date.now();
     if (now - typingSent.current > 2800 && v.trim()) {
       typingSent.current = now;
@@ -198,6 +227,15 @@ export default function Composer({ chatId }: { chatId: string }) {
           <button onClick={() => patchUI({ replyTo: null })} className="rounded-md p-1 text-[#80848e] hover:bg-black/10"><X size={15} /></button>
         </div>
       )}
+      {editingMsg && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-[#5865f2]/25 bg-[#5865f2]/[0.08] px-3 py-2 text-sm">
+          <Pencil size={15} className="shrink-0 text-[#5865f2]" />
+          <span className="min-w-0 flex-1 truncate text-[#5c5e66]">
+            <b className="text-[#2f3035]">Edit kar rahe ho</b> · 15 min ke andar
+          </span>
+          <button onClick={() => { patchUI({ editingMsg: null }); setText(""); }} className="rounded-md p-1 text-[#80848e] hover:bg-black/10" aria-label="Cancel edit"><X size={15} /></button>
+        </div>
+      )}
       {muted ? (
         <div className="rounded-lg border border-[#ed4245]/30 bg-[#ed4245]/[0.07] px-4 py-3.5 text-center text-sm font-semibold text-[#ed4245]">
           Aap mute ho — message nahi bhej sakte
@@ -236,14 +274,14 @@ export default function Composer({ chatId }: { chatId: string }) {
               }
               if (e.key === "Escape" && showPalette) { setText(""); }
             }}
-            placeholder="Message likho…"
+            placeholder={editingMsg ? "Message edit karo…" : "Message likho…"}
             className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] text-[#2f3035] outline-none placeholder:text-[#80848e]"
           />
           <button onClick={startRec} className="rounded-md p-2.5 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Voice note">
             <Mic size={20} />
           </button>
-          <button onClick={send} disabled={!text.trim()} className="btn btn-blurple grid h-11 w-11 place-items-center disabled:opacity-40" title="Bhejo">
-            <Send size={18} />
+          <button onClick={send} disabled={!text.trim()} className="btn btn-blurple grid h-11 w-11 place-items-center disabled:opacity-40" title={editingMsg ? "Save" : "Bhejo"}>
+            {editingMsg ? <Check size={18} /> : <Send size={18} />}
           </button>
         </div>
       )}

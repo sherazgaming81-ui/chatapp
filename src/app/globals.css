@@ -134,6 +134,16 @@ a:hover { text-decoration: underline; }
 @keyframes msgflash { 0% { background: rgba(88,101,242,0.18); } 100% { background: transparent; } }
 .msg-row.flash { animation: msgflash 1.6s ease-out; border-radius: 8px; }
 
+/* B15 — delete shrink+fade (200ms) */
+.msg-row.deleting { transform: scale(0.94); opacity: 0; transition: transform 200ms ease, opacity 200ms ease; }
+
+/* A11 — animated ticks pop */
+@keyframes tickpop { 0% { transform: scale(0.5); } 55% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.tick-pop { display: inline-block; animation: tickpop 0.3s ease-out; }
+
+/* A5 — search highlight */
+mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; padding: 0 1px; color: inherit; }
+
 /* inputs */
 .field {
   background: rgba(255, 255, 255, 0.75);
