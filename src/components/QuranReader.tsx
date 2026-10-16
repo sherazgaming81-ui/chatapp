@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, ChevronLeft, Bookmark, BookmarkCheck, BookOpen, X, Clock } from "lucide-react";
 import {
   fetchSurahList, fetchSurah, getBookmarks, toggleBookmark,
-  saveLastRead, getLastRead, getAllLastRead, BISMILLAH,
+  saveLastRead, getLastRead, getAllLastRead, BISMILLAH, BISMILLAH_URDU,
   type SurahMeta, type Ayah, type Bookmark as BM,
 } from "@/lib/quran";
 
@@ -170,7 +170,10 @@ function Reader({ surah, scrollTo }: { surah: number; scrollTo?: number }) {
         {data && (
           <div className="mx-auto max-w-2xl">
             {showBismillah && (
-              <p className="font-quran py-6 text-center text-[26px] leading-loose text-[#2f3035]" dir="rtl" lang="ar">{BISMILLAH}</p>
+              <div className="py-6 text-center">
+                <p className="font-quran text-[28px] leading-loose text-[#b8860b]" dir="rtl" lang="ar">{BISMILLAH}</p>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-[#8a6d1a]" dir="rtl" lang="ur">{BISMILLAH_URDU}</p>
+              </div>
             )}
             <div className="divide-y divide-black/[0.06]">
               {data.ayahs.map((a) => {

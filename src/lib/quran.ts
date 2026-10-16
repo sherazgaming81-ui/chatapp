@@ -20,6 +20,11 @@ export interface Ayah {
 // Bismillah — exact Uthmani string VERIFIED from API: GET /v1/surah/1/quran-uthmani (ayah 1)
 const BISMILLAH_RAW = "﻿بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ";
 export const BISMILLAH = BISMILLAH_RAW.replace(/^﻿/, "").trim();
+// Bismillah ka Urdu tarjuma (Jalandhry) — VERIFIED from API: GET /v1/ayah/1:1/editions/ur.jalandhry
+export const BISMILLAH_URDU = "شروع الله کا نام لے کر جو بڑا مہربان نہایت رحم والا ہے";
+
+// Cache version — badhao jab Quran data format badle (purana cache auto-clear)
+const QURAN_CACHE_V = "v2";
 
 // Juz → starting surah. VERIFIED against API: GET /v1/juz/{1,14,30}/quran-uthmani
 // (1→1:1, 14→15:1, 30→78:1 all matched). Standard Medina mushaf mapping.
@@ -47,7 +52,7 @@ function cacheSet(key: string, val: unknown) {
 }
 
 export async function fetchSurahList(): Promise<SurahMeta[]> {
-  const cached = cacheGet<SurahMeta[]>("chatsapp:quran:surahs");
+  const cached = cacheGet<SurahMeta[]>("chatsapp:quran:surahs:" + QURAN_CACHE_V);
   if (cached && cached.length === 114) return cached;
   const r = await fetch(`${API}/surah`);
   if (!r.ok) throw new Error("net");
@@ -57,12 +62,12 @@ export async function fetchSurahList(): Promise<SurahMeta[]> {
     englishNameTranslation: s.englishNameTranslation,
     numberOfAyahs: s.numberOfAyahs, revelationType: s.revelationType,
   }));
-  cacheSet("chatsapp:quran:surahs", list);
+  cacheSet("chatsapp:quran:surahs:" + QURAN_CACHE_V, list);
   return list;
 }
 
 export async function fetchSurah(n: number): Promise<{ meta: SurahMeta; ayahs: Ayah[] }> {
-  const cached = cacheGet<{ meta: SurahMeta; ayahs: Ayah[] }>(`chatsapp:quran:surah:${n}`);
+  const cached = cacheGet<{ meta: SurahMeta; ayahs: Ayah[] }>(`chatsapp:quran:surah:${n}:${QURAN_CACHE_V}`);
   if (cached && cached.ayahs.length > 0) return cached;
   const r = await fetch(`${API}/surah/${n}/editions/quran-uthmani,ur.jalandhry`);
   if (!r.ok) throw new Error("net");
@@ -81,10 +86,13 @@ export async function fetchSurah(n: number): Promise<{ meta: SurahMeta; ayahs: A
   // Surah 1: ayah 1 IS the Bismillah (keep). Surah 9: none. Others: strip Bismillah prefix from ayah 1.
   if (n !== 1 && n !== 9 && ayahs[0]) {
     const t = ayahs[0].arabic;
-    if (t.startsWith(BISMILLAH)) ayahs[0] = { ...ayahs[0], arabic: t.slice(BISMILLAH.length).trim() };
+    if (t.startsWith(BISMILLAH)) {
+      const stripped = t.slice(BISMILLAH.length).trim();
+      if (stripped.length > 0) ayahs[0] = { ...ayahs[0], arabic: stripped };
+    }
   }
   const out = { meta, ayahs };
-  cacheSet(`chatsapp:quran:surah:${n}`, out);
+  cacheSet(`chatsapp:quran:surah:${n}:${QURAN_CACHE_V}`, out);
   return out;
 }
 
