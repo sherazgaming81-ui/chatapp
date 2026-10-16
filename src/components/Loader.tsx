@@ -20,7 +20,7 @@ export default function Loader() {
   return (
     <div
       className="fixed inset-0 z-[300] grid place-items-center overflow-hidden"
-      style={{ background: "radial-gradient(circle at 50% 38%, #ffffff 0%, #eef1f4 68%)", animation: "ld-out .35s ease 2.95s forwards" }}
+      style={{ background: "radial-gradient(circle at 50% 38%, #ffffff 0%, #eef1f4 68%)" }}
     >
       <div className="flex flex-col items-center">
         <svg width="320" height="300" viewBox="0 0 320 300" style={{ maxWidth: "88vw" }}>

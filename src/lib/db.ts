@@ -464,6 +464,17 @@ export async function deleteMessage(id: string) {
   } catch { /* ignore */ }
 }
 
+/* ───────── TASK 3 — /safai: poori chat soft-delete (owner only, NEVER hard delete) ───────── */
+export async function clearChat(chatId: string) {
+  const ids = getState().messages.filter((m) => m.chatId === chatId && !m.deleted).map((m) => m.id);
+  if (!ids.length) return 0;
+  update({ messages: getState().messages.map((m) => (m.chatId === chatId ? { ...m, deleted: true, text: "", src: undefined } : m)) });
+  try {
+    await sb().from("messages").update({ is_deleted: true, text: "" }).in("id", ids);
+  } catch { /* ignore */ }
+  return ids.length;
+}
+
 /* ───────── Phase 6 — F6 badges: message-count based ───────── */
 function checkMessageBadges() {
   try {

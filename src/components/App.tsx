@@ -212,8 +212,9 @@ export default function App() {
     if (!isChecklistDone()) setChecklistOpen(true);
   };
 
-  if (loading) return <Loader />;
-  if (!session) return (
+  // TASK 4: white-screen gap fix — main UI hamesha render ho (Loader overlay ke neeche),
+  // taake loader hatne par foran website dikhe, koi white flash nahi
+  if (!session && !loading) return (
     <>
       {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
       <Login />
@@ -227,6 +228,8 @@ export default function App() {
   const compactCls = prefs.compact ? "compact" : "";
 
   return (
+    <>
+    {session ? (
     <div className={`flex h-full min-w-0 flex-1 flex-col ${compactCls}`}>
       {/* 13 — naya version banner (silent update, koi force reload nahi) */}
       <VersionBanner />
@@ -303,5 +306,11 @@ export default function App() {
       )}
       </div>
     </div>
+    ) : (
+      <div className="flex h-full w-full bg-white" />
+    )}
+    {/* TASK 4: Loader overlay — main UI pehle se rendered, hatne par foran dikhe */}
+    {loading && <Loader />}
+    </>
   );
 }

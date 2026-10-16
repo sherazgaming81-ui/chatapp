@@ -217,6 +217,10 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
             {(mine || staff) && (
               <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#ed4245] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Delete</span></button>
             )}
+            {/* TASK 2: member dusre ka msg bhi "mere liye" hata sakta hai */}
+            {!mine && !staff && (
+              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Hatao</span></button>
+            )}
           </div>
         </>
       )}
@@ -225,7 +229,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
         <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
-        {mine && (
+        {(mine || staff) && (
           <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Info size={16} /></button>
         )}
         {canEdit && (
@@ -234,9 +238,8 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         {staff && (
           <button title={isPinned ? "Unpin" : "Pin"} onClick={() => togglePin(m.chatId, m.id)} className={`p-2 hover:bg-black/5 ${isPinned ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{isPinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
         )}
-        {(mine || staff) && (
-          <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#5c5e66] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
-        )}
+        {/* TASK 2: delete button sab messages par — options permission ke hisab se */}
+        <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#5c5e66] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
       </div>
       {reactOpen && (
         <>
@@ -261,10 +264,12 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setConfirmDel(false)} />
           <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-black/10 bg-white p-5 soft-shadow">
             <h3 className="text-lg font-extrabold text-[#2f3035]">Message delete karein?</h3>
-            <p className="mt-1 text-sm text-[#5c5e66]">Apne liye hatao ya sab ke liye delete karo.</p>
+            <p className="mt-1 text-sm text-[#5c5e66]">{(mine || staff) ? "Apne liye hatao ya sab ke liye delete karo." : "Ye message sirf aapke liye hatayega."}</p>
             <div className="mt-4 space-y-2">
               <button onClick={doDeleteForMe} className="btn btn-ghost w-full px-4 py-2.5 text-sm">Mere liye hatao</button>
-              <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Sab ke liye delete</button>
+              {(mine || staff) && (
+                <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Sab ke liye delete</button>
+              )}
               <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#80848e] hover:text-[#2f3035]">Rehne do</button>
             </div>
           </div>

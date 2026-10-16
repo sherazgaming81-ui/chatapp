@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2 } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker } from "@/lib/db";
+import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, clearChat, postSystem } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -16,7 +16,7 @@ const COMMANDS: Cmd[] = [
   { name: "ban", desc: "Member ko group se nikalo", usage: "/ban @naam", staff: true },
   { name: "unban", desc: "Ban hatao", usage: "/unban @naam", staff: true },
   { name: "pin", desc: "Reply wale message ko pin karo", usage: "/pin", staff: true, hint: "pehle kisi message par reply karo" },
-  { name: "safai", desc: "Chat view saaf karo (sirf aapke liye)", usage: "/safai", staff: true },
+  { name: "safai", desc: "Poori chat sab ke liye saaf karo", usage: "/safai", staff: true },
   { name: "quiz", desc: "Deen Quiz shuru karo (5 sawal)", usage: "/quiz", staff: false },
   { name: "tictactoe", desc: "Kisi ko TicTacToe challenge karo", usage: "/tictactoe @naam", staff: false },
   { name: "paheli", desc: "Aaj ki paheli bhejo", usage: "/paheli", staff: false },
@@ -92,7 +92,7 @@ export default function Composer({ chatId }: { chatId: string }) {
     try { navigator.vibrate?.(12); } catch { /* 14 — halki haptic feedback */ }
     // command execution
     if (text.startsWith("/")) {
-      if (execCommand(text)) { setText(""); patchUI({ replyTo: null }); ta.current?.focus(); }
+      execCommand(text).then((ok) => { if (ok) { setText(""); patchUI({ replyTo: null }); ta.current?.focus(); } });
       return;
     }
     sendText(chatId, text, replyTo?.id);
@@ -102,7 +102,7 @@ export default function Composer({ chatId }: { chatId: string }) {
     ta.current?.focus();
   };
 
-  const execCommand = (raw: string): boolean => {
+  const execCommand = async (raw: string): Promise<boolean> => {
     const parts = raw.slice(1).trim().split(/\s+/);
     const cmdName = (parts[0] || "").toLowerCase();
     const args = raw.slice(1 + parts[0].length).trim();
@@ -133,8 +133,10 @@ export default function Composer({ chatId }: { chatId: string }) {
         if (!replyTo) { toast("Pehle reply karo", "Kisi message par reply karke /pin likho"); return true; }
         togglePin(chatId, replyTo.id); toast("Pin kar diya", ""); break;
       case "safai": {
-        update({ messages: getState().messages.filter((m) => m.chatId !== chatId) });
-        toast("Chat saaf ho gayi", "Sirf aapke view se"); break;
+        if (!window.confirm("Poori chat sab ke liye delete ho jayegi. Pakka saaf karni hai?")) break;
+        const n = await clearChat(chatId);
+        await postSystem(chatId, "🧹 Chat saaf kar di gayi");
+        toast("Chat saaf ho gayi", `${n} messages delete`); break;
       }
       case "quiz":
         sendQuiz(chatId); setText(""); break;
