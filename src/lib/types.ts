@@ -64,7 +64,7 @@ export interface UIState {
   tab: "chat" | "owner" | "deen";
   activeChatId: string | null;
   toasts: { id: string; title: string; body: string }[];
-  typing: string[]; // member ids currently typing in active chat
+  typing: { id: string; chatId: string }[]; // AUDIT FIX: per-chat typing (pehle kisi bhi chat ki typing sab jagah dikhti thi)
   replyTo: Message | null;
   profileId: string | null; // member popup
   showMembers: boolean; // right sidebar (desktop)
@@ -92,6 +92,7 @@ export interface State {
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
   unread: Record<string, number>; // chatId -> unread count (WhatsApp-style badges)
   starred: string[]; // B13 — starred message ids (localStorage-backed)
+  hiddenForMe: string[]; // AUDIT FIX — delete-for-me: sirf is user se chhupe hue message ids (localStorage-backed, per-user)
   groupRules: Record<string, { text: string; updatedAt: number; updatedBy: string }>; // D12 — chatId -> rules
   groupDescs: Record<string, string>; // D1 — chatId -> group description
   ui: UIState;

@@ -19,6 +19,7 @@ import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
 import OwnerPanel from "@/components/OwnerPanel";
 import DeenPage from "@/components/DeenPage";
+import { GlobalAzaanAlert } from "@/components/DeenExtras";
 import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
 import GroupInfo from "@/components/GroupInfo";
@@ -122,9 +123,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let rt: { stop(): void; sendTyping(): void } | null = null;
+    let rt: { stop(): void; sendTyping(chatId?: string): void } | null = null;
     let cancelled = false;
-    (window as any).__sendTyping = () => rt?.sendTyping();
+    (window as any).__sendTyping = (chatId?: string) => rt?.sendTyping(chatId);
 
     const boot = async (sess: any) => {
       if (!sess?.user || started.current) return;
@@ -160,7 +161,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], hiddenForMe: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
         onboardChecked.current = false;
         setWizardOpen(false);
         setChecklistOpen(false);
@@ -282,6 +283,8 @@ export default function App() {
       <GlobalVideoBar />
       {/* ★ E6 — App Lock */}
       <AppLock />
+      {/* ★ Namaz reminder — Deen page band ho tab bhi alert mile */}
+      <GlobalAzaanAlert />
       {/* ★ Phase 6 — onboarding */}
       <AchievementToasts />
       {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}

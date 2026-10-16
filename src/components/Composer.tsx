@@ -78,7 +78,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   }, [recording]);
 
   const send = () => {
-    if (muted) return;
+    if (muted || banned) return;
     // B16 — edit mode: save instead of send
     if (editingMsg) {
       if (!text.trim()) return;
@@ -176,7 +176,7 @@ export default function Composer({ chatId }: { chatId: string }) {
     const now = Date.now();
     if (now - typingSent.current > 2800 && v.trim()) {
       typingSent.current = now;
-      try { (window as any).__sendTyping?.(); } catch { /* ignore */ }
+      try { (window as any).__sendTyping?.(chatId); } catch { /* ignore */ }
     }
   };
 
@@ -234,7 +234,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   };
 
   const startRec = async () => {
-    if (muted) return;
+    if (muted || banned) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunks.current = [];
@@ -252,7 +252,9 @@ export default function Composer({ chatId }: { chatId: string }) {
       };
       rec.start();
       setRecording(true);
-    } catch { /* mic denied */ }
+    } catch {
+      toast("Mic nahi khula", "Microphone ki permission do");
+    }
   };
   const stopRec = () => mr.current?.state !== "inactive" && mr.current?.stop();
 

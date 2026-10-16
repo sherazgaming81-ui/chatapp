@@ -35,6 +35,7 @@ function ChatSkeleton() {
 export default function ChatView() {
   const chats = useStore((s) => s.chats);
   const messages = useStore((s) => s.messages);
+  const hiddenForMe = useStore((s) => s.hiddenForMe);
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me);
   const typing = useStore((s) => s.ui.typing);
@@ -89,9 +90,11 @@ export default function ChatView() {
     }
   };
 
+  // AUDIT FIX: system messages (auto-mod warn/mute/ban) bhi dikho — centered pill ki tarah
+  // + delete-for-me wale chhupe hue
   const msgs = useMemo(
-    () => messages.filter((m) => m.chatId === activeChatId && m.type !== "system"),
-    [messages, activeChatId]
+    () => messages.filter((m) => m.chatId === activeChatId && !hiddenForMe.includes(m.id)),
+    [messages, activeChatId, hiddenForMe]
   );
 
   // A9 — unread divider: lastRead per chat in localStorage
@@ -101,9 +104,13 @@ export default function ChatView() {
   }, [activeChatId]);
 
   // A9/A11/A17 — mark read shortly after viewing (also syncs read_by)
+  // AUDIT FIX: markRead ke baad divider bhi refresh karo (warna purana divider rehta hai)
   useEffect(() => {
     if (!activeChatId) return;
-    const t = setTimeout(() => markRead(activeChatId), 1200);
+    const t = setTimeout(() => {
+      markRead(activeChatId);
+      try { setLastReadId(localStorage.getItem(`chatsapp:lastRead:${activeChatId}`)); } catch { /* ignore */ }
+    }, 1200);
     return () => clearTimeout(t);
   }, [activeChatId, msgs.length]);
 
@@ -176,7 +183,9 @@ export default function ChatView() {
     jumpTo(matchIds[n]);
   };
 
-  const typer = members.find((m) => m.id === typing[0]);
+  // AUDIT FIX: sirf is chat me type karne wale dikho (broadcast me chatId ata hai)
+  const typingHere = typing.filter((t) => t.chatId === activeChatId);
+  const typer = members.find((m) => m.id === typingHere[0]?.id);
   const pinIds = useStore((s) => (activeChatId && s.pins[activeChatId]) || EMPTY_ARR);
   const pinnedMsgs = useMemo(
     () => pinIds.map((id) => messages.find((m) => m.id === id && !m.deleted)).filter(Boolean) as typeof messages,
@@ -341,7 +350,17 @@ export default function ChatView() {
               {sec.msgs.map((m, i) => {
                 const prev = sec.msgs[i - 1];
                 const member = members.find((x) => x.id === m.from);
-                const prevSame = !!prev && prev.from === m.from && m.at - prev.at < 5 * 60e3 && !prev.deleted && m.type !== "announcement" && prev.type !== "announcement";
+                const prevSame = !!prev && prev.from === m.from && m.at - prev.at < 5 * 60e3 && !prev.deleted && m.type !== "announcement" && prev.type !== "announcement" && m.type !== "system" && prev.type !== "system";
+                // AUDIT FIX: system message = centered pill (auto-mod / moderation visibility)
+                if (m.type === "system" && !m.deleted) {
+                  return (
+                    <div key={m.id} className="flex justify-center px-4 py-1.5">
+                      <span className="max-w-[85%] rounded-full border border-black/10 bg-black/[0.05] px-3.5 py-1.5 text-center text-xs font-semibold text-[#5c5e66]">
+                        {m.text}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <Fragment key={m.id}>
                     {unreadInfo && m.id === unreadInfo.id && (

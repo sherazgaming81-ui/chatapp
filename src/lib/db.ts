@@ -271,6 +271,7 @@ export async function load(userId: string, email: string): Promise<boolean> {
     groupRules,
     groupDescs,
     starred: getStarred(),
+    hiddenForMe: getHiddenForMe(),
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
   return true;
@@ -300,7 +301,8 @@ export async function loadOlderMessages(chatId: string, before: number, limit = 
       .from("messages")
       .select("*")
       .eq("chat_id", chatId)
-      .lt("created_at", new Date(before).toISOString())
+      // FIX: created_at BIGINT hai (ms epoch) — ISO string se compare fail hota tha
+      .lt("created_at", before)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (!data || data.length === 0) return false;
@@ -332,8 +334,30 @@ export async function refreshChat(chatId: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
-export async function sendText(chatId: string, text: string, replyTo?: string): Promise<Message | null> {
+// ───────── Optimistic send helper: rollback + retry ─────────
+// Pehle UI me dikhao (optimistic), phir DB me insert karo.
+// Agar insert fail ho (2 attempts ke baad bhi) to optimistic message HATAO
+// taake user ko na lage ke message gaya jabke gaya nahi.
+async function insertMessageRow(m: Message, row: Record<string, unknown>, failTitle: string): Promise<boolean> {
   const s = getState();
+  update({ messages: [...s.messages, m] });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { error } = await sb().from("messages").insert(row);
+      if (!error) return true;
+      // error aya to retry se pehle halka wait
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 900));
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 900));
+    }
+  }
+  // dono attempts fail — rollback
+  update({ messages: getState().messages.filter((x) => x.id !== m.id) });
+  toast(failTitle, "Dobara try karo — message save nahi hua");
+  return false;
+}
+
+export async function sendText(chatId: string, text: string, replyTo?: string): Promise<Message | null> {  const s = getState();
   if (!text.trim() || !chatId) return null;
   // Ban check — banned user message nahi bhej sakta
   const meMember = s.members.find((m) => m.id === s.me);
@@ -367,16 +391,12 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
     }
   } catch { /* owner.ts fail ho to normal bhejo */ }
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "text", text: text.trim(), at: Date.now(), reactions: {}, replyTo };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "text",
-      text: m.text, media_url: "", reply_to: replyTo || null,
-      created_at: m.at, read_by: [],
-    });
-  } catch {
-    toast("Message nahi gaya", "Internet check karo");
-  }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "text",
+    text: m.text, media_url: "", reply_to: replyTo || null,
+    created_at: m.at, read_by: [],
+  }, "Message nahi gaya");
+  if (!ok) return null;
   checkMessageBadges();
   // Phase 7 — apna jawab bhi paheli se milao
   setTimeout(() => checkRiddleAnswer(chatId, m.text, m.from).catch(() => {}), 300);
@@ -394,15 +414,11 @@ export async function sendMedia(chatId: string, file: File, kind: "image" | "voi
     r.readAsDataURL(file);
   });
   const m: Message = { id: uid("m"), from: s.me, chatId, type: kind, text: "", at: Date.now(), reactions: {}, src: dataUrl, dur };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: kind,
-      text: "", media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch {
-    toast("Media nahi gaya", "Internet check karo");
-  }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: kind,
+    text: "", media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
+  }, "Media nahi gaya");
+  if (!ok) return null;
   checkMessageBadges();
   return m;
 }
@@ -478,7 +494,8 @@ export async function toggleReaction(msgId: string, emoji: string) {
   const has = users.includes(s.me);
   const next = { ...m.reactions, [emoji]: has ? users.filter((u) => u !== s.me) : [...users, s.me] };
   if (next[emoji].length === 0) delete next[emoji];
-  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, reactions: next } : m)) });
+  // FIX: `: x` hona chahiye tha — `: m` saare messages ko corrupt kar deta tha
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, reactions: next } : x)) });
   try {
     await sb().from("messages").update({ reactions: next }).eq("id", msgId);
   } catch { /* column may not exist — local still works */ }
@@ -606,15 +623,11 @@ export async function sendPoll(chatId: string, q: string, opts: string[], endsAt
   if (!chatId || !q.trim() || opts.filter((o) => o.trim()).length < 2) return null;
   const poll: PollData = { q: q.trim(), opts: opts.map((o) => o.trim()).filter(Boolean).slice(0, 5), endsAt };
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "poll", text: poll.q, at: Date.now(), reactions: {}, caption: JSON.stringify(poll) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "poll",
-      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch {
-    toast("Poll nahi gaya", "Internet check karo");
-  }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "poll",
+    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Poll nahi gaya");
+  if (!ok) return null;
   return m;
 }
 export async function votePoll(msgId: string, idx: number) {
@@ -658,15 +671,11 @@ export async function sendLocation(chatId: string, lat: number, lng: number): Pr
   const s = getState();
   if (!chatId) return null;
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "location", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ lat, lng }) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "location",
-      text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch {
-    toast("Location nahi gayi", "Internet check karo");
-  }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "location",
+    text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Location nahi gayi");
+  if (!ok) return null;
   return m;
 }
 
@@ -675,19 +684,33 @@ export async function sendContact(chatId: string, name: string, phone: string): 
   const s = getState();
   if (!chatId || !name.trim()) return null;
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "contact", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ name: name.trim(), phone: phone.trim() }) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "contact",
-      text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch {
-    toast("Contact nahi gaya", "Internet check karo");
-  }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "contact",
+    text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Contact nahi gaya");
+  if (!ok) return null;
   return m;
 }
 
 // ───────── B13 starred messages ─────────
+// AUDIT FIX — delete-for-me: per-user hidden message ids (sirf local, server untouched)
+function hiddenKey(): string {
+  try { return `chatsapp:hidden:${getState().me || "anon"}`; } catch { return "chatsapp:hidden:anon"; }
+}
+export function getHiddenForMe(): string[] {
+  try {
+    const raw = localStorage.getItem(hiddenKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
+export function hideMessageForMe(msgId: string) {
+  const cur = getState().hiddenForMe;
+  if (cur.includes(msgId)) return;
+  const next = [...cur, msgId];
+  try { localStorage.setItem(hiddenKey(), JSON.stringify(next)); } catch { /* ignore */ }
+  update({ hiddenForMe: next });
+}
 // Primary store: localStorage (reliable). Best-effort sync to Supabase user_chat_settings if the table/shape allows.
 const STAR_KEY = "chatsapp:starred";
 export function getStarred(): string[] {
@@ -884,8 +907,9 @@ export function startRealtime() {
         chats = chats.map((c) => (c.id === m.chatId ? { ...c, lastAt: m.at } : c));
       }
       // WhatsApp-style unread: jo chat khuli nahi, uska count barhao (khud ke msg pehle hi filtered)
+      // FIX: sirf activeChatId use karo — chats[0] fallback galat chat ko "khula" samajhta tha
       let unread = st.unread;
-      const activeId = st.ui.activeChatId || st.chats[0]?.id;
+      const activeId = st.ui.activeChatId;
       if (m.chatId && m.chatId !== activeId && !m.deleted) {
         unread = { ...unread, [m.chatId]: (unread[m.chatId] || 0) + 1 };
       }
@@ -911,6 +935,84 @@ export function startRealtime() {
     const m = toMessage(p.new);
     update((st) => ({ messages: st.messages.map((x) => (x.id === m.id ? { ...m } : x)) }));
   });
+  // AUDIT FIX: hard delete (owner) ho to sab clients se hatao
+  ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p: any) => {
+    const id = p.old?.id;
+    if (!id) return;
+    update((st) => ({ messages: st.messages.filter((x) => x.id !== id) }));
+  });
+
+  // ───────── AUDIT #3: groups & DMs realtime — naya group/DM foran sab par ─────────
+  // chats INSERT: naya group ya DM bana — agar hum participant hain to list me add karo
+  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "chats" }, async (p: any) => {
+    const s = getState();
+    if (!p.new?.id || s.chats.some((c) => c.id === p.new.id)) return;
+    try {
+      // kya hum is chat ke participant hain?
+      const { data: part } = await sb().from("chat_participants").select("chat_id").eq("chat_id", p.new.id).eq("user_id", s.me).maybeSingle();
+      if (!part) return;
+      const isGroup = p.new.is_main_group || p.new.type === "group";
+      let meta: any;
+      if (isGroup) {
+        meta = { id: p.new.id, type: "group" as const, name: p.new.name || "Group", photo: p.new.photo_url || "", lastAt: Date.now() };
+      } else {
+        // DM: dusre participant ka naam/photo nikalo
+        const { data: parts } = await sb().from("chat_participants").select("user_id").eq("chat_id", p.new.id);
+        const otherId = (parts || []).map((x: any) => x.user_id).find((id: string) => id !== s.me);
+        const other = s.members.find((m) => m.id === otherId);
+        meta = { id: p.new.id, type: "dm" as const, name: other?.name || p.new.name || "Chat", photo: other?.avatar || p.new.photo_url || "", otherId, lastAt: Date.now() };
+      }
+      update((st) => st.chats.some((c) => c.id === meta.id) ? {} : { chats: [...st.chats, meta] });
+      toast(isGroup ? "Naya group 📢" : "Nayi DM 💬", meta.name);
+    } catch { /* ignore */ }
+  });
+  // chats DELETE: group delete hua — list se hatao
+  ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "chats" }, (p: any) => {
+    const id = p.old?.id;
+    if (!id) return;
+    const s = getState();
+    if (!s.chats.some((c) => c.id === id)) return;
+    const gone = s.chats.find((c) => c.id === id);
+    update((st) => ({
+      chats: st.chats.filter((c) => c.id !== id),
+      messages: st.messages.filter((m) => m.chatId !== id),
+    }));
+    if (s.ui.activeChatId === id) patchUI({ activeChatId: s.chats.find((c) => c.id !== id)?.id || null, groupInfo: null });
+    toast("Group delete ho gaya 🗑️", gone?.name || "");
+  });
+  // chat_participants INSERT: humein kisi chat me add kiya — chat details lao
+  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_participants" }, async (p: any) => {
+    const s = getState();
+    if (!p.new?.chat_id || p.new.user_id !== s.me) return;
+    if (s.chats.some((c) => c.id === p.new.chat_id)) return;
+    try {
+      const { data: c } = await sb().from("chats").select("id,type,name,photo_url,is_main_group").eq("id", p.new.chat_id).single();
+      if (!c) return;
+      const isGroup = (c as any).is_main_group || (c as any).type === "group";
+      let meta: any;
+      if (isGroup) {
+        meta = { id: (c as any).id, type: "group" as const, name: (c as any).name || "Group", photo: (c as any).photo_url || "", lastAt: Date.now() };
+      } else {
+        const { data: parts } = await sb().from("chat_participants").select("user_id").eq("chat_id", (c as any).id);
+        const otherId = (parts || []).map((x: any) => x.user_id).find((id: string) => id !== s.me);
+        const other = s.members.find((m) => m.id === otherId);
+        meta = { id: (c as any).id, type: "dm" as const, name: other?.name || (c as any).name || "Chat", photo: other?.avatar || (c as any).photo_url || "", otherId, lastAt: Date.now() };
+      }
+      update((st) => st.chats.some((x) => x.id === meta.id) ? {} : { chats: [...st.chats, meta] });
+    } catch { /* ignore */ }
+  });
+  // chat_participants DELETE: humein chat se nikala — list se hatao
+  ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_participants" }, (p: any) => {
+    const s = getState();
+    if (!p.old?.chat_id || p.old.user_id !== s.me) return;
+    if (!s.chats.some((c) => c.id === p.old.chat_id)) return;
+    update((st) => ({
+      chats: st.chats.filter((c) => c.id !== p.old.chat_id),
+      messages: st.messages.filter((m) => m.chatId !== p.old.chat_id),
+    }));
+    if (s.ui.activeChatId === p.old.chat_id) patchUI({ activeChatId: s.chats.find((c) => c.id !== p.old.chat_id)?.id || null, groupInfo: null });
+  });
+
   ch.on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, (p: any) => {
     update((st) => ({
       members: st.members.map((x) =>
@@ -997,10 +1099,12 @@ export function startRealtime() {
   });
   ch.on("broadcast", { event: "typing" }, (p: any) => {
     const uidv = p.payload?.userId;
+    const cid = p.payload?.chatId;
     const s = getState();
-    if (uidv && uidv !== s.me && !s.ui.typing.includes(uidv)) {
-      patchUI({ typing: [...s.ui.typing, uidv] });
-      setTimeout(() => patchUI({ typing: getState().ui.typing.filter((t) => t !== uidv) }), 3500);
+    // AUDIT FIX: sirf is chat ki typing rakho — dusri chat ki typing yahan nahi dikhegi
+    if (uidv && uidv !== s.me && cid && !s.ui.typing.some((t) => t.id === uidv && t.chatId === cid)) {
+      patchUI({ typing: [...s.ui.typing, { id: uidv, chatId: cid }] });
+      setTimeout(() => patchUI({ typing: getState().ui.typing.filter((t) => !(t.id === uidv && t.chatId === cid)) }), 3500);
     }
   });
 
@@ -1012,9 +1116,10 @@ export function startRealtime() {
   });
 
   let typingTimer: any = null;
-  const sendTyping = () => {
+  // AUDIT FIX: chatId bhejta hai taake typing sirf usi chat me dikhe
+  const sendTyping = (chatId?: string) => {
     if (typingTimer) return;
-    try { ch.send({ type: "broadcast", event: "typing", payload: { userId: getState().me } }); } catch { /* ignore */ }
+    try { ch.send({ type: "broadcast", event: "typing", payload: { userId: getState().me, chatId: chatId || getState().ui.activeChatId } }); } catch { /* ignore */ }
     typingTimer = setTimeout(() => { typingTimer = null; }, 3000);
   };
 
@@ -1037,13 +1142,11 @@ export async function sendQuiz(chatId: string): Promise<Message | null> {
   const questions = pickQuizQuestions();
   const state = { questions, current: 0, qEndsAt: Date.now() + 15000, done: false };
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "quiz", text: "🧠 Deen Quiz!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "quiz",
-      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch { toast("Quiz nahi gaya", "Internet check karo"); }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "quiz",
+    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Quiz nahi gaya");
+  if (!ok) return null;
   return m;
 }
 /** Quiz ka jawab do — ek sawal par ek hi jawab (badal sakte ho timer tak) */
@@ -1114,13 +1217,11 @@ export async function sendTicTacToe(chatId: string, opponentId: string): Promise
   };
   const oppName = s.members.find((x) => x.id === opponentId)?.name || "member";
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "tictactoe", text: `⭕❌ TicTacToe challenge: ${oppName}`, at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "tictactoe",
-      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch { toast("Challenge nahi gaya", "Internet check karo"); }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "tictactoe",
+    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Challenge nahi gaya");
+  if (!ok) return null;
   return m;
 }
 export async function acceptTicTacToe(msgId: string) {
@@ -1171,13 +1272,11 @@ export async function sendRiddle(chatId: string): Promise<Message | null> {
   const { riddle } = dailyRiddle();
   const state = { q: riddle.q, a: riddle.a, alt: riddle.alt, day: today, solved: false, winner: null };
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "riddle", text: "🧩 Aaj ki Paheli!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "riddle",
-      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch { toast("Paheli nahi gayi", "Internet check karo"); }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "riddle",
+    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+  }, "Paheli nahi gayi");
+  if (!ok) return null;
   return m;
 }
 /** kisi text message ko active paheli ke jawab se milao */
@@ -1203,12 +1302,10 @@ export async function sendSticker(chatId: string, stickerId: string): Promise<Me
   const s = getState();
   if (!chatId || !stickerId) return null;
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "sticker", text: stickerId, at: Date.now(), reactions: {} };
-  update({ messages: [...s.messages, m] });
-  try {
-    await sb().from("messages").insert({
-      id: m.id, chat_id: chatId, sender_id: m.from, type: "sticker",
-      text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
-    });
-  } catch { toast("Sticker nahi gaya", "Internet check karo"); }
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "sticker",
+    text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Sticker nahi gaya");
+  if (!ok) return null;
   return m;
 }

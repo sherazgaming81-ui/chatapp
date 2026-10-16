@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Share2, Copy, Check, Bell, BellOff, X } from "lucide-react";
 import { fetchDailyAyah, dailyIndex, type DailyAyahData } from "@/lib/quran";
 import { HADITH } from "@/lib/hadith";
-import { hijri, prayerTimes, nextPrayer, PRAYER_NAMES, type PrayerKey } from "@/lib/deen";
+import { hijri, prayerTimes, nextPrayer, PRAYER_NAMES, DEFAULT_LOC, type PrayerKey } from "@/lib/deen";
 import { sendText } from "@/lib/db";
 import { MAIN_GROUP_ID } from "@/lib/supabase";
 
@@ -297,6 +297,47 @@ export function AzaanAlertTop({ loc }: { loc: { lat: number; lng: number } }) {
   );
 }
 
+// ───────── GLOBAL azaan alert — App root par mount hota hai, taake Deen page
+// band ho tab bhi namaz ka alert + chime mile. Inline AzaanAlertTop Deen page
+// ke andar rehta hai; ye floating overlay har jagah dikhta hai.
+export function GlobalAzaanAlert() {
+  const { alert, enabled } = useAzaan();
+  const [loc, setLoc] = useState(DEFAULT_LOC);
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (p) => setLoc({ lat: p.coords.latitude, lng: p.coords.longitude, name: "Aapki location" }),
+      () => { /* fallback: Karachi */ },
+      { timeout: 8000 }
+    );
+  }, []);
+  // schedule refresh: enabled hote hi timers lagao
+  useEffect(() => { scheduleAzaan(loc); }, [enabled, loc.lat, loc.lng]); // eslint-disable-line
+  useEffect(() => {
+    if (!alert) return;
+    playChime();
+  }, [alert]);
+  if (!alert || !enabled) return null;
+  return (
+    <div className="fixed left-1/2 top-3 z-[95] w-[min(92vw,380px)] -translate-x-1/2">
+      <div className="pop-in relative overflow-hidden rounded-2xl soft-shadow" style={{ background: "linear-gradient(135deg, #1a2350 0%, #2b3a8f 55%, #5865f2 100%)" }}>
+        <button onClick={() => setAzaan({ alert: null })} className="absolute right-2.5 top-2.5 rounded-full bg-white/15 p-1.5 text-white/80 transition hover:bg-white/25" aria-label="Band karo">
+          <X size={15} />
+        </button>
+        <div className="relative px-5 pb-4 pt-5 text-center text-white">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/70">Namaz ka waqt ho gaya 🕌</p>
+          <p className="font-quran mt-1.5 text-[38px] leading-tight text-white" dir="rtl" lang="ar">{AR_PRAYER[alert]}</p>
+          <p className="mt-0.5 text-lg font-extrabold tracking-tight">{PRAYER_NAMES[alert]}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button onClick={() => setAzaan({ alert: null })} className="rounded-xl bg-white py-2 text-[12px] font-extrabold text-[#2b3a8f] transition hover:bg-white/90 active:scale-95">Abhi parho 🤲</button>
+            <button onClick={() => { setAzaan({ alert: null, snoozedUntil: Date.now() + 10 * 60e3 }); }} className="rounded-xl bg-white/20 py-2 text-[12px] font-bold text-white transition hover:bg-white/30 active:scale-95">10 min baad</button>
+            <button onClick={() => { setAzaan({ alert: null, enabled: false }); try { localStorage.setItem("chatsapp:azaan", "0"); } catch {} azaanTimers.forEach(clearTimeout); }} className="rounded-xl bg-white/10 py-2 text-[12px] font-bold text-white/85 transition hover:bg-white/20 active:scale-95">Band karo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 // Toggle card — settings area me
 export function AzaanToggle({ loc }: { loc: { lat: number; lng: number } }) {
   const { enabled } = useAzaan();

@@ -1,8 +1,8 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation } from "lucide-react";
-import { getState, useStore, patchUI } from "@/lib/store";
-import { deleteMessage, toggleReaction, togglePin, toggleStar } from "@/lib/db";
+import { getState, useStore, patchUI, toast } from "@/lib/store";
+import { deleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
 import PollMessage from "@/components/PollMessage";
 import QuizMessage from "@/components/QuizMessage";
@@ -179,6 +179,12 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     setDeleting(true); // B15 — shrink+fade, phir remove
     setTimeout(() => deleteMessage(m.id), 210);
   };
+  // AUDIT FIX — delete-for-me: sirf apni taraf se hatao (server untouched)
+  const doDeleteForMe = () => {
+    setConfirmDel(false);
+    hideMessageForMe(m.id);
+    toast("Message hata diya", "Sirf aapke liye");
+  };
 
   if (m.deleted) {
     return (
@@ -255,10 +261,11 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setConfirmDel(false)} />
           <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-black/10 bg-white p-5 soft-shadow">
             <h3 className="text-lg font-extrabold text-[#2f3035]">Message delete karein?</h3>
-            <p className="mt-1 text-sm text-[#5c5e66]">Ye sab ke liye delete ho jayega.</p>
-            <div className="mt-4 flex gap-2">
-              <button onClick={() => setConfirmDel(false)} className="btn btn-ghost flex-1 px-4 py-2.5 text-sm">Rehne do</button>
-              <button onClick={doDelete} className="btn btn-danger flex-1 px-4 py-2.5 text-sm">Delete</button>
+            <p className="mt-1 text-sm text-[#5c5e66]">Apne liye hatao ya sab ke liye delete karo.</p>
+            <div className="mt-4 space-y-2">
+              <button onClick={doDeleteForMe} className="btn btn-ghost w-full px-4 py-2.5 text-sm">Mere liye hatao</button>
+              <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Sab ke liye delete</button>
+              <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#80848e] hover:text-[#2f3035]">Rehne do</button>
             </div>
           </div>
         </>

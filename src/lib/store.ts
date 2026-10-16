@@ -35,6 +35,7 @@ let state: State = {
   pins: {},
   unread: {},
   starred: [],
+  hiddenForMe: [],
   groupRules: {},
   groupDescs: {},
   ui: { ...initialUI },
