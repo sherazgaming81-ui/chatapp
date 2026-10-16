@@ -58,13 +58,13 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
         </div>
       )}
 
-      {/* Grid */}
-      <div className="thin-scroll grid min-h-0 flex-1 grid-cols-3 gap-1.5 overflow-y-auto p-2">
+      {/* Grid — GIPHY jaisa masonry (variable height, natural aspect) */}
+      <div className="thin-scroll columns-3 gap-1.5 overflow-y-auto p-2 [&>*]:mb-1.5">
         {items.map((g) => (
           <button
             key={g.id}
             onClick={() => handlePick(g)}
-            className="relative aspect-square overflow-hidden rounded-lg bg-black/5 transition hover:brightness-95 active:scale-95"
+            className="relative block w-full break-inside-avoid overflow-hidden rounded-lg bg-black/5 transition hover:brightness-95 active:scale-95"
             title={g.title}
           >
             <img
@@ -72,7 +72,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
               alt={g.title}
               loading="lazy"
               draggable={false}
-              className="h-full w-full object-cover"
+              className="block h-auto w-full"
             />
           </button>
         ))}
