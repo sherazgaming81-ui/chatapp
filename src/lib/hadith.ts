@@ -1,0 +1,36 @@
+// Daily Hadees — sirf mashhoor, achhi tarah documented Sahih ahadees.
+// Arabic nahi likhi (ghalti ka khatra) — sirf Roman Urdu tarjuma + sahih reference.
+export interface Hadith { id: number; text: string; ref: string }
+
+export const HADITH: Hadith[] = [
+  { id: 1, text: "Aamaal ka daromadar niyyaton par hai, aur har shakhs ko wahi milega jis ki us ne niyyat ki.", ref: "Sahih Bukhari 1" },
+  { id: 2, text: "Tum me se koi shakhs us waqt tak momin nahi ho sakta jab tak wo apne bhai ke liye wahi pasand na kare jo apne liye pasand karta hai.", ref: "Sahih Bukhari 13" },
+  { id: 3, text: "Tum me se behtareen wo hai jo Quran seekhe aur sikhaye.", ref: "Sahih Bukhari 5027" },
+  { id: 4, text: "Pakeezgi aadha iman hai.", ref: "Sahih Muslim 223" },
+  { id: 5, text: "Jo Allah aur aakhirat par iman rakhta hai, use chahiye ke achhi baat kahe ya khamosh rahe.", ref: "Sahih Bukhari 6018" },
+  { id: 6, text: "Taakatwar wo nahi jo kushti me jeet jaye, taakatwar wo hai jo gusse ke waqt apne nafs par qaabu rakhe.", ref: "Sahih Bukhari 6114" },
+  { id: 7, text: "Aasani paida karo, mushkil mat banao; khushkhabri do, nafrat mat dilao.", ref: "Sahih Bukhari 69" },
+  { id: 8, text: "Allah ko sab se mehboob amal wo hai jo pabandi se kiya jaye, chahe thoda ho.", ref: "Sahih Bukhari 6464" },
+  { id: 9, text: "Jis ne iman ke saath sawab ki niyyat se Ramadan ke roze rakhe, us ke pichhle gunah maaf kar diye jayenge.", ref: "Sahih Bukhari 38" },
+  { id: 10, text: "Paanch waqt ki namazein aur ek Jumuah se doosre Jumuah tak, darmiyan ke gunahon ka kaffara hain jab tak kabeera gunahon se bacha jaye.", ref: "Sahih Muslim 233" },
+  { id: 11, text: "Sadqa maal ko kam nahi karta.", ref: "Sahih Muslim 2588" },
+  { id: 12, text: "Dene wala haath lene wale haath se behtar hai.", ref: "Sahih Bukhari 1427" },
+  { id: 13, text: "Jo Allah ke liye masjid banaye, Allah us ke liye Jannat me ghar banayega.", ref: "Sahih Bukhari 450" },
+  { id: 14, text: "Narmi jis cheez me bhi hoti hai use khoobsurat bana deti hai.", ref: "Sahih Muslim 2594" },
+  { id: 15, text: "Allah narm hai aur har kaam me narmi ko pasand karta hai.", ref: "Sahih Bukhari 6927" },
+  { id: 16, text: "Ek doosre se hasad na karo, nafrat na karo, peeth peeche baatein na karo — aur Allah ke bande bhai bhai ban jao.", ref: "Sahih Bukhari 6064" },
+  { id: 17, text: "Musalman wo hai jis ki zuban aur haath se doosre musalman mehfooz rahein.", ref: "Sahih Bukhari 10" },
+  { id: 18, text: "Jo Allah aur aakhirat par iman rakhta hai, use apne mehmaan ki izzat karni chahiye.", ref: "Sahih Bukhari 6018" },
+  { id: 19, text: "Apne bhai ke chehre par muskurana bhi sadqa hai.", ref: "Tirmidhi 1956" },
+  { id: 20, text: "Allah ke nazdeek sab se mehboob jaghein masjidein hain.", ref: "Sahih Muslim 671" },
+  { id: 21, text: "Do kalime zuban par halke, meezan me bhaari hain: SubhanAllahi wa bihamdihi, SubhanAllahil Azeem.", ref: "Sahih Bukhari 6682" },
+  { id: 22, text: "Jo rozana sau baar 'SubhanAllahi wa bihamdihi' kahe, us ke gunah mita diye jayenge chahe samandar ki jhaag jitne hon.", ref: "Sahih Bukhari 6405" },
+  { id: 23, text: "Allah ke ninnanve naam hain — jo inhein yaad karega Jannat me dakhil hoga.", ref: "Sahih Bukhari 2736" },
+  { id: 24, text: "Tum me se behtareen wo hain jo apne ghar walon se behtareen sulook karte hain.", ref: "Tirmidhi 3895" },
+  { id: 25, text: "Jis ne ilm hasil karne ke liye rasta ikhtiyar kiya, Allah us ke liye Jannat ka rasta aasan kar deta hai.", ref: "Sahih Muslim 2699" },
+  { id: 26, text: "Duniya momin ke liye qaid khana aur kafir ke liye jannat hai.", ref: "Sahih Muslim 2956" },
+  { id: 27, text: "Allah us par rehem nahi karta jo logon par rehem nahi karta.", ref: "Sahih Bukhari 6013" },
+  { id: 28, text: "Rehem karne walon par Rahman rehem karta hai — zameen walon par rehem karo, aasman wala tum par rehem karega.", ref: "Tirmidhi 1924" },
+  { id: 29, text: "Jis ne subah ko ye kaha: 'La ilaha illallahu wahdahu la shareeka lah...' sau baar, use sau nekiyan milengi.", ref: "Sahih Bukhari 6403" },
+  { id: 30, text: "Saat qisam ke log honge jinhein Allah apne saye me jagah dega jis din us ke saye ke siwa koi saya na hoga — un me wo naujawan bhi hai jo Allah ki ibadat me parwan chadha.", ref: "Sahih Bukhari 660" },
+];
