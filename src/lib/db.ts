@@ -2,8 +2,7 @@
 // ChatsApp Supabase adapter — real backend, no mocks.
 // Query patterns verified against the live project.
 import { supabase, MAIN_GROUP_ID, setMainGroupId, OWNER_EMAIL } from "./supabase";
-import { getState, update, patchUI, toast } from "./store";
-import type { ChatMeta, Member, Message, Role } from "./types";
+import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role } from "./types";
 
 const sb = () => supabase();
 const uid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -186,6 +185,7 @@ export async function load(userId: string, email: string): Promise<boolean> {
     messages,
     chats,
     pins,
+    starred: getStarred(),
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
   return true;
@@ -341,6 +341,138 @@ export async function postAnnouncement(text: string) {  const s = getState();
       text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
     });
   } catch { /* ignore */ }
+}
+
+// ───────── B5 polls ─────────
+// Poll definition (question + options + endsAt) lives in the message `caption` column as JSON.
+// Votes live in the message `reactions` jsonb under special keys "__poll_<idx>" -> userIds.
+// This needs NO new tables and syncs live through the existing UPDATE realtime handler.
+export interface PollData { q: string; opts: string[]; endsAt: number }
+export function parsePoll(caption?: string): PollData | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && typeof d.q === "string" && Array.isArray(d.opts) && d.opts.length >= 2) return d;
+  } catch { /* ignore */ }
+  return null;
+}
+export async function sendPoll(chatId: string, q: string, opts: string[], endsAt: number): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !q.trim() || opts.filter((o) => o.trim()).length < 2) return null;
+  const poll: PollData = { q: q.trim(), opts: opts.map((o) => o.trim()).filter(Boolean).slice(0, 5), endsAt };
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "poll", text: poll.q, at: Date.now(), reactions: {}, caption: JSON.stringify(poll) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "poll",
+      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch {
+    toast("Poll nahi gaya", "Internet check karo");
+  }
+  return m;
+}
+export async function votePoll(msgId: string, idx: number) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const poll = parsePoll(m.caption);
+  if (!poll || poll.endsAt < Date.now()) return;
+  const next = { ...m.reactions };
+  // single-choice: remove own id from all poll keys, then add to chosen
+  for (const k of Object.keys(next)) {
+    if (k.startsWith("__poll_")) {
+      const rest = (next[k] as string[]).filter((u) => u !== s.me);
+      if (rest.length === 0) delete next[k]; else next[k] = rest;
+    }
+  }
+  const key = `__poll_${idx}`;
+  const cur = (next[key] as string[]) || [];
+  if (!cur.includes(s.me)) next[key] = [...cur, s.me];
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, reactions: next } : x)) });
+  try {
+    await sb().from("messages").update({ reactions: next }).eq("id", msgId);
+  } catch { /* ignore — local still works */ }
+}
+export function pollVotes(m: Message): { counts: number[]; total: number; mine: number } {
+  const poll = parsePoll(m.caption);
+  const n = poll ? poll.opts.length : 0;
+  const counts = new Array(n).fill(0);
+  let mine = -1;
+  const me = getState().me;
+  for (let i = 0; i < n; i++) {
+    const users = (m.reactions[`__poll_${i}`] as string[]) || [];
+    counts[i] = users.length;
+    if (users.includes(me)) mine = i;
+  }
+  return { counts, total: counts.reduce((a, b) => a + b, 0), mine };
+}
+
+// ───────── B6 location share ─────────
+export async function sendLocation(chatId: string, lat: number, lng: number): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "location", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ lat, lng }) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "location",
+      text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch {
+    toast("Location nahi gayi", "Internet check karo");
+  }
+  return m;
+}
+
+// ───────── B7 contact share ─────────
+export async function sendContact(chatId: string, name: string, phone: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !name.trim()) return null;
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "contact", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ name: name.trim(), phone: phone.trim() }) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "contact",
+      text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch {
+    toast("Contact nahi gaya", "Internet check karo");
+  }
+  return m;
+}
+
+// ───────── B13 starred messages ─────────
+// Primary store: localStorage (reliable). Best-effort sync to Supabase user_chat_settings if the table/shape allows.
+const STAR_KEY = "chatsapp:starred";
+export function getStarred(): string[] {
+  try {
+    const raw = localStorage.getItem(STAR_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
+async function syncStarred(ids: string[]) {
+  try {
+    const me = getState().me;
+    if (!me) return;
+    await sb().from("user_chat_settings").upsert({ user_id: me, settings: { starred: ids } }, { onConflict: "user_id" });
+  } catch { /* table/shape may differ — localStorage is the source of truth */ }
+}
+export function isStarred(msgId: string): boolean {
+  return getState().starred.includes(msgId);
+}
+export function toggleStar(msgId: string): boolean {
+  const cur = getState().starred;
+  const starred = cur.includes(msgId);
+  const next = starred ? cur.filter((x) => x !== msgId) : [...cur, msgId];
+  try { localStorage.setItem(STAR_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  update({ starred: next });
+  syncStarred(next);
+  return !starred;
+}
+// called once during load() to hydrate from localStorage
+export function hydrateStarred() {
+  update({ starred: getStarred() });
 }
 
 // ───────── pins (stored in group_settings as pinned_<chatId> → string[]) ─────────

@@ -1,9 +1,11 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck } from "lucide-react";
+import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation } from "lucide-react";
 import { getState, useStore, patchUI } from "@/lib/store";
-import { deleteMessage, toggleReaction, togglePin } from "@/lib/db";
+import { deleteMessage, toggleReaction, togglePin, toggleStar } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
+import PollMessage from "@/components/PollMessage";
+import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
 import type { Member, Message } from "@/lib/types";
 
 const QUICK = ["❤️", "👍", "😂", "🤲", "🌙"];
@@ -88,6 +90,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const replyMember = replySrc ? getState().members.find((x) => x.id === replySrc.from) : null;
   const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
   const pinnedIds = useStore((s) => s.pins[m.chatId] || EMPTY_ARR);
+  const starred = useStore((s) => s.starred.includes(m.id));
   const isPinned = pinnedIds.includes(m.id);
   const canEdit = mine && m.type === "text" && !m.deleted && Date.now() - m.at < EDIT_WINDOW; // B16
 
@@ -132,6 +135,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       <div className="msg-actions absolute -top-4 right-4 z-10 flex overflow-hidden rounded-lg border border-black/10 bg-white soft-shadow">
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
+        <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
         {mine && (
           <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Info size={16} /></button>
         )}
@@ -210,7 +214,7 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
     <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
       <Reply size={13} className="shrink-0" />
       <span className="font-semibold" style={{ color: replyMember ? nameColor(replyMember) : undefined }}>{replyMember?.name || "Member"}</span>
-      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : "🎙️ Voice")}</span>
+      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
     </div>
   );
 }
@@ -220,15 +224,85 @@ function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
     return (
       <div className="mt-1">
         {m.caption && <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2f3035]"><Hi text={m.caption} q={query} /></p>}
-        <img src={m.src} alt="" className="mt-1.5 max-h-72 rounded-xl border border-black/10 object-cover soft-shadow" loading="lazy" draggable={false} />
+        <button onClick={() => patchUI({ viewer: { msgId: m.id } })} className="mt-1.5 block cursor-zoom-in" title="Bara dekho">
+          <img src={m.src} alt="" className="max-h-72 rounded-xl border border-black/10 object-cover soft-shadow transition hover:brightness-[0.97]" loading="lazy" draggable={false} />
+        </button>
       </div>
     );
   }
   if (m.type === "voice") return <VoiceBubble m={m} />;
-  return <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#2f3035]"><Hi text={m.text} q={query} /></p>;
+  if (m.type === "poll") return <PollMessage m={m} />;
+  if (m.type === "location") return <LocationCard m={m} />;
+  if (m.type === "contact") return <ContactCard m={m} />;
+  const urls = extractUrls(m.text);
+  return (
+    <>
+      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#2f3035]">
+        {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
+      </p>
+      {urls.slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} />)}
+    </>
+  );
 }
 
-function Reactions({ m, meId }: { m: Message; meId: string }) {  const entries = Object.entries(m.reactions).filter(([, u]) => u.length > 0);
+// B6 — location card with OSM map tile preview
+function tileXY(lat: number, lng: number, z: number) {
+  const n = Math.pow(2, z);
+  const x = Math.floor(((lng + 180) / 360) * n);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
+  return { x, y };
+}
+function LocationCard({ m }: { m: Message }) {
+  let lat = 0, lng = 0;
+  try { const d = JSON.parse(m.caption || "{}"); lat = +d.lat || 0; lng = +d.lng || 0; } catch { /* ignore */ }
+  const z = 15;
+  const { x, y } = tileXY(lat, lng, z);
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+  return (
+    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 block w-full max-w-xs overflow-hidden rounded-xl border border-black/10 bg-white soft-shadow transition hover:border-[#5865f2]/50">
+      <span className="relative block h-36 w-full bg-[#e8e4d8]">
+        <img src={`https://tile.openstreetmap.org/${z}/${x}/${y}.png`} alt="Map" className="h-full w-full object-cover" loading="lazy" draggable={false} />
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[#ed4245] drop-shadow">
+          <MapPin size={30} fill="currentColor" stroke="#fff" strokeWidth={1.5} />
+        </span>
+      </span>
+      <span className="flex items-center gap-2.5 px-3.5 py-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#5865f2]/10 text-[#5865f2]"><Navigation size={17} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-[#2f3035]">Location</span>
+          <span className="block truncate text-xs tabular-nums text-[#80848e]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+        </span>
+        <span className="shrink-0 text-xs font-bold text-[#5865f2]">Kholo →</span>
+      </span>
+      <span className="block px-3.5 pb-2 text-[10px] text-[#80848e]">© OpenStreetMap contributors</span>
+    </a>
+  );
+}
+
+// B7 — contact card
+function ContactCard({ m }: { m: Message }) {
+  let name = "Contact", phone = "";
+  try { const d = JSON.parse(m.caption || "{}"); name = d.name || name; phone = String(d.phone || ""); } catch { /* ignore */ }
+  return (
+    <div className="mt-1.5 flex w-full max-w-xs items-center gap-3 rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#5865f2]/10 text-[#5865f2]">
+        <User size={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-bold text-[#2f3035]">{name}</span>
+        {phone && <span className="block truncate text-xs tabular-nums text-[#5c5e66]" dir="ltr">{phone}</span>}
+      </span>
+      {phone && (
+        <a href={`tel:${phone.replace(/\s/g, "")}`} className="btn btn-blurple shrink-0 px-3 py-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+          Call
+        </a>
+      )}
+    </div>
+  );
+}
+
+function Reactions({ m, meId }: { m: Message; meId: string }) {  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
   if (entries.length === 0) return null;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">

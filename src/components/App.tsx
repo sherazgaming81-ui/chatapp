@@ -12,12 +12,15 @@ import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
 import OwnerPanel from "@/components/OwnerPanel";
 import DeenPage from "@/components/DeenPage";
+import StarredView from "@/components/StarredView";
+import MediaViewer from "@/components/MediaViewer";
 import Toasts from "@/components/Toasts";
 
 export default function App() {
   const session = useStore((s) => s.session);
   const loading = useStore((s) => s.loading);
   const tab = useStore((s) => s.ui.tab);
+  const starredOpen = useStore((s) => s.ui.starredOpen);
   const me = useStore((s) => s.members.find((m) => m.id === s.me));
   const started = useRef(false);
 
@@ -58,7 +61,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], ui: { ...getState().ui, activeChatId: null, profileId: null } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false } });
       }
       // initial null (login page) → do nothing, just show Login
     });
@@ -79,7 +82,7 @@ export default function App() {
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
   const showDeen = tab === "deen";
-  const main = showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
+  const main = starredOpen ? <StarredView /> : showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
 
   return (
     <div className="flex h-full min-w-0 flex-1">
@@ -100,6 +103,7 @@ export default function App() {
         {main}
       </div>
       <ProfileModal />
+      <MediaViewer />
       <Toasts />
     </div>
   );

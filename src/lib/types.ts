@@ -15,7 +15,7 @@ export interface Member {
   warns: { reason: string; at: number }[];
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact";
 
 export interface Message {
   id: string;
@@ -56,6 +56,8 @@ export interface UIState {
   confirmBan: string | null;
   editingMsg: Message | null; // B16 edit mode
   infoMsg: string | null; // A17 seen-by modal (message id)
+  viewer: { msgId: string } | null; // A7 full-screen media viewer
+  starredOpen: boolean; // B13 starred messages page
 }
 
 export interface State {
@@ -66,6 +68,7 @@ export interface State {
   messages: Message[];
   chats: ChatMeta[];
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
+  starred: string[]; // B13 — starred message ids (localStorage-backed)
   ui: UIState;
 }
 

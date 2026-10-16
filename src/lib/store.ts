@@ -15,6 +15,8 @@ const initialUI: UIState = {
   confirmBan: null,
   editingMsg: null,
   infoMsg: null,
+  viewer: null,
+  starredOpen: false,
 };
 
 let state: State = {
@@ -25,6 +27,7 @@ let state: State = {
   messages: [],
   chats: [],
   pins: {},
+  starred: [],
   ui: { ...initialUI },
 };
 

@@ -1,5 +1,5 @@
 "use client";
-import { Hash, Volume2, ChevronDown, Settings, Mic, LogOut } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Settings, Mic, LogOut, Star } from "lucide-react";
 import { useState } from "react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
@@ -19,14 +19,19 @@ export default function Sidebar() {
   const [menu, setMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const pick = (id: string) => patchUI({ tab: "chat", activeChatId: id, replyTo: null, mobileDrawer: "none" });
+  const pick = (id: string) => patchUI({ tab: "chat", starredOpen: false, activeChatId: id, replyTo: null, mobileDrawer: "none" });
   const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
 
   return (
     <aside className="glass flex w-60 shrink-0 flex-col rounded-2xl">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4">
         <h2 className="truncate text-[15px] font-extrabold tracking-tight text-[#2f3035]">{group?.name || "ChatsApp"}</h2>
-        <ChevronDown size={18} className="shrink-0 text-[#80848e]" />
+        <div className="flex shrink-0 items-center">
+          <button onClick={() => patchUI({ starredOpen: true })} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5 hover:text-[#f5a623]" title="Starred messages">
+            <Star size={17} />
+          </button>
+          <ChevronDown size={18} className="text-[#80848e]" />
+        </div>
       </div>
 
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-2 py-3">
@@ -68,7 +73,7 @@ export default function Sidebar() {
                   />
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#2f3035]"}`}>{other?.name || dm.name}</span>
-                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : "")} · {fmtTime(lm.at)}</span>}
+                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
                   </span>
                 </button>
               );

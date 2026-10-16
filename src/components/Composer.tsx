@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2 } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage } from "@/lib/db";
+import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact } from "@/lib/db";
 import { isStaff } from "@/lib/types";
+import EmojiPicker from "@/components/EmojiPicker";
 
 // ───────── command palette ─────────
 interface Cmd { name: string; desc: string; usage: string; staff: boolean; hint?: string }
@@ -33,6 +34,11 @@ export default function Composer({ chatId }: { chatId: string }) {
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
+  const [attachOpen, setAttachOpen] = useState(false); // B1 attachment menu
+  const [emojiOpen, setEmojiOpen] = useState(false); // B8 emoji picker
+  const [pollOpen, setPollOpen] = useState(false); // B5 poll creator
+  const [contactOpen, setContactOpen] = useState(false); // B7 contact share
+  const [locBusy, setLocBusy] = useState(false); // B6 location
   const mr = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const file = useRef<HTMLInputElement>(null);
@@ -156,6 +162,42 @@ export default function Composer({ chatId }: { chatId: string }) {
     }
   };
 
+  // B8 — emoji cursor par insert karo
+  const insertEmoji = (e: string) => {
+    const el = ta.current;
+    if (!el) { onType(text + e); return; }
+    const s = el.selectionStart ?? text.length;
+    const en = el.selectionEnd ?? text.length;
+    const v = text.slice(0, s) + e + text.slice(en);
+    onType(v);
+    requestAnimationFrame(() => {
+      try { el.focus(); el.selectionStart = el.selectionEnd = s + e.length; } catch { /* ignore */ }
+    });
+  };
+
+  // B6 — location flow
+  const shareLocation = () => {
+    if (muted || !navigator.geolocation) { toast("Location nahi mil saki", "Browser support nahi karta"); return; }
+    setLocBusy(true);
+    setAttachOpen(false);
+    navigator.geolocation.getCurrentPosition(
+      (p) => { setLocBusy(false); sendLocation(chatId, p.coords.latitude, p.coords.longitude); },
+      () => { setLocBusy(false); toast("Location nahi mili", "Permission check karo"); },
+      { timeout: 12000 }
+    );
+  };
+
+  // B7 — device contacts (jahan supported)
+  const pickDeviceContact = async (fill: (n: string, p: string) => void) => {
+    try {
+      const nav = navigator as any;
+      if (!nav.contacts?.select) { toast("Support nahi", "Naam + number khud likho"); return; }
+      const list = await nav.contacts.select(["name", "tel"], { multiple: false });
+      const c = list?.[0];
+      if (c) fill(c.name?.[0] || "", c.tel?.[0] || "");
+    } catch { /* user cancelled */ }
+  };
+
   const pickImage = async (f: File | undefined) => {
     if (!f || muted) return;
     if (!f.type.startsWith("image/")) return;
@@ -222,7 +264,7 @@ export default function Composer({ chatId }: { chatId: string }) {
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-black/[0.04] px-3 py-2 text-sm">
           <Reply size={15} className="shrink-0 text-[#5865f2]" />
           <span className="min-w-0 flex-1 truncate text-[#5c5e66]">
-            <b className="text-[#2f3035]">{replyMember?.name || "Member"}</b> ko reply: {replyTo.text?.slice(0, 60) || "media"}
+            <b className="text-[#2f3035]">{replyMember?.name || "Member"}</b> ko reply: {replyTo.text?.slice(0, 60) || (replyTo.type === "image" ? "📷 Photo" : replyTo.type === "voice" ? "🎙️ Voice" : replyTo.type === "poll" ? "📊 Poll" : replyTo.type === "location" ? "📍 Location" : replyTo.type === "contact" ? "👤 Contact" : "media")}
           </span>
           <button onClick={() => patchUI({ replyTo: null })} className="rounded-md p-1 text-[#80848e] hover:bg-black/10"><X size={15} /></button>
         </div>
@@ -248,9 +290,9 @@ export default function Composer({ chatId }: { chatId: string }) {
           <button onClick={stopRec} className="btn btn-blurple flex items-center gap-1.5 px-4 py-2 text-sm"><Square size={14} /> Bhejo</button>
         </div>
       ) : (
-        <div className="glass-strong flex items-end gap-1.5 rounded-lg p-2 pl-2">
-          <button onClick={() => file.current?.click()} className="rounded-md p-2.5 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Photo bhejo">
-            <ImagePlus size={20} />
+        <div className="glass-strong relative flex items-end gap-1.5 rounded-lg p-2 pl-2">
+          <button onClick={() => { setAttachOpen((v) => !v); setEmojiOpen(false); }} className={`rounded-md p-2.5 hover:bg-black/5 ${attachOpen ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`} title="Attach">
+            <Plus size={20} className={`transition-transform ${attachOpen ? "rotate-45" : ""}`} />
           </button>
           <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
           <textarea
@@ -280,11 +322,137 @@ export default function Composer({ chatId }: { chatId: string }) {
           <button onClick={startRec} className="rounded-md p-2.5 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Voice note">
             <Mic size={20} />
           </button>
+          <button onClick={() => { setEmojiOpen((v) => !v); setAttachOpen(false); }} className={`rounded-md p-2.5 hover:bg-black/5 ${emojiOpen ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`} title="Emoji">
+            <Smile size={20} />
+          </button>
           <button onClick={send} disabled={!text.trim()} className="btn btn-blurple grid h-11 w-11 place-items-center disabled:opacity-40" title={editingMsg ? "Save" : "Bhejo"}>
             {editingMsg ? <Check size={18} /> : <Send size={18} />}
           </button>
         </div>
       )}
+      {/* B1 — attachment menu: bottom sheet (mobile) / popup (web) */}
+      {attachOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setAttachOpen(false)} />
+          <div className="pop-in fixed inset-x-4 bottom-24 z-40 rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
+            <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
+            <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
+            <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
+            <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
+          </div>
+        </>
+      )}
+      {/* B8 — emoji picker popup */}
+      {emojiOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setEmojiOpen(false)} />
+          <div className="relative z-40">
+            <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />
+          </div>
+        </>
+      )}
+      {pollOpen && <PollModal chatId={chatId} onClose={() => setPollOpen(false)} />}
+      {contactOpen && <ContactModal chatId={chatId} pickDevice={pickDeviceContact} onClose={() => setContactOpen(false)} />}
     </div>
+  );
+}
+
+function AttachItem({ icon, color, bg, label, desc, onClick }: { icon: React.ReactNode; color: string; bg: string; label: string; desc: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-black/5 active:scale-[0.99]">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color, background: bg.replace("/10", "") + "22" }}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-[#2f3035]">{label}</span>
+        <span className="block truncate text-xs text-[#80848e]">{desc}</span>
+      </span>
+    </button>
+  );
+}
+
+// B5 — poll creator modal
+function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [opts, setOpts] = useState(["", ""]);
+  const [dur, setDur] = useState("1d");
+  const busy = useRef(false);
+  const send = async () => {
+    if (busy.current) return;
+    const clean = opts.map((o) => o.trim()).filter(Boolean);
+    if (!q.trim() || clean.length < 2) { toast("Sawal + 2 options likho", ""); return; }
+    busy.current = true;
+    const ms = dur === "1h" ? 3600e3 : dur === "1w" ? 7 * 86400e3 : 86400e3;
+    await sendPoll(chatId, q, clean, Date.now() + ms);
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><BarChart3 size={19} className="text-[#f5a623]" /> Poll banao</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sawal likho…" maxLength={140}
+          className="field mt-4 w-full px-3.5 py-2.5 text-[15px]" />
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Options (2–5)</p>
+        <div className="space-y-1.5">
+          {opts.map((o, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input value={o} onChange={(e) => setOpts(opts.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} maxLength={60}
+                className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
+              {opts.length > 2 && (
+                <button onClick={() => setOpts(opts.filter((_, j) => j !== i))} className="shrink-0 rounded-lg p-2.5 text-[#ed4245] hover:bg-[#ed4245]/10" aria-label="Hatao">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {opts.length < 5 && (
+          <button onClick={() => setOpts([...opts, ""])} className="mt-2 text-sm font-bold text-[#5865f2] hover:underline">+ Option add karo</button>
+        )}
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Muddat</p>
+        <div className="flex gap-1.5">
+          {[["1h", "1 ghanta"], ["1d", "1 din"], ["1w", "1 hafta"]].map(([v, l]) => (
+            <button key={v} onClick={() => setDur(v)}
+              className={`flex-1 rounded-lg border px-2 py-2 text-sm font-bold transition ${dur === v ? "border-[#5865f2] bg-[#5865f2]/10 text-[#5865f2]" : "border-black/10 text-[#5c5e66] hover:border-black/25"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <button onClick={send} className="btn btn-blurple mt-5 w-full py-3 text-[15px]">Poll bhejo</button>
+      </div>
+    </>
+  );
+}
+
+// B7 — contact share modal
+function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDevice: (fill: (n: string, p: string) => void) => void; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const send = async () => {
+    if (!name.trim()) { toast("Naam likho", ""); return; }
+    await sendContact(chatId, name, phone);
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><User size={19} className="text-[#9b7bff]" /> Contact bhejo</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <button onClick={() => pickDevice((n, p) => { setName(n); setPhone(p); })}
+          className="mt-4 w-full rounded-lg border border-dashed border-[#5865f2]/40 bg-[#5865f2]/[0.05] px-3 py-2.5 text-sm font-bold text-[#5865f2] hover:bg-[#5865f2]/[0.1]">
+          📱 Phone contacts se chuno
+        </button>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Naam" maxLength={60}
+          className="field mt-3 w-full px-3.5 py-2.5 text-[15px]" />
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Number (optional)" inputMode="tel" maxLength={20}
+          className="field mt-2 w-full px-3.5 py-2.5 text-[15px]" dir="ltr" />
+        <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Contact bhejo</button>
+      </div>
+    </>
   );
 }
