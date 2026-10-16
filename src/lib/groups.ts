@@ -8,6 +8,19 @@ import type { ChatMeta } from "./types";
 const sb = () => supabase();
 const rid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
 
+/* chats insert — pehle DB default id try karo (uuid), fail ho to text id do */
+async function insertChat(row: Record<string, any>): Promise<string | null> {
+  try {
+    const { data, error } = await sb().from("chats").insert(row).select("id").single();
+    if (!error && data) return data.id as string;
+  } catch { /* fallback neeche */ }
+  try {
+    const { data, error } = await sb().from("chats").insert({ ...row, id: rid() }).select("id").single();
+    if (!error && data) return data.id as string;
+  } catch { /* ignore */ }
+  return null;
+}
+
 /* ───────── CREATE GROUP ───────── */
 export async function createGroup(name: string, desc: string, memberIds: string[]): Promise<string | null> {
   const s = getState();
@@ -16,13 +29,8 @@ export async function createGroup(name: string, desc: string, memberIds: string[
   if (!clean || !meId) return null;
   try {
     // 1. chats me naya group
-    const { data: chat, error: cErr } = await sb()
-      .from("chats")
-      .insert({ id: rid(), type: "group", name: clean, photo_url: "", is_main_group: false })
-      .select("id")
-      .single();
-    if (cErr || !chat) throw cErr || new Error("no chat");
-    const chatId = chat.id as string;
+    const chatId = await insertChat({ type: "group", name: clean, photo_url: "", is_main_group: false });
+    if (!chatId) throw new Error("no chat");
 
     // 2. description group_settings me (existing D1 pattern)
     if (desc.trim()) {
@@ -123,13 +131,8 @@ export async function openDM(otherId: string): Promise<void> {
 
   // 3. nayi DM banao
   try {
-    const { data: chat, error } = await sb()
-      .from("chats")
-      .insert({ id: rid(), type: "dm", name: other?.name || "Chat", photo_url: other?.avatar || "", is_main_group: false })
-      .select("id")
-      .single();
-    if (error || !chat) throw error || new Error("no chat");
-    const chatId = chat.id as string;
+    const chatId = await insertChat({ type: "dm", name: other?.name || "Chat", photo_url: other?.avatar || "", is_main_group: false });
+    if (!chatId) throw new Error("no chat");
     try {
       await sb().from("chat_participants").insert([
         { chat_id: chatId, user_id: meId },
