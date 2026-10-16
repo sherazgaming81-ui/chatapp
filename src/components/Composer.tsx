@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2 } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, clearChat, postSystem } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, clearChat, postSystem } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -45,6 +45,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   const mr = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const file = useRef<HTMLInputElement>(null);
+  const doc = useRef<HTMLInputElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
   const typingSent = useRef(0);
 
@@ -246,6 +247,13 @@ export default function Composer({ chatId }: { chatId: string }) {
     sendMedia(chatId, new File([blob], "photo.jpg", { type: "image/jpeg" }), "image");
   };
 
+  // Har file type: PDF, DOC, MP4, MP3, ZIP, APK...
+  const pickFile = async (f: File | undefined) => {
+    if (!f || muted) return;
+    toast("Upload ho rahi…", f.name);
+    await sendFile(chatId, f);
+  };
+
   const startRec = async () => {
     if (muted || banned) return;
     try {
@@ -332,6 +340,7 @@ export default function Composer({ chatId }: { chatId: string }) {
             <Plus size={20} className={`transition-transform ${attachOpen ? "rotate-45" : ""}`} />
           </button>
           <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
+          <input ref={doc} hidden type="file" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           <textarea
             ref={ta}
             rows={1}
@@ -382,6 +391,7 @@ export default function Composer({ chatId }: { chatId: string }) {
           <div className="fixed inset-0 z-30" onClick={() => setAttachOpen(false)} />
           <div className="pop-in fixed inset-x-4 bottom-24 z-40 rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
             <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
+            <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />

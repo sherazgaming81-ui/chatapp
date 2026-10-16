@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation } from "lucide-react";
+import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download } from "lucide-react";
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { deleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
@@ -10,7 +10,49 @@ import TicTacToeMessage from "@/components/TicTacToeMessage";
 import RiddleMessage from "@/components/RiddleMessage";
 import StickerMessage from "@/components/StickerMessage";
 import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
+import { fmtSize } from "@/lib/db";
 import type { Member, Message } from "@/lib/types";
+
+/* ───────── File card: icon + naam + size + download, audio/video inline player ───────── */
+function FileCard({ m }: { m: Message }) {
+  const name = m.fileName || "file";
+  const size = m.fileSize || 0;
+  const mime = m.mimeType || "";
+  const ext = name.split(".").pop()?.toLowerCase() || "";
+  const isAudio = mime.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a", "webm"].includes(ext);
+  const isVideo = mime.startsWith("video/") || ["mp4", "mov", "avi", "mkv"].includes(ext);
+  const isPdf = mime === "application/pdf" || ext === "pdf";
+  const isZip = ["zip", "rar", "7z", "tar", "apk"].includes(ext);
+  const Icon = isAudio ? FileAudio : isVideo ? FileVideo : isPdf ? FileText : isZip ? FileArchive : FileIcon;
+  const iconColor = isAudio ? "#9b7bff" : isVideo ? "#5865f2" : isPdf ? "#ed4245" : isZip ? "#f5a623" : "#5c5e66";
+  return (
+    <div className="mt-1 w-64 max-w-full">
+      {(isAudio || isVideo) && m.src ? (
+        <div className="overflow-hidden rounded-xl">
+          {isVideo ? (
+            <video src={m.src} controls className="max-h-64 w-full bg-black" preload="metadata" />
+          ) : (
+            <audio src={m.src} controls className="w-full" preload="metadata" />
+          )}
+        </div>
+      ) : null}
+      <a
+        href={m.src} download={name} target="_blank" rel="noopener noreferrer"
+        className="mt-1 flex items-center gap-3 rounded-xl bg-black/[0.04] p-3 transition hover:bg-black/[0.07]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white soft-shadow" style={{ color: iconColor }}>
+          <Icon size={22} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-bold text-[#2f3035]">{name}</span>
+          <span className="block text-xs text-[#80848e]">{fmtSize(size)}{ext ? ` · ${ext.toUpperCase()}` : ""}</span>
+        </span>
+        <Download size={18} className="shrink-0 text-[#5865f2]" />
+      </a>
+    </div>
+  );
+}
 
 const QUICK = ["❤️", "👍", "😂", "🤲", "🌙"];
 const EMPTY_ARR: string[] = [];
@@ -345,7 +387,7 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
     <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
       <Reply size={13} className="shrink-0" />
       <span className="font-semibold" style={{ color: replyMember ? nameColor(replyMember) : undefined }}>{replyMember?.name || "Member"}</span>
-      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
+      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "file" ? `📁 ${replySrc.fileName || "File"}` : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
     </div>
   );
 }
@@ -367,6 +409,7 @@ function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
   if (m.type === "sticker") return <StickerMessage m={m} />;
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
+  if (m.type === "file") return <FileCard m={m} />;
   const urls = extractUrls(m.text);
   return (
     <>

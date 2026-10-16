@@ -44,7 +44,7 @@ function toMember(p: any, role: Role, mute: any, ban: any, warns: any[]): Member
 }
 
 function toMessage(r: any): Message {
-  return {
+  const msg: Message = {
     id: r.id,
     from: r.sender_id,
     chatId: r.chat_id || MAIN_GROUP_ID,
@@ -60,6 +60,17 @@ function toMessage(r: any): Message {
     deleted: !!r.is_deleted,
     readBy: Array.isArray(r.read_by) ? r.read_by.filter((x: any) => typeof x === "string") : [],
   };
+  // file messages: metadata JSON in text field
+  if (msg.type === "file" && msg.text.startsWith("{")) {
+    try {
+      const meta = JSON.parse(msg.text);
+      msg.fileName = meta.name || "file";
+      msg.fileSize = meta.size || 0;
+      msg.mimeType = meta.mime || "";
+      msg.text = "";
+    } catch { /* ignore */ }
+  }
+  return msg;
 }
 
 // ───────── auth ─────────
@@ -452,6 +463,52 @@ export async function sendMedia(chatId: string, file: File, kind: "image" | "voi
     id: m.id, chat_id: chatId, sender_id: m.from, type: kind,
     text: "", media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
   }, "Media nahi gaya");
+  if (!ok) return null;
+  checkMessageBadges();
+  return m;
+}
+
+/* ───────── File upload: HAR file type (PDF, DOC, MP4, MP3, ZIP, APK...) ───────── */
+const MAX_FILE_MB = 50;
+export function fmtSize(bytes: number): string {
+  if (!bytes) return "0 B";
+  const u = ["B", "KB", "MB", "GB"];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+}
+export async function sendFile(chatId: string, file: File): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !file) return null;
+  const mb = file.size / (1024 * 1024);
+  if (mb > MAX_FILE_MB) { toast("File bohat bari", `${fmtSize(file.size)} — max ${MAX_FILE_MB}MB`); return null; }
+  // Supabase Storage try karo, fail ho to data URL fallback
+  let url = "";
+  try {
+    const path = `${chatId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { error } = await sb().storage.from("chat-files").upload(path, file, { upsert: true });
+    if (!error) {
+      const { data } = sb().storage.from("chat-files").getPublicUrl(path);
+      url = data.publicUrl;
+    }
+  } catch { /* fallback below */ }
+  if (!url) {
+    url = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result as string);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+  const meta = JSON.stringify({ name: file.name, size: file.size, mime: file.type });
+  const m: Message = {
+    id: uid("m"), from: s.me, chatId, type: "file", text: "",
+    at: Date.now(), reactions: {}, src: url,
+    fileName: file.name, fileSize: file.size, mimeType: file.type,
+  };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "file",
+    text: meta, media_url: url, reply_to: null, created_at: m.at, read_by: [],
+  }, "File nahi gayi");
   if (!ok) return null;
   checkMessageBadges();
   return m;

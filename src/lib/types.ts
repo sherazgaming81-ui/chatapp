@@ -51,7 +51,7 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "riddle";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "riddle" | "file";
 
 export interface Message {
   id: string;
@@ -64,9 +64,12 @@ export interface Message {
   edited?: boolean;
   deleted?: boolean;
   reactions: Record<string, string[]>; // emoji -> userIds
-  src?: string; // media_url (image / voice)
+  src?: string; // media_url (image / voice / file)
   dur?: number; // voice seconds
   caption?: string;
+  fileName?: string; // file messages: original filename
+  fileSize?: number; // file messages: bytes
+  mimeType?: string; // file messages: MIME type
   readBy?: string[]; // user ids that read it (from messages.read_by)
   status?: "sent" | "delivered" | "read"; // optional explicit tick state
 }
