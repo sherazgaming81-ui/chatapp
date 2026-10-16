@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { GIF_CATEGORIES, type GifItem, type GifCategory } from "@/lib/gifs";
 import { searchKlipy, trendingKlipy, type KlipyItem } from "@/lib/klipy";
+import { getLocalGifs, hasLocalCategory, searchLocalGifs } from "@/lib/localLibrary";
 
 const LIMIT = 24;
 
@@ -31,6 +32,16 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchMode = useCallback(async (mode: Mode, pos: string) => {
+    // SELF-HOSTED FIRST: agar local library me hai to KLIPY ko touch mat karo!
+    if (mode.kind === "cat" && hasLocalCategory(mode.cat.id)) {
+      const local = getLocalGifs(mode.cat.id);
+      return { items: local, next: "" }; // no pagination needed — sab local hai
+    }
+    if (mode.kind === "search") {
+      const local = searchLocalGifs(mode.query);
+      if (local.length > 0) return { items: local, next: "" };
+    }
+    // FALLBACK: KLIPY (jab local me na ho)
     if (mode.kind === "search") return searchKlipy(mode.query, LIMIT, pos, false);
     if (mode.cat.id === "trending") return trendingKlipy(LIMIT, pos, false);
     return searchKlipy(mode.cat.query, LIMIT, pos, false);
