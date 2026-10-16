@@ -24,7 +24,54 @@ export const BISMILLAH = BISMILLAH_RAW.replace(/^﻿/, "").trim();
 export const BISMILLAH_URDU = "شروع الله کا نام لے کر جو بڑا مہربان نہایت رحم والا ہے";
 
 // Cache version — badhao jab Quran data format badle (purana cache auto-clear)
-const QURAN_CACHE_V = "v2";
+const QURAN_CACHE_V = "v3";
+
+// Arabic diacritics normalizer — removes harakat (U+064B–U+065F) and superscript
+// alef (U+0670) plus collapsing whitespace, so equivalent Uthmani spellings compare
+// equal. (Unicode ranges only — no Quranic text typed here.)
+function normalizeAr(s: string): string {
+  return s.replace(/[ً-ٰٟ]/g, "").replace(/\s+/g, " ").trim();
+}
+
+// Bulletproof Bismillah stripping (3 levels). NEVER touches Surah 1/9 — caller guards that.
+// Returns the original text if nothing could be safely stripped.
+function stripBismillah(text: string): string {
+  const t = text.trim();
+  if (!t) return text;
+  // Level 1: exact prefix match (fast path)
+  if (t.startsWith(BISMILLAH)) {
+    const rest = t.slice(BISMILLAH.length).trim();
+    if (rest.length >= 2) return rest;
+  }
+  // Level 2: normalized prefix match — same words, different diacritic spelling/order.
+  // API evidence (codepoints): Tanzil writes SHADDA+FATHA (…ٱللَّهِ), the BISMILLAH
+  // constant writes FATHA+SHADDA (…ٱللَّهِ) — startsWith always fails on that.
+  // Surah 95 even adds a shadda on بِّسْمِ. All caught here via word-count skipping.
+  const normText = normalizeAr(t);
+  const normBis = normalizeAr(BISMILLAH);
+  if (normText.startsWith(normBis) && normText.length > normBis.length && normText[normBis.length] === " ") {
+    const wordCount = normBis.split(" ").length;
+    const parts = t.split(/\s+/);
+    if (parts.length > wordCount) {
+      const rest = parts.slice(wordCount).join(" ").trim();
+      if (rest.length >= 2) return rest;
+    }
+  }
+  // Level 3: fallback — find Bismillah's LAST WORD (derived from the constant,
+  // never typed: BISMILLAH.trim().split(/\s+/).pop()) in the original text;
+  // keep whatever comes after it.
+  const lastWord = BISMILLAH.trim().split(/\s+/).pop();
+  if (lastWord) {
+    const normLast = normalizeAr(lastWord);
+    const tokens = t.split(/\s+/);
+    const idx = tokens.findIndex((w) => normalizeAr(w) === normLast);
+    if (idx >= 0 && idx < tokens.length - 1) {
+      const rest = tokens.slice(idx + 1).join(" ").trim();
+      if (rest.length >= 2) return rest;
+    }
+  }
+  return text;
+}
 
 // Juz → starting surah. VERIFIED against API: GET /v1/juz/{1,14,30}/quran-uthmani
 // (1→1:1, 14→15:1, 30→78:1 all matched). Standard Medina mushaf mapping.
@@ -51,6 +98,22 @@ function cacheSet(key: string, val: unknown) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
 }
 
+// ── purani cache keys ka auto-cleanup (v1 bina-suffix + v2) ──
+// Ye keys kabhi read nahi hotin (sirf ":v3" parhi jati hai) aur inme Bismillah
+// bina strip hue ho sakta hai — delete karna safe hai. Module load par ek baar.
+// try/catch wrapped — cleanup kabhi app nahi rokegi.
+function cleanupOldQuranCache() {
+  try {
+    localStorage.removeItem("chatsapp:quran:surahs");
+    localStorage.removeItem("chatsapp:quran:surahs:v2");
+    for (let n = 1; n <= 114; n++) {
+      localStorage.removeItem(`chatsapp:quran:surah:${n}`);
+      localStorage.removeItem(`chatsapp:quran:surah:${n}:v2`);
+    }
+  } catch { /* ignore */ }
+}
+cleanupOldQuranCache();
+
 export async function fetchSurahList(): Promise<SurahMeta[]> {
   const cached = cacheGet<SurahMeta[]>("chatsapp:quran:surahs:" + QURAN_CACHE_V);
   if (cached && cached.length === 114) return cached;
@@ -68,7 +131,16 @@ export async function fetchSurahList(): Promise<SurahMeta[]> {
 
 export async function fetchSurah(n: number): Promise<{ meta: SurahMeta; ayahs: Ayah[] }> {
   const cached = cacheGet<{ meta: SurahMeta; ayahs: Ayah[] }>(`chatsapp:quran:surah:${n}:${QURAN_CACHE_V}`);
-  if (cached && cached.ayahs.length > 0) return cached;
+  if (cached && cached.ayahs.length > 0) {
+    // defense-in-depth: purane cache me Ayat 1 me Bismillah ho to bhi strip karo
+    if (n !== 1 && n !== 9 && cached.ayahs[0]) {
+      const s = stripBismillah(cached.ayahs[0].arabic);
+      if (s !== cached.ayahs[0].arabic) {
+        return { meta: cached.meta, ayahs: [{ ...cached.ayahs[0], arabic: s }, ...cached.ayahs.slice(1)] };
+      }
+    }
+    return cached;
+  }
   const r = await fetch(`${API}/surah/${n}/editions/quran-uthmani,ur.jalandhry`);
   if (!r.ok) throw new Error("net");
   const d = await r.json();
@@ -85,11 +157,8 @@ export async function fetchSurah(n: number): Promise<{ meta: SurahMeta; ayahs: A
   }));
   // Surah 1: ayah 1 IS the Bismillah (keep). Surah 9: none. Others: strip Bismillah prefix from ayah 1.
   if (n !== 1 && n !== 9 && ayahs[0]) {
-    const t = ayahs[0].arabic;
-    if (t.startsWith(BISMILLAH)) {
-      const stripped = t.slice(BISMILLAH.length).trim();
-      if (stripped.length > 0) ayahs[0] = { ...ayahs[0], arabic: stripped };
-    }
+    const stripped = stripBismillah(ayahs[0].arabic);
+    if (stripped !== ayahs[0].arabic) ayahs[0] = { ...ayahs[0], arabic: stripped };
   }
   const out = { meta, ayahs };
   cacheSet(`chatsapp:quran:surah:${n}:${QURAN_CACHE_V}`, out);
@@ -118,15 +187,17 @@ export function dailyIndex(len: number, offset = 0) {
 export async function fetchDailyAyah(): Promise<DailyAyahData> {
   const idx = dailyIndex(DAILY_AYAHS.length);
   const { s, a } = DAILY_AYAHS[idx];
-  const key = `chatsapp:quran:ayah:${s}:${a}`;
+  const key = `chatsapp:quran:ayah:${s}:${a}:${QURAN_CACHE_V}`;
   const cached = cacheGet<DailyAyahData>(key);
   if (cached) return cached;
   const r = await fetch(`${API}/ayah/${s}:${a}/editions/quran-uthmani,ur.jalandhry`);
   if (!r.ok) throw new Error("net");
   const d = await r.json();
   const [ar, ur] = d.data;
+  // Ayat 1 (except Surah 1) ka Bismillah prefix strip karo — reader jaisa consistent behavior
+  const rawAr = (ar.text as string).replace(/^﻿/, "");
   const out: DailyAyahData = {
-    arabic: (ar.text as string).replace(/^﻿/, ""),
+    arabic: (s !== 1 && a === 1) ? stripBismillah(rawAr) : rawAr,
     urdu: ur.text,
     surahName: ar.surah.englishName,
     ref: `Surah ${ar.surah.englishName} ${s}:${a}`,
@@ -138,7 +209,8 @@ export async function fetchDailyAyah(): Promise<DailyAyahData> {
 // ── bookmarks + last read (localStorage) ──
 export interface Bookmark { surah: number; ayah: number; surahName: string; at: number }
 export function getBookmarks(): Bookmark[] {
-  return cacheGet<Bookmark[]>("chatsapp:quran:bookmarks") ?? [];
+  const v = cacheGet<Bookmark[]>("chatsapp:quran:bookmarks");
+  return Array.isArray(v) ? v : [];
 }
 export function toggleBookmark(b: Bookmark): Bookmark[] {
   const list = getBookmarks();

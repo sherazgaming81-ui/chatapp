@@ -169,6 +169,20 @@ function Reader({ surah, scrollTo }: { surah: number; scrollTo?: number }) {
         )}
         {data && (
           <div className="mx-auto max-w-2xl">
+            {/* Surah header: Arabic naam + English naam + Makki/Madani + ayat count */}
+            <div className="soft-shadow mt-4 rounded-2xl border border-black/[0.08] bg-white/70 px-4 py-4 text-center">
+              <p className="font-quran text-[30px] leading-snug text-[#2f3035]" dir="rtl" lang="ar">{data.meta.name}</p>
+              <p className="mt-1 text-[16px] font-extrabold text-[#2f3035]">{data.meta.englishName}</p>
+              {data.meta.englishNameTranslation && (
+                <p className="mt-0.5 text-xs text-[#80848e]">{data.meta.englishNameTranslation}</p>
+              )}
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <span className="badge-pill" style={{ background: "#5865f222", color: "#5865f2" }}>
+                  {data.meta.revelationType === "Meccan" ? "Makki" : "Madani"}
+                </span>
+                <span className="text-xs font-semibold text-[#80848e]">{data.meta.numberOfAyahs} ayatein</span>
+              </div>
+            </div>
             {showBismillah && (
               <div className="py-6 text-center">
                 <p className="font-quran text-[28px] leading-loose text-[#b8860b]" dir="rtl" lang="ar">{BISMILLAH}</p>
@@ -178,14 +192,21 @@ function Reader({ surah, scrollTo }: { surah: number; scrollTo?: number }) {
             <div className="divide-y divide-black/[0.06]">
               {data.ayahs.map((a) => {
                 const marked = marks.some((m) => m.surah === surah && m.ayah === a.numberInSurah);
+                const arabic = (a.arabic || "").trim(); // stripping edge-case: khali matan par UI na toote
                 return (
                   <article key={a.numberInSurah} id={`q-ayah-${a.numberInSurah}`} data-ayah={a.numberInSurah} className="group scroll-mt-24 py-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-quran min-w-0 flex-1 text-right text-[24px] leading-[2.2] text-[#1f2023]" dir="rtl" lang="ar">
-                        {a.arabic}
-                        <span className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#5865f2]/30 bg-[#5865f2]/[0.07] align-middle font-sans text-[13px] font-bold text-[#5865f2]">{a.numberInSurah}</span>
-                      </p>
-                    </div>
+                    {arabic ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-quran min-w-0 flex-1 text-right text-[24px] leading-[2.2] text-[#1f2023]" dir="rtl" lang="ar">
+                          {arabic}
+                          <span className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#5865f2]/30 bg-[#5865f2]/[0.07] align-middle font-sans text-[13px] font-bold text-[#5865f2]">{a.numberInSurah}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-black/[0.04] p-3 text-center">
+                        <span className="text-sm font-bold text-[#80848e]">Ayat {a.numberInSurah}</span>
+                      </div>
+                    )}
                     {a.urdu && <p className="mt-2 text-right text-[15px] leading-relaxed text-[#5c5e66]" dir="rtl" lang="ur">{a.urdu}</p>}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-xs font-semibold text-[#a0a3ab]">Ayat {a.numberInSurah}</span>
