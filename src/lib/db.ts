@@ -351,7 +351,8 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
         const staff = me && (me.role === "owner" || me.role === "admin" || me.role === "mod");
         if (!staff) {
           if (bw.action === "warn" || bw.action === "both") {
-            addWarn(s.me, `Banned lafz: "${hit}"`).catch(() => {});
+            // chatId pass karo taake system message sahi group me jaye + audit log me entry ho
+            addWarn(s.me, `Banned lafz: "${hit}"`, chatId).catch(() => {});
             toast("⚠️ Warning", `Mana lafz istemal kiya: "${hit}"`);
           }
           if (bw.action === "delete" || bw.action === "both") {
@@ -481,33 +482,89 @@ export async function toggleReaction(msgId: string, emoji: string) {
 }
 
 // ───────── moderation (owner) ─────────
-export async function setMute(userId: string, until: number | null | undefined) {
+// chatId optional hai — default MAIN_GROUP_ID. RLS UPDATE block karta hai,
+// is liye upsert NAHI — select-then-insert/delete pattern.
+function modChatId(chatId?: string): string {
+  return chatId || MAIN_GROUP_ID;
+}
+export async function setMute(userId: string, until: number | null | undefined, chatId?: string) {
+  const cid = modChatId(chatId);
+  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
-    if (until === undefined) await sb().from("mutes").delete().eq("chat_id", MAIN_GROUP_ID).eq("user_id", userId);
-    else await sb().from("mutes").upsert({ chat_id: MAIN_GROUP_ID, user_id: userId, until: until === null ? 0 : until });
-  } catch { /* ignore */ }
+    if (until === undefined) {
+      // unmute — row delete karo
+      const { error } = await sb().from("mutes").delete().eq("chat_id", cid).eq("user_id", userId);
+      if (error) throw error;
+    } else {
+      // mute — pehle check karo, phir insert ya update-via-delete+insert
+      const { data: ex } = await sb().from("mutes").select("user_id").eq("chat_id", cid).eq("user_id", userId).maybeSingle();
+      const val = until === null ? 0 : until;
+      if (ex) {
+        await sb().from("mutes").delete().eq("chat_id", cid).eq("user_id", userId);
+      }
+      const { error } = await sb().from("mutes").insert({ chat_id: cid, user_id: userId, until: val });
+      if (error) throw error;
+    }
+  } catch (e: any) {
+    toast("Mute fail hua", e?.message || "Dobara try karo");
+    return;
+  }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, mutedUntil: until } : m)) });
-  try { const { logAudit } = await import("./owner"); await logAudit(until === undefined ? "unmute" : "mute", userId, until === null ? "hamesha" : until === undefined ? "unmute" : new Date(until).toLocaleString()); } catch { /* ignore */ }
+  try { const { logAudit } = await import("./owner"); await logAudit(until === undefined ? "unmute" : "mute", userId, until === null ? "hamesha" : until === undefined ? "unmute" : new Date(until).toLocaleString(), cid); } catch { /* ignore */ }
+  // visibility: group me system message
+  try { await postSystem(cid, until === undefined ? `🔊 ${targetName} unmute ho gaya` : `🔇 ${targetName} mute ho gaya (${until === null ? "hamesha" : "1 ghanta"})`); } catch { /* ignore */ }
 }
-export async function setBan(userId: string, banned: boolean, reason = "") {
+export async function setBan(userId: string, banned: boolean, reason = "", chatId?: string) {
+  const cid = modChatId(chatId);
+  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
-    if (banned) await sb().from("bans").upsert({ chat_id: MAIN_GROUP_ID, user_id: userId, reason });
-    else await sb().from("bans").delete().eq("chat_id", MAIN_GROUP_ID).eq("user_id", userId);
-  } catch { /* ignore */ }
+    if (banned) {
+      const { data: ex } = await sb().from("bans").select("user_id").eq("chat_id", cid).eq("user_id", userId).maybeSingle();
+      if (!ex) {
+        const { error } = await sb().from("bans").insert({ chat_id: cid, user_id: userId, reason });
+        if (error) throw error;
+      }
+    } else {
+      const { error } = await sb().from("bans").delete().eq("chat_id", cid).eq("user_id", userId);
+      if (error) throw error;
+    }
+  } catch (e: any) {
+    toast("Ban fail hua", e?.message || "Dobara try karo");
+    return;
+  }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, banned } : m)) });
-  try { const { logAudit } = await import("./owner"); await logAudit(banned ? "ban" : "unban", userId, reason || (banned ? "ban" : "unban")); } catch { /* ignore */ }
+  try { const { logAudit } = await import("./owner"); await logAudit(banned ? "ban" : "unban", userId, reason || (banned ? "ban" : "unban"), cid); } catch { /* ignore */ }
+  try { await postSystem(cid, banned ? `🚫 ${targetName} ban ho gaya${reason ? `: ${reason}` : ""}` : `✅ ${targetName} unban ho gaya`); } catch { /* ignore */ }
 }
-export async function addWarn(userId: string, reason: string) {
+export async function addWarn(userId: string, reason: string, chatId?: string, silent = false) {
+  const cid = modChatId(chatId);
+  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
-    const { data } = await sb().from("warns").select("count").eq("chat_id", MAIN_GROUP_ID).eq("user_id", userId).single();
+    const { data } = await sb().from("warns").select("count").eq("chat_id", cid).eq("user_id", userId).maybeSingle();
     const c = (data?.count || 0) + 1;
-    await sb().from("warns").upsert({ chat_id: MAIN_GROUP_ID, user_id: userId, count: c, reason });
-  } catch { /* ignore */ }
+    // upsert nahi — delete + insert (RLS UPDATE block)
+    await sb().from("warns").delete().eq("chat_id", cid).eq("user_id", userId);
+    const { error } = await sb().from("warns").insert({ chat_id: cid, user_id: userId, count: c, reason });
+    if (error) throw error;
+  } catch (e: any) {
+    if (!silent) toast("Warning fail hui", e?.message || "Dobara try karo");
+    return;
+  }
   const ms = getState().members.map((m) => (m.id === userId ? { ...m, warns: [...m.warns, { reason, at: Date.now() }] } : m));
   update({ members: ms });
-  try { const { logAudit } = await import("./owner"); await logAudit("warn", userId, reason); } catch { /* ignore */ }
+  try { const { logAudit } = await import("./owner"); await logAudit("warn", userId, reason, cid); } catch { /* ignore */ }
+  // visibility: group me system message — kisne, kya word, warn mili
+  if (!silent) {
+    try { await postSystem(cid, `⚠️ ${targetName} ko warning mili: ${reason}`); } catch { /* ignore */ }
+  }
   const target = ms.find((m) => m.id === userId);
-  if (target && target.warns.length >= 3) await setMute(userId, Date.now() + 3600e3);
+  if (target && target.warns.length >= 3) {
+    await setMute(userId, Date.now() + 3600e3, cid);
+    try { await postSystem(cid, `🔇 ${targetName} auto-mute ho gaya (3 warnings)`); } catch { /* ignore */ }
+  }
 }
 export async function setRole(userId: string, role: Role) {
   const prev = getState().members.find((m) => m.id === userId)?.role;
@@ -893,9 +950,11 @@ export function startRealtime() {
       } catch { /* ignore */ }
     })();
   };
-  ch.on("postgres_changes", { event: "*", schema: "public", table: "mutes", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
-  ch.on("postgres_changes", { event: "*", schema: "public", table: "bans", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
-  ch.on("postgres_changes", { event: "*", schema: "public", table: "warns", filter: `chat_id=eq.${MAIN_GROUP_ID}` }, refreshMod);
+  // NOTE: filter nahi lagaya — MAIN_GROUP_ID startRealtime() ke waqt empty ho sakta hai
+  // (filter `chat_id=eq.` kabhi match nahi karta). refreshMod andar khud filter karta hai.
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "mutes" }, refreshMod);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "bans" }, refreshMod);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "warns" }, refreshMod);
 
   ch.on("postgres_changes", { event: "*", schema: "public", table: "group_settings" }, (p: any) => {
     const key = p.new?.key || p.old?.key || "";

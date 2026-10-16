@@ -114,17 +114,17 @@ export default function Composer({ chatId }: { chatId: string }) {
         if (!args) { toast("Text likho", "/elaan <text>"); return true; }
         postAnnouncement(args); toast("Elaan bhej diya", ""); break;
       case "mute":
-        setMute(target!.id, Date.now() + 3600e3); toast("Mute kar diya", `${target!.name} · 1 ghanta`); break;
+        setMute(target!.id, Date.now() + 3600e3, chatId); toast("Mute kar diya", `${target!.name} · 1 ghanta`); break;
       case "unmute":
-        setMute(target!.id, undefined); toast("Unmute kar diya", target!.name); break;
+        setMute(target!.id, undefined, chatId); toast("Unmute kar diya", target!.name); break;
       case "warn": {
         const reason = args.split(/\s+/).slice(1).join(" ") || "Group rules torhe";
-        addWarn(target!.id, reason); toast("Warning de di", `${target!.name} · ${reason}`); break;
+        addWarn(target!.id, reason, chatId); toast("Warning de di", `${target!.name} · ${reason}`); break;
       }
       case "ban":
-        setBan(target!.id, true); toast("Ban kar diya", target!.name); break;
+        setBan(target!.id, true, "", chatId); toast("Ban kar diya", target!.name); break;
       case "unban":
-        setBan(target!.id, false); toast("Unban kar diya", target!.name); break;
+        setBan(target!.id, false, "", chatId); toast("Unban kar diya", target!.name); break;
       case "pin":
         if (!replyTo) { toast("Pehle reply karo", "Kisi message par reply karke /pin likho"); return true; }
         togglePin(chatId, replyTo.id); toast("Pin kar diya", ""); break;
