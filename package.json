@@ -6,7 +6,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

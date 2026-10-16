@@ -31,6 +31,7 @@ export default function EmojiPicker({ onPick, onSticker, onClose }: { onPick: (e
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Emoji dhoondo…"
+          autoFocus
           className="min-w-0 flex-1 bg-transparent text-sm text-[#2f3035] outline-none placeholder:text-[#80848e]"
         />
       </div>

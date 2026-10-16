@@ -284,14 +284,27 @@ export default function ChatView() {
         </button>
       )}
 
+      {/* 15 — wallpaper blur layer (slider se control) */}
+      <div className="relative min-h-0 flex-1">
+        {prefs.wallpaperBlur > 0 && (prefs.wallpaper !== "default" || prefs.wallpaperCustom) && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              ...wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom),
+              filter: `blur(${prefs.wallpaperBlur}px)`,
+              transform: "scale(1.08)",
+            }}
+          />
+        )}
       <div
         ref={sc}
         onScroll={onScroll}
         onTouchStart={onTouchStartPTR}
         onTouchMove={onTouchMovePTR}
         onTouchEnd={onTouchEndPTR}
-        className={`thin-scroll min-h-0 flex-1 overflow-y-auto py-3 ${isDoodleWallpaper(prefs.wallpaper) ? "chat-doodle" : ""}`}
-        style={wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom)}
+        className={`thin-scroll relative min-h-0 flex-1 overflow-y-auto py-3 ${isDoodleWallpaper(prefs.wallpaper) ? "chat-doodle" : ""}`}
+        style={prefs.wallpaperBlur > 0 ? {} : wallpaperStyle(prefs.wallpaper, prefs.wallpaperCustom)}
       >
         {/* 13 — pull-to-refresh indicator */}
         {(ptrPull > 10 || ptrBusy) && (
@@ -335,7 +348,7 @@ export default function ChatView() {
                       <div className="flex justify-center py-2">
                         <button
                           onClick={() => jumpTo(m.id)}
-                          className="rounded-full bg-[#5865f2] px-3.5 py-1.5 text-xs font-bold text-white shadow transition hover:bg-[#4752c4]"
+                          className="unread-glow rounded-full bg-[#5865f2] px-3.5 py-1.5 text-xs font-bold text-white shadow transition hover:bg-[#4752c4]"
                         >
                           {unreadInfo.count} unread messages
                         </button>
@@ -354,6 +367,7 @@ export default function ChatView() {
             <span className="flex gap-1 rounded-xl bg-black/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
           </div>
         )}
+      </div>
       </div>
 
       {activeChatId && <Composer chatId={activeChatId} />}

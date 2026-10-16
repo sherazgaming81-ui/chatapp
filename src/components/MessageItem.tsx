@@ -77,7 +77,11 @@ function VoiceBubble({ m }: { m: Message }) {
       </span>
       <span className="flex h-6 items-end gap-[3px]">
         {Array.from({ length: 24 }).map((_, i) => (
-          <span key={i} className="w-[3px] rounded-full bg-[#5865f2]" style={{ height: `${30 + Math.abs(Math.sin(i * 1.7)) * 70}%`, opacity: playing ? 1 : 0.4 }} />
+          <span
+            key={i}
+            className={`w-[3px] rounded-full bg-[#5865f2] ${playing ? "wavebar" : ""}`}
+            style={{ height: `${30 + Math.abs(Math.sin(i * 1.7)) * 70}%`, opacity: playing ? 1 : 0.4, animationDelay: `${(i % 8) * 0.09}s` }}
+          />
         ))}
       </span>
       <span className="text-xs tabular-nums text-[#80848e]">{m.dur ? `${Math.round(m.dur)}s` : "voice"}</span>
@@ -110,6 +114,20 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const infoOpen = useStore((s) => s.ui.infoMsg === m.id);
   const [reactOpen, setReactOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  // 3 — emoji burst: reaction lagao to chhota confetti burst 🎉
+  const [bursts, setBursts] = useState<{ id: number; emoji: string }[]>([]);
+  const burstSeq = useRef(0);
+  const fireBurst = (emoji: string) => {
+    const id = ++burstSeq.current;
+    setBursts((b) => [...b, { id, emoji }]);
+    try { import("@/lib/sound").then((s) => s.playTick()).catch(() => {}); } catch { /* ignore */ }
+    setTimeout(() => setBursts((b) => b.filter((x) => x.id !== id)), 750);
+  };
+  const react = (emoji: string) => {
+    toggleReaction(m.id, emoji);
+    fireBurst(emoji);
+    setReactOpen(false);
+  };
   const [deleting, setDeleting] = useState(false); // B15
   const mine = m.from === meId;
   const replySrc = m.replyTo ? messages.find((x) => x.id === m.replyTo) : null;
@@ -138,6 +156,20 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     else if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) setActionsPinned(true); // 11 — swipe left = options
   };
 
+  // 14 — right-click se bhi context menu kholo (desktop)
+  const [ctxOpen, setCtxOpen] = useState(false);
+  const onContextMenu = (e: React.MouseEvent) => {
+    if (m.deleted) return;
+    e.preventDefault();
+    setCtxOpen(true);
+  };
+  useEffect(() => {
+    if (!ctxOpen) return;
+    const close = () => setCtxOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [ctxOpen]);
+
   // 1 — naya message slide-in (sirf taaza messages, dobara render par nahi)
   const [fresh] = useState(() => Date.now() - m.at < 8000);
   const slideCls = fresh ? "msg-slide-in" : "";
@@ -164,6 +196,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       id={`msg-${m.id}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      onContextMenu={onContextMenu}
       className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls}`}
       data-time={timeLabel}
     >
@@ -173,7 +206,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <div className="fixed inset-0 z-20 md:hidden" onClick={() => setActionsPinned(false)} />
           <div className="swipe-actions-bar pop-in fixed bottom-20 left-4 right-4 z-30 flex justify-around rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:hidden">
             <button onClick={() => { patchUI({ replyTo: m }); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Reply size={20} /><span className="text-[10px] font-bold">Reply</span></button>
-            <button onClick={() => { toggleReaction(m.id, "❤️"); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><span className="text-xl">❤️</span><span className="text-[10px] font-bold">React</span></button>
+            <button onClick={() => { react("❤️"); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><span className="text-xl">❤️</span><span className="text-[10px] font-bold">React</span></button>
             <button onClick={() => { toggleStar(m.id); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Star size={20} /><span className="text-[10px] font-bold">Star</span></button>
             {(mine || staff) && (
               <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#ed4245] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Delete</span></button>
@@ -181,7 +214,8 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           </div>
         </>
       )}
-      <div className={`msg-actions absolute -top-4 z-10 flex overflow-hidden rounded-lg border border-black/10 bg-white soft-shadow ${mine ? "right-4" : "left-14"} ${actionsPinned ? "!opacity-100" : ""}`}>
+      {/* 14 — glassmorphism context menu (hover + right-click) */}
+      <div className={`msg-actions ctx-glass absolute -top-4 z-10 flex overflow-hidden rounded-2xl ${mine ? "right-4" : "left-14"} ${(actionsPinned || ctxOpen) ? "!opacity-100" : ""}`}>
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
         <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
@@ -203,11 +237,19 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <div className="fixed inset-0 z-20" onClick={() => setReactOpen(false)} />
           <div className="pop-in absolute -top-12 right-4 z-30 flex gap-1 rounded-xl border border-black/10 bg-white p-1.5 soft-shadow">
             {QUICK.map((e) => (
-              <button key={e} onClick={() => { toggleReaction(m.id, e); setReactOpen(false); }} className="rounded-lg p-1.5 text-xl hover:bg-black/5">{e}</button>
+              <button key={e} onClick={() => react(e)} className="rounded-lg p-1.5 text-xl hover:bg-black/5">{e}</button>
             ))}
           </div>
         </>
       )}
+      {/* 3 — emoji burst overlay */}
+      {bursts.map((b) => (
+        <span key={b.id} className="emoji-burst" aria-hidden>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} className={`eb-p eb-p${i}`}>{b.emoji}</span>
+          ))}
+        </span>
+      ))}
       {confirmDel && (
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setConfirmDel(false)} />
@@ -253,7 +295,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           </div>
         </div>
         <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-          <Reactions m={m} meId={meId} />
+          <Reactions m={m} meId={meId} onReact={fireBurst} />
         </div>
         </>
       ) : prevSame ? (
@@ -262,7 +304,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
           <div className="min-w-0 flex-1">
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
             <MsgBody m={m} query={query} />
-            <Reactions m={m} meId={meId} />
+            <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
         </div>
       ) : (
@@ -278,7 +320,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
             </p>
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
             <MsgBody m={m} query={query} />
-            <Reactions m={m} meId={meId} />
+            <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
         </div>
       )}
@@ -381,7 +423,7 @@ function ContactCard({ m }: { m: Message }) {
   );
 }
 
-function Reactions({ m, meId }: { m: Message; meId: string }) {  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
+function Reactions({ m, meId, onReact }: { m: Message; meId: string; onReact?: (emoji: string) => void }) {  const entries = Object.entries(m.reactions).filter(([k, u]) => u.length > 0 && !k.startsWith("__poll_"));
   if (entries.length === 0) return null;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -390,7 +432,7 @@ function Reactions({ m, meId }: { m: Message; meId: string }) {  const entries =
         return (
           <button
             key={emoji}
-            onClick={() => toggleReaction(m.id, emoji)}
+            onClick={() => { toggleReaction(m.id, emoji); onReact?.(emoji); }}
             className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#5865f2] bg-[#5865f2]/15" : "border-black/10 bg-black/[0.04] hover:border-black/25"}`}
           >
             <span>{emoji}</span>

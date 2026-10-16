@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Moon, Settings } from "lucide-react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
+import VersionBanner from "@/components/VersionBanner";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
 import { isStaff } from "@/lib/types";
 import { trackActiveDay } from "@/lib/achievements";
@@ -71,6 +72,34 @@ export default function App() {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
+  }, []);
+
+  /* 7 — keyboard shortcuts (desktop): Ctrl/Cmd+K = search, Esc = band karo ⌨️ */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      // Ctrl/Cmd + K → global search
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        patchUI({ globalSearchOpen: true });
+        return;
+      }
+      if (e.key !== "Escape") return;
+      const s = getState().ui;
+      // upar se neeche: jo khula ho wo band
+      if (s.viewer) patchUI({ viewer: null });
+      else if (s.groupInfo) patchUI({ groupInfo: null });
+      else if (s.globalSearchOpen) patchUI({ globalSearchOpen: false });
+      else if (s.createGroupOpen) patchUI({ createGroupOpen: false });
+      else if (s.settingsOpen) patchUI({ settingsOpen: false });
+      else if (s.profileId) patchUI({ profileId: null, confirmBan: null });
+      else if (s.infoMsg) patchUI({ infoMsg: null });
+      else if (s.confirmBan) patchUI({ confirmBan: null });
+      else if (!typing && s.starredOpen) patchUI({ starredOpen: false });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   /* 3 — ripple effect (saare .btn par) */
@@ -190,6 +219,8 @@ export default function App() {
 
   return (
     <div className={`flex h-full min-w-0 flex-1 flex-col ${compactCls}`}>
+      {/* 13 — naya version banner (silent update, koi force reload nahi) */}
+      <VersionBanner />
       {/* 20 — offline banner */}
       {!isOnline && (
         <div className="offline-banner z-[100] flex shrink-0 items-center justify-center gap-2 bg-[#ed4245] px-4 py-2 text-sm font-bold text-white">

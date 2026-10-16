@@ -808,7 +808,7 @@ export function startRealtime() {
   const ch = sb().channel("chatsapp-room", { config: { presence: { key: getState().me } } });
 
   // NO chat_id filter — DMs must arrive too
-  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p: any) => {
+  ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (p: any) => {
     const s = getState();
     if (p.new.sender_id === s.me) return;
     if (s.messages.some((x) => x.id === p.new.id)) return;
@@ -831,6 +831,17 @@ export function startRealtime() {
       }
       return { messages: [...st.messages, m], chats, unread };
     });
+    // 1 — notification sound: sirf tab inactive ho ya dusri chat khuli ho to baje 🔊
+    try {
+      const { playPop } = await import("./sound");
+      const { getSound, isChatMuted } = await import("./prefs");
+      const s2 = getState();
+      const activeId2 = s2.ui.activeChatId || s2.chats[0]?.id;
+      const tabHidden = typeof document !== "undefined" && document.hidden;
+      if (getSound() && m.chatId && !isChatMuted(m.chatId) && (tabHidden || m.chatId !== activeId2)) {
+        playPop();
+      }
+    } catch { /* ignore */ }
     // Phase 7 — paheli ka jawab check karo
     if (m.type === "text" && m.text) {
       setTimeout(() => checkRiddleAnswer(m.chatId, m.text, m.from).catch(() => {}), 300);

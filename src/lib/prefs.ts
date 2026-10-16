@@ -11,8 +11,8 @@ const LS = {
 };
 
 /* ───────── reactive prefs snapshot (compact + wallpaper + dark update live) ───────── */
-interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; dark: boolean; }
-let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null, dark: false };
+interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; dark: boolean; sound: boolean; wallpaperBlur: number; }
+let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null, dark: false, sound: true, wallpaperBlur: 0 };
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach((l) => { try { l(); } catch { /* ignore */ } }); }
 /* 4 — dark mode: <html> par .dark class lagao */
@@ -22,11 +22,14 @@ function applyDark(d: boolean) {
   } catch { /* ignore */ }
 }
 function readSnap(): PrefsSnap {
+  const blurRaw = parseInt(LS.get("chatsapp:wallpaperblur") || "0", 10);
   return {
     compact: LS.get("chatsapp:compact") === "1",
     wallpaper: LS.get("chatsapp:wallpaper") || "default",
     wallpaperCustom: LS.get("chatsapp:wallpaper:custom"),
     dark: LS.get("chatsapp:dark") === "1",
+    sound: LS.get("chatsapp:sound") !== "0",
+    wallpaperBlur: isNaN(blurRaw) ? 0 : Math.min(20, Math.max(0, blurRaw)),
   };
 }
 function refresh() { snap = readSnap(); applyDark(snap.dark); emit(); }
@@ -117,6 +120,53 @@ export function isDoodleWallpaper(wallpaper: string): boolean {
   return wallpaper === "doodle";
 }
 
+/* ───────── 15 — chat wallpaper blur slider (0–20px) ───────── */
+export const getWallpaperBlur = (): number => {
+  const v = parseInt(LS.get("chatsapp:wallpaperblur") || "0", 10);
+  return isNaN(v) ? 0 : Math.min(20, Math.max(0, v));
+};
+export function setWallpaperBlur(px: number) {
+  LS.set("chatsapp:wallpaperblur", String(Math.min(20, Math.max(0, Math.round(px)))));
+  refresh();
+}
+
+/* ───────── 1 — notification sound on/off 🔊 ───────── */
+export const getSound = () => LS.get("chatsapp:sound") !== "0";
+export function setSound(v: boolean) {
+  LS.set("chatsapp:sound", v ? "1" : "0");
+  refresh();
+}
+
+/* ───────── 4 — per-chat mute (notification sound band) + pin ───────── */
+const strArr = (k: string): string[] => {
+  try { const a = JSON.parse(LS.get(k) || "[]"); return Array.isArray(a) ? a : []; } catch { return []; }
+};
+export const getMutedChats = (): string[] => strArr("chatsapp:mutedchats");
+export function toggleMuteChat(id: string): boolean {
+  const cur = getMutedChats();
+  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  LS.set("chatsapp:mutedchats", JSON.stringify(next));
+  return next.includes(id);
+}
+export const isChatMuted = (id: string) => getMutedChats().includes(id);
+export const getPinnedChats = (): string[] => strArr("chatsapp:pinnedchats");
+export function togglePinChat(id: string): boolean {
+  const cur = getPinnedChats();
+  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  LS.set("chatsapp:pinnedchats", JSON.stringify(next));
+  return next.includes(id);
+}
+export const isChatPinned = (id: string) => getPinnedChats().includes(id);
+/** Pinned chats upar, baqi lastAt ke hisab se */
+export function sortChats<T extends { id: string; lastAt?: number }>(chats: T[]): T[] {
+  const pinned = getPinnedChats();
+  return [...chats].sort((a, b) => {
+    const pa = pinned.includes(a.id) ? 0 : 1;
+    const pb = pinned.includes(b.id) ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (b.lastAt || 0) - (a.lastAt || 0);
+  });
+}
 /* ───────── E6 — app lock PIN (hashed, kabhi plain nahi) ───────── */
 const PIN_KEY = "chatsapp:pin";
 async function sha256(s: string): Promise<string> {

@@ -13,6 +13,7 @@ import { BADGES, getBadges } from "@/lib/achievements";
 import {
   getPrivacy, setPrivacy, getCompact, setCompact, getDark, setDark,
   WALLPAPERS, getWallpaper, setWallpaper, getWallpaperCustom, setWallpaperCustom,
+  getWallpaperBlur, setWallpaperBlur, getSound, setSound,
   hasPin, setPin, verifyPin, clearPin, usePrefs,
   getLastBackup, markBackupDone,
 } from "@/lib/prefs";
@@ -238,6 +239,8 @@ function AppearanceTab() {
   const prefs = usePrefs();
   const [compact, setC] = useState(getCompact());
   const [dark, setD] = useState(getDark());
+  const [sound, setS] = useState(getSound());
+  const [blur, setB] = useState(getWallpaperBlur());
   const file = useRef<HTMLInputElement>(null);
 
   const toggleCompact = () => {
@@ -245,6 +248,21 @@ function AppearanceTab() {
     setC(v);
     setCompact(v);
     toast(v ? "Compact mode ON" : "Comfortable mode ON", v ? "Zyada messages ek screen par" : "");
+  };
+
+  /* 1 — notification sound toggle 🔊 */
+  const toggleSound = () => {
+    const v = !sound;
+    setS(v);
+    setSound(v);
+    if (v) { try { import("@/lib/sound").then((s) => s.playPop()).catch(() => {}); } catch { /* ignore */ } }
+    toast(v ? "Notification sound ON 🔊" : "Notification sound OFF 🔇", "");
+  };
+
+  /* 15 — wallpaper blur slider */
+  const changeBlur = (px: number) => {
+    setB(px);
+    setWallpaperBlur(px);
   };
 
   /* 4 — dark mode toggle 🌙 */
@@ -289,6 +307,17 @@ function AppearanceTab() {
         </button>
       </div>
 
+      {/* 1 — notification sound 🔊 */}
+      <div className="flex items-center justify-between rounded-xl bg-black/[0.03] p-3">
+        <div>
+          <p className="text-sm font-bold text-[#2f3035]">Notification sound 🔊</p>
+          <p className="text-xs text-[#80848e]">Naya message aye to pop sound</p>
+        </div>
+        <button onClick={toggleSound} className={`relative h-7 w-12 shrink-0 rounded-full transition ${sound ? "bg-[#5865f2]" : "bg-black/15"}`} aria-label="Notification sound">
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${sound ? "left-6" : "left-1"}`} />
+        </button>
+      </div>
+
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Chat wallpaper</p>
         <div className="grid grid-cols-4 gap-2">
@@ -319,6 +348,24 @@ function AppearanceTab() {
           <Upload size={15} /> Apni photo lagao
         </button>
         <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pickCustom(e.target.files?.[0]); e.target.value = ""; }} />
+
+        {/* 15 — wallpaper blur slider */}
+        <div className="mt-3 rounded-xl bg-black/[0.03] p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-[#2f3035]">Wallpaper blur</p>
+            <span className="text-xs font-bold tabular-nums text-[#5865f2]">{blur}px</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={20}
+            value={blur}
+            onChange={(e) => changeBlur(Number(e.target.value))}
+            className="mt-2 w-full accent-[#5865f2]"
+            aria-label="Wallpaper blur"
+          />
+          <p className="mt-1 text-xs text-[#80848e]">Background ko dhundla karo</p>
+        </div>
       </div>
     </div>
   );

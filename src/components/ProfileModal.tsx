@@ -24,6 +24,8 @@ export default function ProfileModal() {
   const [warnText, setWarnText] = useState("");
   const [muteOpen, setMuteOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
+  // 5 — profile photo fullscreen zoom
+  const [photoZoom, setPhotoZoom] = useState(false);
 
   if (!profileId) return null;
   const m = members.find((x) => x.id === profileId);
@@ -41,7 +43,21 @@ export default function ProfileModal() {
         <div className="h-20 bg-gradient-to-r from-[#5865f2] to-[#9b7bff]" />
         <button onClick={close} className="absolute right-3 top-3 rounded-full bg-black/30 p-1.5 text-white hover:bg-black/50"><X size={16} /></button>
         <div className="-mt-10 px-5 pb-5">
-          <Avatar m={m} size={72} showDot meId={meId} />
+          {/* 5 — photo par tap to fullscreen zoom */}
+          <button onClick={() => m.avatar && setPhotoZoom(true)} className={m.avatar ? "cursor-zoom-in" : "cursor-default"} title={m.avatar ? "Bari photo dekho" : undefined}>
+            <Avatar m={m} size={72} showDot meId={meId} />
+          </button>
+          {photoZoom && m.avatar && (
+            <>
+              <div className="fixed inset-0 z-[80] bg-black/95" onClick={() => setPhotoZoom(false)} />
+              <div className="pointer-events-none fixed inset-0 z-[81] grid place-items-center p-6" onClick={() => setPhotoZoom(false)}>
+                <img src={m.avatar} alt={m.name} className="photo-zoom-in max-h-[85vh] max-w-[92vw] rounded-2xl object-contain soft-shadow" draggable={false} />
+              </div>
+              <button onClick={() => setPhotoZoom(false)} className="fixed right-4 top-4 z-[82] rounded-full bg-white/10 p-2.5 text-white backdrop-blur hover:bg-white/20" aria-label="Band karo">
+                <X size={20} />
+              </button>
+            </>
+          )}
           <h3 className="mt-2 text-xl font-extrabold tracking-tight" style={{ color: nameColor(m) }}>{m.name}<Badge role={m.role} /></h3>
           {(() => {
             // E1 privacy respect

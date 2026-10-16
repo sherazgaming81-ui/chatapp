@@ -333,15 +333,24 @@ export default function Composer({ chatId }: { chatId: string }) {
             placeholder={editingMsg ? "Message edit karo…" : "Message likho…"}
             className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] text-[#2f3035] outline-none placeholder:text-[#80848e]"
           />
-          <button onClick={startRec} className="rounded-md p-2.5 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]" title="Voice note">
-            <Mic size={20} />
-          </button>
-          <button onClick={() => { setEmojiOpen((v) => !v); setAttachOpen(false); }} className={`rounded-md p-2.5 hover:bg-black/5 ${emojiOpen ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`} title="Emoji">
+          {/* 2 — send button morph: mic ↔ send smooth transition */}
+          <button
+            onClick={() => { setEmojiOpen((v) => !v); setAttachOpen(false); }}
+            className={`rounded-md p-2.5 hover:bg-black/5 ${emojiOpen ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}
+            title="Emoji"
+          >
             <Smile size={20} />
           </button>
-          <button onClick={send} disabled={!text.trim()} className="btn btn-blurple grid h-11 w-11 place-items-center disabled:opacity-40" title={editingMsg ? "Save" : "Bhejo"}>
-            {editingMsg ? <Check size={18} /> : <Send size={18} />}
-          </button>
+          <span className="send-morph-wrap">
+            <button
+              key={text.trim() ? "send" : "mic"}
+              onClick={() => (text.trim() ? send() : startRec())}
+              className={`send-morph grid h-11 w-11 place-items-center rounded-full text-white soft-shadow transition ${text.trim() ? "bg-[#5865f2]" : "bg-[#5c5e66]/70 hover:bg-[#5c5e66]"}`}
+              title={text.trim() ? (editingMsg ? "Save" : "Bhejo") : "Voice note"}
+            >
+              {text.trim() ? (editingMsg ? <Check size={18} /> : <Send size={18} />) : <Mic size={18} />}
+            </button>
+          </span>
         </div>
       )}
       {/* B1 — attachment menu: bottom sheet (mobile) / popup (web) */}

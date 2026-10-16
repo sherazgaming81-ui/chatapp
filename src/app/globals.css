@@ -431,3 +431,73 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   100% { transform: scale(1); }
 }
 .unread-pop { animation: unreadPop 0.28s ease-out; }
+
+/* ═══════════ 14-item polish batch ═══════════ */
+
+/* 2 — send button morph: mic ↔ send */
+@keyframes sendmorph { 0% { transform: scale(0.6) rotate(-40deg); opacity: 0.4; } 60% { transform: scale(1.12) rotate(6deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.send-morph { animation: sendmorph 0.22s ease-out; }
+.send-morph-wrap { display: inline-grid; place-items: center; }
+
+/* 3 — emoji burst particles */
+.emoji-burst { position: absolute; top: -6px; right: 30px; z-index: 40; pointer-events: none; width: 0; height: 0; }
+.eb-p { position: absolute; font-size: 18px; opacity: 0; animation: burstfly 0.7s ease-out forwards; }
+@keyframes burstfly {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 1; }
+  100% { opacity: 0; }
+}
+.eb-p0 { animation-name: burst0; } .eb-p1 { animation-name: burst1; }
+.eb-p2 { animation-name: burst2; } .eb-p3 { animation-name: burst3; }
+.eb-p4 { animation-name: burst4; } .eb-p5 { animation-name: burst5; }
+.eb-p6 { animation-name: burst6; } .eb-p7 { animation-name: burst7; }
+@keyframes burst0 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-34px,-30px) scale(1.1); opacity: 0; } }
+@keyframes burst1 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(0,-44px) scale(1.1); opacity: 0; } }
+@keyframes burst2 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(34px,-30px) scale(1.1); opacity: 0; } }
+@keyframes burst3 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-40px,4px) scale(1.1); opacity: 0; } }
+@keyframes burst4 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(40px,4px) scale(1.1); opacity: 0; } }
+@keyframes burst5 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-26px,30px) scale(1.1); opacity: 0; } }
+@keyframes burst6 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(0,38px) scale(1.1); opacity: 0; } }
+@keyframes burst7 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(26px,30px) scale(1.1); opacity: 0; } }
+
+/* 6 — online dot pulse glow */
+@keyframes onlinedotpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(35,165,90,0.55); } 55% { box-shadow: 0 0 0 5px rgba(35,165,90,0); } }
+.online-dot { animation: onlinedotpulse 2.2s ease-out infinite; }
+
+/* 8 — unread divider glow */
+@keyframes unreadglow { 0%, 100% { box-shadow: 0 0 10px 1px rgba(88,101,242,0.45); } 50% { box-shadow: 0 0 20px 4px rgba(88,101,242,0.65); } }
+.unread-glow { animation: unreadglow 2.4s ease-in-out infinite; }
+
+/* 9 — voice waveform bars (play par dance) */
+@keyframes wavebounce { 0%, 100% { transform: scaleY(0.55); } 50% { transform: scaleY(1.15); } }
+.wavebar { transform-origin: bottom; animation: wavebounce 0.9s ease-in-out infinite; }
+
+/* 10 — media viewer zoom-in */
+@keyframes viewerzoomin { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.viewer-zoom-in { animation: viewerzoomin 0.25s ease-out; }
+
+/* 5 — profile photo zoom-in */
+@keyframes photozoomin { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.photo-zoom-in { animation: photozoomin 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+
+/* 14 — glassmorphism context menu */
+.ctx-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 28px rgba(31, 38, 135, 0.16);
+}
+.ctx-glass button { border-radius: 10px; }
+.dark .ctx-glass {
+  background: rgba(43, 45, 49, 0.78);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* 13 — version banner slide-down */
+@keyframes versionslide { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+.version-banner { animation: versionslide 0.35s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .send-morph, .emoji-burst, .online-dot, .unread-glow, .wavebar,
+  .viewer-zoom-in, .photo-zoom-in, .version-banner { animation: none !important; }
+}

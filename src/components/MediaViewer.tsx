@@ -112,10 +112,11 @@ export default function MediaViewer() {
         onDoubleClick={() => { setScale((s) => (s > 1 ? 1 : 2.5)); setTx(0); setTy(0); }}
       >
         <img
+          key={m.id}
           src={m.src}
           alt=""
           draggable={false}
-          className="max-h-full max-w-full select-none object-contain transition-transform duration-150"
+          className="viewer-zoom-in max-h-full max-w-full select-none object-contain transition-transform duration-150"
           style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})` }}
         />
         {images.length > 1 && (

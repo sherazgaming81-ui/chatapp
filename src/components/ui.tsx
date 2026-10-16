@@ -37,7 +37,7 @@ export function Avatar({ m, size = 40, showDot = false, meId }: { m: Pick<Member
       </span>
       {showDot && (
         <span
-          className="absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-white"
+          className={`absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-white ${online ? "online-dot" : ""}`}
           style={{ width: size * 0.34, height: size * 0.34, background: online ? "#23a55a" : "#80848e" }}
         />
       )}

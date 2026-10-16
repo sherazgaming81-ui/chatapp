@@ -1,10 +1,11 @@
 "use client";
-import { Hash, Volume2, ChevronDown, Settings, Mic, LogOut, Star, Plus } from "lucide-react";
+import { Hash, Volume2, VolumeX, ChevronDown, Settings, Mic, LogOut, Star, Plus, Pin } from "lucide-react";
 import { useState } from "react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
 import { signOut } from "@/lib/db";
 import { isStaff } from "@/lib/types";
+import { isChatMuted, isChatPinned, sortChats } from "@/lib/prefs";
 import ProfileSettings from "@/components/ProfileSettings";
 import UnreadBadge from "@/components/UnreadBadge";
 
@@ -16,9 +17,9 @@ export default function Sidebar() {
   const me = members.find((m) => m.id === meId);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
   const unread = useStore((s) => s.unread);
-  const groups = chats.filter((c) => c.type === "group");
+  const groups = sortChats(chats.filter((c) => c.type === "group"));
   const group = groups[0];
-  const dms = chats.filter((c) => c.type === "dm");
+  const dms = sortChats(chats.filter((c) => c.type === "dm"));
   const [menu, setMenu] = useState(false);
   const settingsOpen = useStore((s) => s.ui.settingsOpen);
   const setSettingsOpen = (v: boolean) => patchUI({ settingsOpen: v });
@@ -62,6 +63,8 @@ export default function Sidebar() {
               >
                 <Hash size={18} className="shrink-0 opacity-70" />
                 <span className="truncate">{g.name}</span>
+                {isChatPinned(g.id) && <Pin size={13} className="shrink-0 opacity-60" />}
+                {isChatMuted(g.id) && <VolumeX size={13} className="shrink-0 opacity-60" />}
                 <UnreadBadge count={unread[g.id] || 0} />
               </button>
             ))}
@@ -93,6 +96,8 @@ export default function Sidebar() {
                     <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#2f3035]"}`}>{other?.name || dm.name}</span>
                     {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
                   </span>
+                  {isChatPinned(dm.id) && <Pin size={13} className="shrink-0 opacity-60" />}
+                  {isChatMuted(dm.id) && <VolumeX size={13} className="shrink-0 opacity-60" />}
                   <UnreadBadge count={unread[dm.id] || 0} />
                 </button>
               );
