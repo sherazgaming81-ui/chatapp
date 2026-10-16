@@ -15,6 +15,8 @@ import DeenPage from "@/components/DeenPage";
 import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
 import Toasts from "@/components/Toasts";
+import VideoStage from "@/components/VideoStage";
+import GlobalVideoBar from "@/components/GlobalVideoBar";
 
 export default function App() {
   const session = useStore((s) => s.session);
@@ -105,6 +107,9 @@ export default function App() {
       <ProfileModal />
       <MediaViewer />
       <Toasts />
+      {/* ★ Asma-ul-Husna video — app-level, hamesha mounted (kabhi unmount nahi) */}
+      <VideoStage />
+      <GlobalVideoBar />
     </div>
   );
 }

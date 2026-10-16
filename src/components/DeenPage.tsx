@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Moon, MapPin, RotateCcw, Compass, BookOpen, ChevronLeft } from "lucide-react";
-import { patchUI } from "@/lib/store";
+import { useEffect, useState } from "react";
+import { Moon, MapPin, RotateCcw, Compass, BookOpen, ChevronLeft, Play } from "lucide-react";
+import { patchUI, useStore } from "@/lib/store";
 import { prayerTimes, nextPrayer, qiblaBearing, hijri, DUAS, TASBEEH_PRESETS, PRAYER_NAMES, PRAYER_ORDER, DEFAULT_LOC, type PrayerKey } from "@/lib/deen";
 import { fmtTime } from "@/components/ui";
 import QuranReader from "@/components/QuranReader";
 import AsmaPlayer from "@/components/AsmaPlayer";
 import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
+import { useVideo, getSavedProgress, videoPlay, fmtVideoTime } from "@/lib/videoPlayer";
 
 function useNow(ms = 1000) {
   const [, t] = useState(0);
@@ -160,6 +161,29 @@ function DuaList() {
   );
 }
 
+// ───────── Continue watching — Asma video jahan chhori thi ─────────
+function ContinueWatching() {
+  const v = useVideo();
+  const prog = getSavedProgress();
+  // video abhi chal rahi ho to card nahi — already watching
+  if (!prog || v.playing) return null;
+  return (
+    <button
+      onClick={() => { patchUI({ asmaOpen: true }); videoPlay(); }}
+      className="flex w-full items-center gap-3 rounded-2xl border border-[#0e6b4a]/25 bg-gradient-to-br from-[#0e6b4a]/[0.07] to-white p-4 text-left transition hover:border-[#0e6b4a]/50 active:scale-[0.99] soft-shadow"
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#0e6b4a] text-white">
+        <Play size={20} className="ml-0.5" fill="currentColor" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-extrabold tracking-tight text-[#2f3035]">⏯️ Jahan chhori thi — wahan se dekho</span>
+        <span className="block text-xs tabular-nums text-[#80848e]">{fmtVideoTime(prog.pos)} se resume · kul {fmtVideoTime(prog.dur)}</span>
+      </span>
+      <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#0e6b4a]" />
+    </button>
+  );
+}
+
 // ───────── main page ─────────
 export default function DeenPage() {
   useNow(1000);
@@ -170,7 +194,7 @@ export default function DeenPage() {
   const nx = nextPrayer(loc.lat, loc.lng, now);
   const isNext = (k: PrayerKey) => k === nx.key;
   const [quranOpen, setQuranOpen] = useState(false);
-  const [asmaOpen, setAsmaOpen] = useState(false);
+  const asmaOpen = useStore((s) => s.ui.asmaOpen);
 
   return (
     <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -202,7 +226,7 @@ export default function DeenPage() {
 
           {/* Asma-ul-Husna entry */}
           <button
-            onClick={() => setAsmaOpen(true)}
+            onClick={() => patchUI({ asmaOpen: true })}
             className="flex w-full items-center gap-4 rounded-2xl border border-[#d4af37]/30 bg-gradient-to-br from-[#fffdf3] to-white p-4 text-left transition hover:border-[#d4af37]/60 active:scale-[0.99] soft-shadow"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#d4af37]/15 font-quran text-[26px] text-[#9a7b1e]" dir="rtl" lang="ar">ٱللَّهُ</span>
@@ -212,6 +236,7 @@ export default function DeenPage() {
             </span>
             <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#80848e]" />
           </button>
+          <ContinueWatching />
 
           {/* Quran reader entry */}
           <button
@@ -250,7 +275,7 @@ export default function DeenPage() {
       </div>
 
       {quranOpen && <QuranReader onClose={() => setQuranOpen(false)} />}
-      {asmaOpen && <AsmaPlayer onClose={() => setAsmaOpen(false)} />}
+      {asmaOpen && <AsmaPlayer onClose={() => patchUI({ asmaOpen: false })} />}
     </div>
   );
 }

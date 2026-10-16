@@ -17,6 +17,7 @@ const initialUI: UIState = {
   infoMsg: null,
   viewer: null,
   starredOpen: false,
+  asmaOpen: false,
 };
 
 let state: State = {

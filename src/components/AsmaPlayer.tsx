@@ -4,10 +4,15 @@ import {
   ChevronLeft, Play, Pause, Square, Volume2, VolumeX, Maximize,
   Heart, Share2, ChevronDown, Shuffle, Trophy, Bell, BellOff,
   SkipBack, SkipForward, Eye, Layers, Target, GraduationCap, Check,
-  Clapperboard, ListMusic,
+  Clapperboard, ListMusic, RotateCcw, RotateCw,
 } from "lucide-react";
 import { ASMA_UL_HUSNA, ASMA_FAZILAT } from "@/lib/asma";
 import { toast } from "@/lib/store";
+import {
+  useVideo, setVideoSlot, onVideoEnded,
+  videoPlay, videoToggle, videoStop, videoSeekFrac, videoSkip, videoToggleMute,
+  fmtVideoTime, VIDEO_POSTER,
+} from "@/lib/videoPlayer";
 
 /* ───────── helpers ───────── */
 const LS = {
@@ -18,21 +23,15 @@ const dayOfYear = () => {
   const n = new Date();
   return Math.floor((n.getTime() - new Date(n.getFullYear(), 0, 0).getTime()) / 864e5);
 };
-const fmtT = (s: number) => {
-  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
-  return `${m}:${String(sec).padStart(2, "0")}`;
-};
+const fmtT = fmtVideoTime; // singleton helper
 
-const VIDEO_SRC = "/video/asma-ul-husna.mp4"; // bundled offline — no internet needed!
-const VIDEO_POSTER = "/video/asma-poster.jpg";
-
-/* ───────── HTML5 video — offline bundled, koi external dependency nahi ───────── */
-
+/* ───────── achievements ───────── */
 const ACH_DEFS = [
   { id: "first", icon: "☝️", title: "Pehla naam!", desc: "99 naamon ka safar shuru" },
   { id: "fav5", icon: "❤️", title: "5 pasandida!", desc: "5 naam favorite kiye" },
   { id: "quiz10", icon: "🎯", title: "Quiz master!", desc: "Quiz me 10/10 score" },
   { id: "mem25", icon: "🌟", title: "25 yaad!", desc: "Memorize me 25 naam reveal" },
+  { id: "mukammal", icon: "🎉", title: "Mukammal!", desc: "Poori video dekhi" },
 ];
 
 type Mode = "video" | "naam" | "flash" | "quiz" | "memorize";
@@ -55,17 +54,20 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
   const [reminder, setReminder] = useState(() => LS.get("chatsapp:asma:reminder", "0") === "1");
   const [dailyOpen, setDailyOpen] = useState(true);
 
-  /* ── YouTube player state (single persistent instance) ── */
-  const videoRef = useRef<HTMLVideoElement>(null);
+  /* ── video — APP-LEVEL singleton (VideoStage me ek hi element, kabhi unmount nahi) ── */
+  const v = useVideo();
   const frameRef = useRef<HTMLDivElement>(null);
-  const [vStarted, setVStarted] = useState(false); // user ne play dabaya
-  const [playing, setPlaying] = useState(false);
-  const [vErr, setVErr] = useState(false);
-  const [pos, setPos] = useState(0);
-  const [dur, setDur] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [seekFlash, setSeekFlash] = useState<string | null>(null);
+  const flashTimer = useRef(0);
+  const lastTap = useRef<{ t: number } | null>(null);
 
-  const started = vStarted;
+  const playing = v.playing;
+  const started = v.started;
+  const pos = v.pos;
+  const dur = v.dur;
+  const muted = v.muted;
+  const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
 
   const dailyIdx = dayOfYear() % 99;
   const daily = ASMA_UL_HUSNA[dailyIdx];
@@ -93,38 +95,42 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     window.setTimeout(() => toast(`🌅 Aaj ka naam: ${daily.tr}`, daily.meaning), 2500);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── video events (HTML5 — offline!) ── */
-  const onPlay = () => {
-    const v = videoRef.current;
-    if (!v || vStarted) return;
-    setVStarted(true);
-    v.play().catch(() => setVErr(true));
-  };
+  /* ── video slot: video tab open ho to video is frame me (portal), warna invisible host me ── */
+  const isVideoTab = mode === "video";
+  useEffect(() => {
+    if (isVideoTab && slotRef.current) {
+      setVideoSlot(slotRef.current);
+      return () => setVideoSlot(null);
+    }
+    setVideoSlot(null);
+  }, [isVideoTab]);
+  // unmount (AsmaPlayer close) par slot hatao — video invisible host me wapas, CHALTI RAHEGI
+  useEffect(() => () => setVideoSlot(null), []);
 
-  /* ── controls (HTML5 video API) ── */
-  const doPlayPause = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (!vStarted) { onPlay(); return; }
-    if (v.paused) v.play().catch(() => {});
-    else v.pause();
-  };
-  const doStop = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.pause();
-    v.currentTime = 0;
-    setPos(0);
-  };
-  const doSeek = (frac: number) => {
-    const v = videoRef.current;
-    if (v && dur > 0) { v.currentTime = frac * dur; setPos(frac * dur); }
-  };
-  const doMute = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
+  /* ── video khatam → achievement popup (confetti+toast singleton me) ── */
+  useEffect(() => onVideoEnded(() => unlock("mukammal")), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── keyboard shortcuts (sirf AsmaPlayer open ho tab) ── */
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (e.code === "Space" || e.code === "KeyK") { e.preventDefault(); videoToggle(); }
+      else if (e.code === "ArrowLeft") { videoSkip(-10); }
+      else if (e.code === "ArrowRight") { videoSkip(10); }
+      else if (e.code === "KeyF") { doFullscreen(); }
+      else if (e.code === "KeyM") { videoToggleMute(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── double-tap gesture (mobile): left = −10s, right = +10s ── */
+  const flashSeek = (dir: number) => {
+    videoSkip(dir);
+    setSeekFlash(dir > 0 ? "+10s" : "−10s");
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setSeekFlash(null), 650);
   };
   const doFullscreen = () => {
     const el = frameRef.current;
@@ -133,8 +139,22 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     else el.requestFullscreen?.().catch(() => {});
   };
 
-  /* ── close par video roko ── */
-  const handleClose = () => { try { videoRef.current?.pause(); } catch {} onClose(); };
+  /* ── double-tap gesture (mobile): left = −10s, right = +10s ── */
+  const onTapZone = (clientX: number, zoneEl: HTMLElement) => {
+    if (!started) return;
+    const now = Date.now();
+    const prev = lastTap.current;
+    if (prev && now - prev.t < 350) {
+      const r = zoneEl.getBoundingClientRect();
+      flashSeek(clientX < r.left + r.width / 2 ? -10 : 10);
+      lastTap.current = null;
+    } else {
+      lastTap.current = { t: now };
+    }
+  };
+
+  /* ── close par video NA roko — background me chalti rahe! (GlobalVideoBar dikhega) ── */
+  const handleClose = () => { onClose(); };
 
   const toggleFav = (i: number) => {
     const next = favs.includes(i) ? favs.filter((f) => f !== i) : [...favs, i];
@@ -189,8 +209,6 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     const all = ASMA_UL_HUSNA.map((_, i) => i);
     return filter === "fav" ? all.filter((i) => favs.includes(i)) : all;
   })();
-
-  const isVideoTab = mode === "video";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#f4f4f6]">
@@ -250,86 +268,121 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
         {mode === "quiz" && <Quiz onMaster={() => unlock("quiz10")} />}
         {mode === "memorize" && <Memorize onReveal25={() => unlock("mem25")} />}
 
-        {/* ═══ video player — CSS se hide hota hai, kabhi unmount NAHI (iframe zinda rehta hai) ═══ */}
+        {/* ═══ video player — video element VideoStage me hai, yahan portal slot hai ═══ */}
         <div className={isVideoTab
           ? "mx-auto flex min-h-full max-w-2xl flex-col justify-center p-3 sm:p-6"
           : "hidden"
         }>
           {isVideoTab ? (
-            <div ref={frameRef} className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#0e6b4a] to-[#083a27] p-2.5 soft-shadow">
-              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
-                {/* ★ HTML5 video — offline bundled, kabhi unmount nahi hota */}
-                <video
-                  ref={videoRef}
-                  className="absolute inset-0 h-full w-full"
-                  src={VIDEO_SRC}
-                  poster={VIDEO_POSTER}
-                  preload="none"
-                  playsInline
-                  disablePictureInPicture={false}
-                  onLoadedMetadata={(e) => setDur((e.target as HTMLVideoElement).duration || 0)}
-                  onTimeUpdate={(e) => setPos((e.target as HTMLVideoElement).currentTime)}
-                  onPlay={() => setPlaying(true)}
-                  onPause={() => setPlaying(false)}
-                  onEnded={() => { setPlaying(false); setPos(0); }}
-                  onError={() => setVErr(true)}
-                />
-                {!vStarted && !vErr && (
-                  <button onClick={onPlay} className="group absolute inset-0 h-full w-full" aria-label="Video chalao">
-                    <img src={VIDEO_POSTER} alt="Atif Aslam — Asma-ul-Husna" className="h-full w-full object-cover" loading="lazy" draggable={false} />
-                    <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                    <span className="absolute inset-0 grid place-items-center">
-                      <span className="grid h-20 w-20 place-items-center rounded-full bg-[#d4af37] text-[#083a27] shadow-2xl transition group-hover:scale-110 group-active:scale-95">
-                        <Play size={36} className="ml-1.5" fill="currentColor" />
-                      </span>
-                    </span>
-                    <span className="absolute bottom-3 left-4 right-4 text-left">
-                      <span className="block font-quran text-2xl text-[#ffe9a8] drop-shadow" dir="rtl" lang="ar">أَسْمَاءُ ٱلْحُسْنَىٰ</span>
-                      <span className="mt-0.5 block text-[13px] font-bold text-white/90">Atif Aslam — 99 Names of Allah 🎙️</span>
-                    </span>
-                    <span className="absolute right-3 top-3 flex gap-1.5">
-                      <span className="rounded-md bg-[#0e6b4a] px-1.5 py-0.5 text-[11px] font-bold text-white">OFFLINE</span>
-                      <span className="rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">HD</span>
-                    </span>
-                  </button>
-                )}
-                {vErr && (
-                  <div className="absolute inset-0 grid place-items-center p-6 text-center">
-                    <p className="text-sm font-bold text-white/90">Video load nahi ho saki 😔<br /><span className="text-xs font-medium text-white/70">Dobara koshish karo</span></p>
-                  </div>
-                )}
+            <div>
+              {/* ★ calligraphy header — animated */}
+              <div className="asma-fadein mb-3 text-center">
+                <p className="font-quran text-[34px] leading-snug text-[#0e6b4a]" dir="rtl" lang="ar">أَسْمَاءُ الْحُسْنَىٰ</p>
+                <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#9a7b1e]">Atif Aslam • 99 Names of Allah</p>
               </div>
-              {vStarted && (
-                <div className="px-2 pb-1.5 pt-2.5">
-                  <button
-                    onClick={(e) => {
-                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      doSeek(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+
+              {/* ★ themed frame — emerald/gold glassmorphism + golden pulse jab play ho */}
+              <div ref={frameRef} className={`rounded-[18px] bg-gradient-to-br from-[#d4af37] via-[#0e6b4a] to-[#d4af37] p-[3px] soft-shadow ${playing ? "asma-glow" : ""}`}>
+                <div className="rounded-[15px] bg-black/[0.92] p-2 backdrop-blur">
+                  <div
+                    className="relative aspect-video w-full overflow-hidden rounded-[10px] bg-black"
+                    style={{ touchAction: "manipulation" }}
+                    onTouchEnd={(e) => {
+                      const t = e.changedTouches[0];
+                      if (t) onTapZone(t.clientX, e.currentTarget);
                     }}
-                    className="block w-full py-1.5" aria-label="Seek"
+                    onDoubleClick={(e) => onTapZone(e.clientX, e.currentTarget)}
                   >
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
-                      <div className="h-full rounded-full bg-[#d4af37] transition-all" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
-                    </div>
-                  </button>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <button onClick={doPlayPause} className="grid h-11 w-11 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition hover:brightness-110 active:scale-95" aria-label={playing ? "Pause" : "Play"}>
-                      {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
-                    </button>
-                    <button onClick={doStop} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25 active:scale-95" aria-label="Stop">
-                      <Square size={15} fill="currentColor" />
-                    </button>
-                    <span className="ml-1 text-xs font-bold tabular-nums text-white/80">{fmtT(pos)} / {fmtT(dur)}</span>
-                    <span className="flex-1" />
-                    <button onClick={doMute} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Mute">
-                      {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                    </button>
-                    <button onClick={doFullscreen} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Fullscreen">
-                      <Maximize size={16} />
-                    </button>
+                    {/* ★ portal slot — video element yahan ata hai jab ye tab open ho */}
+                    <div ref={slotRef} className="absolute inset-0" />
+
+                    {!started && !v.err && (
+                      <button onClick={videoPlay} className="group absolute inset-0 h-full w-full" aria-label="Video chalao">
+                        <img src={VIDEO_POSTER} alt="Atif Aslam — Asma-ul-Husna" className="h-full w-full object-cover" loading="lazy" draggable={false} />
+                        <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                        <span className="absolute inset-0 grid place-items-center">
+                          <span className="grid h-20 w-20 place-items-center rounded-full bg-[#d4af37] text-[#083a27] shadow-2xl transition group-hover:scale-110 group-active:scale-95">
+                            <Play size={36} className="ml-1.5" fill="currentColor" />
+                          </span>
+                        </span>
+                        <span className="absolute bottom-3 left-4 right-4 text-left">
+                          <span className="block font-quran text-2xl text-[#ffe9a8] drop-shadow" dir="rtl" lang="ar">أَسْمَاءُ ٱلْحُسْنَىٰ</span>
+                          <span className="mt-0.5 block text-[13px] font-bold text-white/90">Atif Aslam — 99 Names of Allah 🎙️</span>
+                        </span>
+                        <span className="absolute right-3 top-3 flex gap-1.5">
+                          <span className="rounded-md bg-[#0e6b4a] px-1.5 py-0.5 text-[11px] font-bold text-white">OFFLINE</span>
+                          <span className="rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">HD</span>
+                        </span>
+                      </button>
+                    )}
+                    {v.err && (
+                      <div className="absolute inset-0 grid place-items-center p-6 text-center">
+                        <p className="text-sm font-bold text-white/90">Video load nahi ho saki 😔<br /><span className="text-xs font-medium text-white/70">Dobara koshish karo</span></p>
+                      </div>
+                    )}
+                    {/* double-tap seek indicator */}
+                    {seekFlash && (
+                      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                        <span key={seekFlash} className="seek-flash rounded-2xl bg-black/70 px-5 py-3 text-2xl font-extrabold tabular-nums text-[#ffd76a]">
+                          {seekFlash}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  {started && (
+                    <div className="px-2 pb-1.5 pt-2.5">
+                      <button
+                        onClick={(e) => {
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          videoSeekFrac(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+                        }}
+                        className="block w-full py-1.5" aria-label="Seek"
+                      >
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                          <div className="h-full rounded-full bg-[#d4af37] transition-all" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
+                        </div>
+                      </button>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <button onClick={videoToggle} className="grid h-11 w-11 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition hover:brightness-110 active:scale-95" aria-label={playing ? "Pause" : "Play"}>
+                          {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
+                        </button>
+                        <button onClick={() => flashSeek(-10)} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25 active:scale-95" aria-label="10 second peeche" title="−10s">
+                          <span className="relative">
+                            <RotateCcw size={15} />
+                            <span className="absolute inset-0 grid place-items-center text-[7px] font-extrabold">10</span>
+                          </span>
+                        </button>
+                        <button onClick={() => flashSeek(10)} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25 active:scale-95" aria-label="10 second aage" title="+10s">
+                          <span className="relative">
+                            <RotateCw size={15} />
+                            <span className="absolute inset-0 grid place-items-center text-[7px] font-extrabold">10</span>
+                          </span>
+                        </button>
+                        <button onClick={videoStop} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25 active:scale-95" aria-label="Stop">
+                          <Square size={15} fill="currentColor" />
+                        </button>
+                        <span className="ml-1 text-xs font-bold tabular-nums text-white/80">{fmtT(pos)} / {fmtT(dur)}</span>
+                        <span className="flex-1" />
+                        <button onClick={videoToggleMute} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Mute">
+                          {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                        </button>
+                        <button onClick={doFullscreen} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Fullscreen">
+                          <Maximize size={16} />
+                        </button>
+                      </div>
+                      {/* ★ watch progress */}
+                      <div className="mt-2 flex items-center gap-2 px-0.5">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/15">
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#d4af37] to-[#ffd76a] transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="shrink-0 text-[11px] font-bold tabular-nums text-white/70">{pct}% dekhi</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+              <p className="mt-2 text-center text-[11px] text-[#80848e]">Double-tap: left −10s · right +10s · Space/K play · ←/→ seek · F fullscreen · M mute</p>
             </div>
           ) : null}
         </div>
@@ -346,10 +399,10 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
                   <div className="h-full rounded-full bg-[#d4af37]" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
                 </div>
               </div>
-              <button onClick={doPlayPause} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition active:scale-95" aria-label={playing ? "Pause" : "Play"}>
+              <button onClick={videoToggle} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition active:scale-95" aria-label={playing ? "Pause" : "Play"}>
                 {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} className="ml-0.5" fill="currentColor" />}
               </button>
-              <button onClick={doStop} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Stop">
+              <button onClick={videoStop} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Stop">
                 <Square size={13} fill="currentColor" />
               </button>
               <button onClick={() => setMode("video")} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Video par wapas">

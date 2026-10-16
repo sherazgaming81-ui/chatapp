@@ -58,6 +58,7 @@ export interface UIState {
   infoMsg: string | null; // A17 seen-by modal (message id)
   viewer: { msgId: string } | null; // A7 full-screen media viewer
   starredOpen: boolean; // B13 starred messages page
+  asmaOpen: boolean; // Asma-ul-Husna player overlay (Deen)
 }
 
 export interface State {
