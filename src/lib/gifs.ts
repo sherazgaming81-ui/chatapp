@@ -1,7 +1,7 @@
 "use client";
 // GIF library — GIPHY live API + curated CDN fallback.
-// GIPHY API key — .env.local me NEXT_PUBLIC_GIPHY_API_KEY se (user ki key)
-const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || "dc6zaTOxFJmzC";
+// GIPHY API key — user ki key (public client-side key)
+const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || "gOJtDcFabYgak7kMh1VTcXMpNz2VcEw7";
 const GIPHY = "https://api.giphy.com/v1/gifs";
 
 export interface GifItem {

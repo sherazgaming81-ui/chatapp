@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Search, RotateCcw } from "lucide-react";
 
-const API_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || "dc6zaTOxFJmzC";
+const API_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || "gOJtDcFabYgak7kMh1VTcXMpNz2VcEw7";
 const LIMIT = 24;
 
 interface GiphySticker {
