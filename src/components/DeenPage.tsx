@@ -5,6 +5,7 @@ import { patchUI } from "@/lib/store";
 import { prayerTimes, nextPrayer, qiblaBearing, hijri, DUAS, TASBEEH_PRESETS, PRAYER_NAMES, PRAYER_ORDER, DEFAULT_LOC, type PrayerKey } from "@/lib/deen";
 import { fmtTime } from "@/components/ui";
 import QuranReader from "@/components/QuranReader";
+import AsmaPlayer from "@/components/AsmaPlayer";
 import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
 
 function useNow(ms = 1000) {
@@ -169,6 +170,7 @@ export default function DeenPage() {
   const nx = nextPrayer(loc.lat, loc.lng, now);
   const isNext = (k: PrayerKey) => k === nx.key;
   const [quranOpen, setQuranOpen] = useState(false);
+  const [asmaOpen, setAsmaOpen] = useState(false);
 
   return (
     <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
@@ -197,6 +199,19 @@ export default function DeenPage() {
 
           <DailyAyat />
           <DailyHadees />
+
+          {/* Asma-ul-Husna entry */}
+          <button
+            onClick={() => setAsmaOpen(true)}
+            className="flex w-full items-center gap-4 rounded-2xl border border-[#d4af37]/30 bg-gradient-to-br from-[#fffdf3] to-white p-4 text-left transition hover:border-[#d4af37]/60 active:scale-[0.99] soft-shadow"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#d4af37]/15 font-quran text-[26px] text-[#9a7b1e]" dir="rtl" lang="ar">ٱللَّهُ</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-extrabold tracking-tight text-[#2f3035]">Allah ke 99 Naam ✨</span>
+              <span className="block text-xs text-[#80848e]">Atif Aslam ki awaz · perfect sync · quiz · flashcards</span>
+            </span>
+            <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#80848e]" />
+          </button>
 
           {/* Quran reader entry */}
           <button
@@ -235,6 +250,7 @@ export default function DeenPage() {
       </div>
 
       {quranOpen && <QuranReader onClose={() => setQuranOpen(false)} />}
+      {asmaOpen && <AsmaPlayer onClose={() => setAsmaOpen(false)} />}
     </div>
   );
 }
