@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy, Sparkles,
+  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy, Sparkles, Play,
   User as UserIcon, Eye, EyeOff, Download, KeyRound, Trash2, Upload,
 } from "lucide-react";
 import { getState, useStore, toast, update } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { signOut, savePrivacyServer } from "@/lib/db";
 import { Avatar } from "@/components/ui";
+import Explainer from "@/components/Explainer";
 import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
 import { BADGES, getBadges } from "@/lib/achievements";
 import {
@@ -31,7 +32,7 @@ async function resizePhoto(file: File, max = 512): Promise<string> {
   return cv.toDataURL("image/jpeg", 0.85);
 }
 
-type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup" | "badges";
+type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup" | "badges" | "tour";
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "profile", label: "Profile", icon: UserIcon },
   { id: "privacy", label: "Privacy", icon: Shield },
@@ -39,6 +40,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "backup", label: "Backup", icon: Database },
   { id: "badges", label: "Badges", icon: Trophy },
+  { id: "tour", label: "Tour", icon: Play },
 ];
 
 const AUDIENCE_LABELS: Record<PrivacyAudience, string> = {
@@ -501,6 +503,12 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
           {tab === "appearance" && <AppearanceTab />}
           {tab === "backup" && <BackupTab />}
           {tab === "badges" && <BadgesTab />}
+          {tab === "tour" && (
+            <div>
+              <p className="mb-3 text-center text-sm font-bold text-[#2f3035]">App ka video tour 🎬</p>
+              <Explainer />
+            </div>
+          )}
         </div>
       </div>
     </>

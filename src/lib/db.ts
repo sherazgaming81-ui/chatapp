@@ -1051,7 +1051,7 @@ export function startRealtime() {
     update((st) => ({
       members: st.members.map((x) =>
         x.id === p.new.id
-          ? { ...x, online: !!p.new.online, lastSeen: p.new.last_seen || x.lastSeen, name: p.new.display_name || x.name, avatar: p.new.photo_url || x.avatar, about: p.new.about ?? x.about }
+          ? { ...x, online: !!p.new.online, lastSeen: p.new.last_seen || x.lastSeen, name: p.new.display_name || x.name, avatar: p.new.photo_url || x.avatar, about: p.new.about ?? x.about, style: (p.new as any).profile_style || x.style }
           : x
       ),
     }));
