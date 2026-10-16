@@ -69,8 +69,12 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
     debounce.current = setTimeout(async () => {
       setLoading(true);
       setError("");
+      offsetRef.current = 0;
+      setHasMore(true);
       try {
-        setGifs(await searchGifs(v.trim()));
+        const res = await searchGifs(v.trim(), LIMIT, 0);
+        setGifs(res);
+        setHasMore(res.length >= LIMIT);
       } catch {
         setError("GIFs nahi aye — dobara try karo");
       } finally {

@@ -11,12 +11,22 @@ export default function MediaViewer() {
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
+  // ALL hooks must be before any early return (React error #310 fix)
+  const touches = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchD = useRef(0);
+  const startY = useRef(0);
 
   const images = useMemo(() => {
     const s = getState();
     const chatId = s.ui.activeChatId;
     return s.messages.filter((m) => m.chatId === chatId && (m.type === "image" || m.type === "gif") && m.src && !m.deleted);
   }, [viewer]);
+
+  const close = () => patchUI({ viewer: null });
+  const nav = (d: number) => {
+    setIdx((i) => (i + d + images.length) % images.length);
+    setScale(1); setTx(0); setTy(0);
+  };
 
   useEffect(() => {
     if (!viewer) return;
@@ -42,16 +52,8 @@ export default function MediaViewer() {
   const m = images[idx];
   // Safety: agar message nahi mila to viewer band karo (crash se bacho)
   if (!m || !m.src) return null;
-  const close = () => patchUI({ viewer: null });
-  const nav = (d: number) => {
-    setIdx((i) => (i + d + images.length) % images.length);
-    setScale(1); setTx(0); setTy(0);
-  };
 
   // touch: pinch zoom + swipe nav + swipe-down close
-  const touches = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchD = useRef(0);
-  const startY = useRef(0);
   const onTouchStart = (e: React.TouchEvent) => {
     touches.current.set(e.changedTouches[0].identifier, { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY });
     if (touches.current.size === 2) {

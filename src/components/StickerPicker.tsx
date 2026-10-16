@@ -1,7 +1,7 @@
 "use client";
 // Sticker picker — KLIPY Stickers API (WhatsApp/Discord wala platform!)
 // Trending grid + search bar + category chips. contentfilter=high = no 18+.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, RotateCcw } from "lucide-react";
 import { searchKlipy, trendingKlipy } from "@/lib/klipy";
 
@@ -56,23 +56,23 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
 
   const load = useCallback(async (query: string, fresh = true) => {
     if (fresh) {
       setLoading(true);
-      setOffset(0);
+      offsetRef.current = 0;
       setHasMore(true);
     } else {
       setLoadingMore(true);
     }
     setError(false);
     try {
-      const off = fresh ? 0 : offset + LIMIT;
+      const off = fresh ? 0 : offsetRef.current + LIMIT;
       const res = await fetchStickers(query, off);
       setItems((prev) => (fresh ? res : [...prev, ...res]));
-      setOffset(off);
+      offsetRef.current = off;
       setHasMore(res.length >= LIMIT);
     } catch {
       if (fresh) {
@@ -83,7 +83,7 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [offset]);
+  }, []);
 
   // Category change → immediate load
   const pickCat = (id: string) => {
