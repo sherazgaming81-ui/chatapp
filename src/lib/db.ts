@@ -224,6 +224,11 @@ export async function load(userId: string, email: string): Promise<boolean> {
     const myPr = getPrivacy(userId);
     members = members.map((m) => (m.id === userId ? { ...m, privacy: m.privacy || myPr } : m));
   } catch { /* ignore */ }
+  // Phase 8 — slow mode + auto-mod settings sab chats ke liye preload
+  try {
+    const { preloadOwnerSettings } = await import("./owner");
+    preloadOwnerSettings(allChatIds).catch(() => {});
+  } catch { /* ignore */ }
   update({
     me: userId,
     session: true,
@@ -260,6 +265,33 @@ export async function savePrivacyServer(userId: string, pr: { lastSeen: string; 
 export async function sendText(chatId: string, text: string, replyTo?: string): Promise<Message | null> {
   const s = getState();
   if (!text.trim() || !chatId) return null;
+  // Phase 8 — slow mode + auto-mod (owner.ts se, lazy import taake circular na ho)
+  try {
+    const ow = await import("./owner");
+    const slowSec = ow.getCachedSlowMode(chatId);
+    if (slowSec > 0) {
+      const wait = ow.checkSlowMode(chatId, s.me, slowSec);
+      if (wait > 0) { toast(`Slow mode 🐢`, `${wait}s ruko phir bhejo`); return null; }
+    }
+    const bw = ow.getCachedBadWords(chatId);
+    if (bw.words.length > 0) {
+      const hit = ow.findBadWord(text, bw.words);
+      if (hit) {
+        const me = s.members.find((m) => m.id === s.me);
+        const staff = me && (me.role === "owner" || me.role === "admin" || me.role === "mod");
+        if (!staff) {
+          if (bw.action === "warn" || bw.action === "both") {
+            addWarn(s.me, `Banned lafz: "${hit}"`).catch(() => {});
+            toast("⚠️ Warning", `Mana lafz istemal kiya: "${hit}"`);
+          }
+          if (bw.action === "delete" || bw.action === "both") {
+            toast("Message delete hua 🚫", "Banned lafz tha");
+            return null;
+          }
+        }
+      }
+    }
+  } catch { /* owner.ts fail ho to normal bhejo */ }
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "text", text: text.trim(), at: Date.now(), reactions: {}, replyTo };
   update({ messages: [...s.messages, m] });
   try {
@@ -385,6 +417,7 @@ export async function setMute(userId: string, until: number | null | undefined) 
     else await sb().from("mutes").upsert({ chat_id: MAIN_GROUP_ID, user_id: userId, until: until === null ? 0 : until });
   } catch { /* ignore */ }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, mutedUntil: until } : m)) });
+  try { const { logAudit } = await import("./owner"); await logAudit(until === undefined ? "unmute" : "mute", userId, until === null ? "hamesha" : until === undefined ? "unmute" : new Date(until).toLocaleString()); } catch { /* ignore */ }
 }
 export async function setBan(userId: string, banned: boolean, reason = "") {
   try {
@@ -392,6 +425,7 @@ export async function setBan(userId: string, banned: boolean, reason = "") {
     else await sb().from("bans").delete().eq("chat_id", MAIN_GROUP_ID).eq("user_id", userId);
   } catch { /* ignore */ }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, banned } : m)) });
+  try { const { logAudit } = await import("./owner"); await logAudit(banned ? "ban" : "unban", userId, reason || (banned ? "ban" : "unban")); } catch { /* ignore */ }
 }
 export async function addWarn(userId: string, reason: string) {
   try {
@@ -401,14 +435,17 @@ export async function addWarn(userId: string, reason: string) {
   } catch { /* ignore */ }
   const ms = getState().members.map((m) => (m.id === userId ? { ...m, warns: [...m.warns, { reason, at: Date.now() }] } : m));
   update({ members: ms });
+  try { const { logAudit } = await import("./owner"); await logAudit("warn", userId, reason); } catch { /* ignore */ }
   const target = ms.find((m) => m.id === userId);
   if (target && target.warns.length >= 3) await setMute(userId, Date.now() + 3600e3);
 }
 export async function setRole(userId: string, role: Role) {
+  const prev = getState().members.find((m) => m.id === userId)?.role;
   try {
     await sb().from("user_roles").upsert({ user_id: userId, role });
   } catch { /* ignore */ }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, role } : m)) });
+  try { const { logAudit } = await import("./owner"); await logAudit("role", userId, `${prev || "?"} → ${role}`); } catch { /* ignore */ }
 }
 export async function postAnnouncement(text: string) {  const s = getState();
   if (!MAIN_GROUP_ID || !text.trim()) return;
@@ -793,6 +830,15 @@ export function startRealtime() {
       const cid = key.replace(/^desc_/, "");
       const v = p.new?.value;
       update((st) => ({ groupDescs: { ...st.groupDescs, [cid]: typeof v === "string" ? v : String(v ?? "") } }));
+    } else if (typeof key === "string" && key.startsWith("slowmode_")) {
+      // Phase 8 — slow mode realtime (sab users ke local cache me)
+      const cid = key.replace(/^slowmode_/, "");
+      try { localStorage.setItem(`chatsapp:slowmode:${cid}`, String(Number(p.new?.value) || 0)); } catch { /* ignore */ }
+      if (Number(p.new?.value) > 0) toast("Slow mode 🐢", `Har ${p.new.value}s me 1 message`);
+    } else if (typeof key === "string" && key.startsWith("badwords_")) {
+      // Phase 8 — auto-mod realtime
+      const cid = key.replace(/^badwords_/, "");
+      try { if (p.new?.value) localStorage.setItem(`chatsapp:badwords:${cid}`, JSON.stringify(p.new.value)); } catch { /* ignore */ }
     }
   });
 

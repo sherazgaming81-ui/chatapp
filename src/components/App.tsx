@@ -72,6 +72,8 @@ export default function App() {
         try {
           rt = startRealtime();
         } catch { /* ignore */ }
+        // Phase 8 — scheduled announcements checker
+        import("@/lib/owner").then((m) => { try { m.startScheduler(); } catch { /* ignore */ } }).catch(() => {});
       }, wait);
     };
 
