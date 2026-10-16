@@ -142,6 +142,19 @@ a:hover { text-decoration: underline; }
   0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
   30% { transform: translateY(-3px); opacity: 1; }
 }
+/* Claude v8 branded intro — white theme */
+.ld-draw { stroke-dasharray: 520; stroke-dashoffset: 520; animation: ld-draw 1s cubic-bezier(.65,0,.35,1) forwards; }
+@keyframes ld-draw { to { stroke-dashoffset: 0; } }
+.ld-fill { opacity: 0; animation: ld-fill .35s ease .85s forwards; }
+@keyframes ld-fill { to { opacity: 1; } }
+.ld-b { opacity: 0; transform: scale(0); animation: ld-pop .6s cubic-bezier(.2,1.9,.4,1) forwards; }
+@keyframes ld-pop { to { opacity: 1; transform: scale(1); } }
+.ld-tick1, .ld-tick2 { stroke-dasharray: 30; stroke-dashoffset: 30; animation: ld-tickdraw .35s ease forwards; }
+@keyframes ld-tickdraw { to { stroke-dashoffset: 0; } }
+@keyframes ld-blue { from { stroke: #8696a0; } to { stroke: #53bdeb; } }
+.ld-tag { opacity: 0; transform: translateY(10px); animation: ld-tag .5s ease 2.5s forwards; }
+@keyframes ld-tag { to { opacity: 1; transform: none; } }
+@keyframes ld-out { to { opacity: 0; visibility: hidden; } }
 
 /* ── typing dots ── */
 @keyframes tdot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
