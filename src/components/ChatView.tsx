@@ -123,7 +123,7 @@ export default function ChatView() {
   }, [jumpToMsg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="glass relative flex min-w-0 flex-1 flex-col rounded-2xl">
+    <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/10 px-3 sm:px-4">
         <button onClick={() => patchUI({ mobileDrawer: "channels" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Channels">
           <Menu size={20} />
