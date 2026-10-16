@@ -133,10 +133,21 @@ export default function Composer({ chatId }: { chatId: string }) {
         if (!replyTo) { toast("Pehle reply karo", "Kisi message par reply karke /pin likho"); return true; }
         togglePin(chatId, replyTo.id); toast("Pin kar diya", ""); break;
       case "safai": {
-        if (!window.confirm("Poori chat sab ke liye delete ho jayegi. Pakka saaf karni hai?")) break;
-        const n = await clearChat(chatId);
-        await postSystem(chatId, "🧹 Chat saaf kar di gayi");
-        toast("Chat saaf ho gayi", `${n} messages delete`); break;
+        const arg = args.trim().toLowerCase();
+        if (arg === "all" || arg === "") {
+          if (!window.confirm("Poori chat sab ke liye delete ho jayegi. Pakka saaf karni hai?")) break;
+          const n = await clearChat(chatId);
+          await postSystem(chatId, "🧹 Chat saaf kar di gayi");
+          toast("Chat saaf ho gayi", `${n} messages delete`); break;
+        }
+        const num = parseInt(arg, 10);
+        if (!isNaN(num) && num > 0) {
+          if (!window.confirm(`Aakhri ${num} messages sab ke liye delete ho jayenge. Pakka?`)) break;
+          const n = await clearChat(chatId, num);
+          await postSystem(chatId, "🧹 Chat saaf kar di gayi");
+          toast("Chat saaf ho gayi", `${n} messages delete`); break;
+        }
+        toast("Ghalat command", "/safai, /safai all, ya /safai 50"); break;
       }
       case "quiz":
         sendQuiz(chatId); setText(""); break;
@@ -149,7 +160,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       case "paheli":
         sendRiddle(chatId); setText(""); break;
       case "help":
-        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai /quiz /tictactoe /paheli"); break;
+        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai [all|N] /quiz /tictactoe /paheli"); break;
     }
     return true;
   };

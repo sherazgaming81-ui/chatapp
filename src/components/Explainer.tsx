@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { MoonSvg } from "@/components/MoonPage";
-import { playWhoosh, playPop } from "@/lib/sfx";
+import { sfxWelcome, sfxChatBubbles, sfxLock, sfxDeen, sfxStickers, sfxStudio, sfxMoon, sfxGames, sfxShield, sfxLaunch } from "@/lib/sfx";
 import { getSound, setSound } from "@/lib/prefs";
 
 const SCENE_LEN = 3; // seconds per scene
@@ -214,14 +214,13 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
   const sc = Math.min(SCENES.length - 1, Math.floor(t / SCENE_LEN));
   const S = SCENES[sc];
 
-  // Scene change par whoosh SFX
+  // Scene change par UNIQUE matching SFX (har scene ka apna)
+  const SCENE_SFX = [sfxWelcome, sfxChatBubbles, sfxLock, sfxDeen, sfxStickers, sfxStudio, sfxMoon, sfxGames, sfxShield, sfxLaunch];
   useEffect(() => {
     if (lastScene.current !== sc) {
       lastScene.current = sc;
       if (soundOn && t > 0.1) {
-        playWhoosh();
-        // Elements ke liye subtle pops (staggered)
-        playPop(0.35); playPop(0.6); playPop(0.85);
+        try { SCENE_SFX[sc]?.(); } catch { /* ignore */ }
       }
     }
   }, [sc, soundOn, t]);

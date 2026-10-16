@@ -464,14 +464,21 @@ export async function deleteMessage(id: string) {
   } catch { /* ignore */ }
 }
 
-/* ───────── TASK 3 — /safai: poori chat soft-delete (owner only, NEVER hard delete) ───────── */
-export async function clearChat(chatId: string) {
-  const ids = getState().messages.filter((m) => m.chatId === chatId && !m.deleted).map((m) => m.id);
+/* ───────── /safai: HARD DELETE (owner only, user-explicitly authorized) ─────────
+   Sirf /safai ke liye — normal message delete abhi bhi soft delete hai. */
+export async function clearChat(chatId: string, count?: number) {
+  const all = getState().messages.filter((m) => m.chatId === chatId && !m.deleted);
+  const targets = count && count > 0 ? [...all].sort((a, b) => b.at - a.at).slice(0, count) : all;
+  const ids = targets.map((m) => m.id);
   if (!ids.length) return 0;
-  update({ messages: getState().messages.map((m) => (m.chatId === chatId ? { ...m, deleted: true, text: "", src: undefined } : m)) });
+  // Local: poori tarah hatao (koi placeholder nahi)
+  update({ messages: getState().messages.filter((m) => !(m.chatId === chatId && ids.includes(m.id))) });
   try {
-    await sb().from("messages").update({ is_deleted: true, text: "" }).in("id", ids);
-  } catch { /* ignore */ }
+    const { error } = await sb().from("messages").delete().in("id", ids);
+    if (error) throw error;
+  } catch {
+    // RLS ne roka to local phir bhi saaf hai; parent RLS policy add kar sakta hai
+  }
   return ids.length;
 }
 
