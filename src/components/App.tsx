@@ -130,6 +130,7 @@ export default function App() {
     const boot = async (sess: any) => {
       if (!sess?.user || started.current) return;
       started.current = true;
+      update({ loading: true });
       const t0 = Date.now();
       try {
         await load(sess.user.id, sess.user.email || "");
