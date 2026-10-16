@@ -1,21 +1,29 @@
 "use client";
-// Sticker picker — 100% SELF-HOSTED. Koi API nahi!
-// Sab stickers apne server (GitHub + jsDelivr CDN) se ate hain.
+// Sticker picker — WhatsApp style: icon categories + vertical grid, ek-ek karke.
 import { useState } from "react";
-import { Search } from "lucide-react";
+import {
+  Search, Smile, Heart, Frown, Laugh, Cake,
+  ThumbsUp, Sunrise, MoonStar, PartyPopper, Moon,
+} from "lucide-react";
 import { getLocalStickers, searchLocalStickers, STICKER_CATEGORIES, type LocalItem } from "@/lib/localLibrary";
 
-const CAT_META: Record<string, { emoji: string; label: string }> = {
-  happy: { emoji: "😊", label: "Happy" },
-  love: { emoji: "❤️", label: "Love" },
-  sad: { emoji: "😢", label: "Sad" },
-  funny: { emoji: "😂", label: "Funny" },
-  birthday: { emoji: "🎂", label: "Birthday" },
-  thankyou: { emoji: "🙏", label: "Thanks" },
-  goodmorning: { emoji: "🌅", label: "Good Morning" },
-  goodnight: { emoji: "🌙", label: "Good Night" },
-  congrats: { emoji: "🎉", label: "Congrats" },
-  islamic: { emoji: "🕌", label: "Islamic" },
+const CAT_ICONS: Record<string, React.ReactNode> = {
+  happy: <Smile size={20} />,
+  love: <Heart size={20} />,
+  sad: <Frown size={20} />,
+  funny: <Laugh size={20} />,
+  birthday: <Cake size={20} />,
+  thankyou: <ThumbsUp size={20} />,
+  goodmorning: <Sunrise size={20} />,
+  goodnight: <MoonStar size={20} />,
+  congrats: <PartyPopper size={20} />,
+  islamic: <Moon size={20} />,
+};
+
+const CAT_LABELS: Record<string, string> = {
+  happy: "Happy", love: "Love", sad: "Sad", funny: "Funny",
+  birthday: "Birthday", thankyou: "Thanks", goodmorning: "Good Morning",
+  goodnight: "Good Night", congrats: "Congrats", islamic: "Islamic",
 };
 
 export default function StickerPicker({ onPick }: { onPick: (url: string) => void }) {
@@ -27,6 +35,29 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* WhatsApp-style icon categories */}
+      {!query && (
+        <div className="thin-scroll flex shrink-0 items-center gap-1 overflow-x-auto border-b border-black/10 px-2 py-2">
+          {STICKER_CATEGORIES.map((c) => {
+            const active = cat === c;
+            return (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                title={CAT_LABELS[c] || c}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+                  active
+                    ? "bg-[#5865f2] text-white"
+                    : "text-[#80848e] hover:bg-black/5"
+                }`}
+              >
+                {CAT_ICONS[c] || <Smile size={20} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Search */}
       <div className="flex shrink-0 items-center gap-2 border-b border-black/10 px-3 py-2">
         <Search size={15} className="shrink-0 text-[#80848e]" />
@@ -38,43 +69,21 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
         />
       </div>
 
-      {/* Categories */}
-      {!query && (
-        <div className="thin-scroll flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/10 px-2 py-1.5">
-          {STICKER_CATEGORIES.map((c) => {
-            const meta = CAT_META[c] || { emoji: "🎨", label: c };
-            const active = cat === c;
-            return (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold transition ${
-                  active ? "bg-[#5865f2] text-white" : "bg-black/5 text-[#2f3035] hover:bg-black/10"
-                }`}
-              >
-                <span>{meta.emoji}</span>
-                <span>{meta.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Grid — stickers transparent hote hain, is liye contain */}
-      <div className="thin-scroll grid min-h-0 flex-1 grid-cols-4 gap-2 overflow-y-auto p-3">
+      {/* Vertical grid — ek-ek sticker, WhatsApp jesa */}
+      <div className="thin-scroll grid min-h-0 flex-1 grid-cols-4 content-start gap-3 overflow-y-auto p-3">
         {items.map((s) => (
           <button
             key={s.id}
             onClick={() => onPick(s.url)}
-            className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-black/5 p-1 transition hover:bg-black/10 active:scale-95"
-            title={s.title}
+            title={CAT_LABELS[cat] || ""}
+            className="flex aspect-square items-center justify-center rounded-xl p-1.5 transition hover:bg-black/5 active:scale-90"
           >
             <img
               src={s.preview}
-              alt={s.title}
+              alt=""
               loading="lazy"
               draggable={false}
-              className="max-h-full max-w-full object-contain"
+              className="max-h-full max-w-full object-contain drop-shadow-sm"
             />
           </button>
         ))}
@@ -87,11 +96,6 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
           </p>
         </div>
       )}
-
-      {/* Footer note */}
-      <div className="shrink-0 border-t border-black/5 px-3 py-1.5 text-center">
-        <p className="text-[10px] text-[#80848e]">🏠 Apni library — hamesha chalegi!</p>
-      </div>
     </div>
   );
 }

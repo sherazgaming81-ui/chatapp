@@ -1,27 +1,37 @@
 "use client";
-// GIF picker — 100% SELF-HOSTED. Koi API nahi, koi rate limit nahi!
-// Sab GIFs apne server (GitHub + jsDelivr CDN) se ate hain.
+// GIF picker — WhatsApp style: icon categories + vertical scroll grid.
 import { useState } from "react";
-import { Search } from "lucide-react";
+import {
+  Search, Laugh, Drama, Frown, Heart, Smile, ThumbsUp,
+  Sunrise, MoonStar, Cake, PartyPopper, Sparkles,
+  Zap, Hand, CircleHelp,
+} from "lucide-react";
 import { getLocalGifs, searchLocalGifs, GIF_CATEGORIES, type LocalItem } from "@/lib/localLibrary";
 import type { GifItem } from "@/lib/gifs";
 
-const CAT_META: Record<string, { emoji: string; label: string }> = {
-  funny: { emoji: "😂", label: "Funny" },
-  reactions: { emoji: "🎭", label: "Reactions" },
-  sad: { emoji: "😢", label: "Sad" },
-  love: { emoji: "❤️", label: "Love" },
-  happy: { emoji: "😊", label: "Happy" },
-  thankyou: { emoji: "🙏", label: "Thanks" },
-  goodmorning: { emoji: "🌅", label: "Good Morning" },
-  goodnight: { emoji: "🌙", label: "Good Night" },
-  birthday: { emoji: "🎂", label: "Birthday" },
-  congrats: { emoji: "🎉", label: "Congrats" },
-  wow: { emoji: "😮", label: "Wow" },
-  lol: { emoji: "🤣", label: "LOL" },
-  omg: { emoji: "😱", label: "OMG" },
-  facepalm: { emoji: "🤦", label: "Facepalm" },
-  shrug: { emoji: "🤷", label: "Shrug" },
+const CAT_ICONS: Record<string, React.ReactNode> = {
+  funny: <Laugh size={20} />,
+  reactions: <Drama size={20} />,
+  sad: <Frown size={20} />,
+  love: <Heart size={20} />,
+  happy: <Smile size={20} />,
+  thankyou: <ThumbsUp size={20} />,
+  goodmorning: <Sunrise size={20} />,
+  goodnight: <MoonStar size={20} />,
+  birthday: <Cake size={20} />,
+  congrats: <PartyPopper size={20} />,
+  wow: <Sparkles size={20} />,
+  lol: <Laugh size={20} />,
+  omg: <Zap size={20} />,
+  facepalm: <Hand size={20} />,
+  shrug: <CircleHelp size={20} />,
+};
+
+const CAT_LABELS: Record<string, string> = {
+  funny: "Funny", reactions: "Reactions", sad: "Sad", love: "Love",
+  happy: "Happy", thankyou: "Thanks", goodmorning: "Good Morning",
+  goodnight: "Good Night", birthday: "Birthday", congrats: "Congrats",
+  wow: "Wow", lol: "LOL", omg: "OMG", facepalm: "Facepalm", shrug: "Shrug",
 };
 
 export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) {
@@ -37,6 +47,29 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* WhatsApp-style icon categories */}
+      {!query && (
+        <div className="thin-scroll flex shrink-0 items-center gap-1 overflow-x-auto border-b border-black/10 px-2 py-2">
+          {GIF_CATEGORIES.map((c) => {
+            const active = cat === c;
+            return (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                title={CAT_LABELS[c] || c}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+                  active
+                    ? "bg-[#5865f2] text-white"
+                    : "text-[#80848e] hover:bg-black/5"
+                }`}
+              >
+                {CAT_ICONS[c] || <Sparkles size={20} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Search */}
       <div className="flex shrink-0 items-center gap-2 border-b border-black/10 px-3 py-2">
         <Search size={15} className="shrink-0 text-[#80848e]" />
@@ -48,40 +81,17 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
         />
       </div>
 
-      {/* Categories — sirf local wali */}
-      {!query && (
-        <div className="thin-scroll flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/10 px-2 py-1.5">
-          {GIF_CATEGORIES.map((c) => {
-            const meta = CAT_META[c] || { emoji: "🎬", label: c };
-            const active = cat === c;
-            return (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold transition ${
-                  active ? "bg-[#5865f2] text-white" : "bg-black/5 text-[#2f3035] hover:bg-black/10"
-                }`}
-              >
-                <span>{meta.emoji}</span>
-                <span>{meta.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Grid — GIPHY jaisa masonry (variable height, natural aspect) */}
-      <div className="thin-scroll columns-3 gap-1.5 overflow-y-auto p-2 [&>*]:mb-1.5">
+      {/* Vertical scrolling masonry grid */}
+      <div className="thin-scroll columns-2 gap-2 overflow-y-auto p-2 [&>*]:mb-2">
         {items.map((g) => (
           <button
             key={g.id}
             onClick={() => handlePick(g)}
-            className="relative block w-full break-inside-avoid overflow-hidden rounded-lg bg-black/5 transition hover:brightness-95 active:scale-95"
-            title={g.title}
+            className="relative block w-full break-inside-avoid overflow-hidden rounded-xl bg-black/5 transition hover:brightness-95 active:scale-95"
           >
             <img
               src={g.preview}
-              alt={g.title}
+              alt=""
               loading="lazy"
               draggable={false}
               className="block h-auto w-full"
@@ -97,11 +107,6 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
           </p>
         </div>
       )}
-
-      {/* Footer note */}
-      <div className="shrink-0 border-t border-black/5 px-3 py-1.5 text-center">
-        <p className="text-[10px] text-[#80848e]">🏠 Apni library — hamesha chalegi!</p>
-      </div>
     </div>
   );
 }
