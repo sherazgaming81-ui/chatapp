@@ -480,7 +480,7 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-[96] bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] w-[380px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-black/10 bg-white soft-shadow">
+      <div className={`pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-black/10 bg-white soft-shadow ${tab === "tour" ? "w-[560px] max-w-[96vw]" : "w-[380px] max-w-[94vw]"}`}>
         <div className="flex shrink-0 items-center justify-between border-b border-black/10 px-4 py-3">
           <h3 className="text-lg font-extrabold tracking-tight text-[#2f3035]">Settings</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
