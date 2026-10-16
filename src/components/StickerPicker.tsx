@@ -1,17 +1,17 @@
 "use client";
-// Sticker picker — GIPHY Stickers API, real-time (WhatsApp style).
-// Trending grid + search bar + category chips. No static packs.
+// Sticker picker — KLIPY Stickers API (WhatsApp/Discord wala platform!)
+// Trending grid + search bar + category chips. contentfilter=high = no 18+.
 import { useCallback, useEffect, useState } from "react";
 import { Search, RotateCcw } from "lucide-react";
+import { searchKlipy, trendingKlipy } from "@/lib/klipy";
 
-const API_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || "gOJtDcFabYgak7kMh1VTcXMpNz2VcEw7";
 const LIMIT = 24;
 
-interface GiphySticker {
+interface KlipySticker {
   id: string;
   title: string;
-  url: string; // grid thumbnail (fixed_width)
-  fullUrl: string; // message render (original)
+  url: string;
+  fullUrl: string;
 }
 
 const CATS = [
@@ -37,29 +37,22 @@ const CATS = [
   { id: "birthday", name: "Birthday", icon: "🎂", q: "happy birthday" },
 ];
 
-async function fetchStickers(query: string, offset = 0): Promise<GiphySticker[]> {
-  const url = query.trim()
-    ? `https://api.giphy.com/v1/stickers/search?api_key=${API_KEY}&q=${encodeURIComponent(
-        query.trim()
-      )}&limit=${LIMIT}&offset=${offset}&rating=g`
-    : `https://api.giphy.com/v1/stickers/trending?api_key=${API_KEY}&limit=${LIMIT}&offset=${offset}&rating=g`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("giphy fetch failed");
-  const json = await res.json();
-  return ((json.data ?? []) as any[])
-    .map((d) => ({
-      id: String(d.id ?? ""),
-      title: String(d.title ?? ""),
-      url: String(d.images?.fixed_width?.url ?? d.images?.original?.url ?? ""),
-      fullUrl: String(d.images?.original?.url ?? d.images?.fixed_width?.url ?? ""),
-    }))
-    .filter((s) => s.id && s.url);
+async function fetchStickers(query: string, offset = 0): Promise<KlipySticker[]> {
+  const items = query.trim()
+    ? await searchKlipy(query.trim(), LIMIT, offset, true)
+    : await trendingKlipy(LIMIT, offset, true);
+  return items.map((s) => ({
+    id: s.id,
+    title: s.title,
+    url: s.preview,
+    fullUrl: s.url,
+  }));
 }
 
 export default function StickerPicker({ onPick }: { onPick: (url: string) => void }) {
   const [cat, setCat] = useState("trending");
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<GiphySticker[]>([]);
+  const [items, setItems] = useState<KlipySticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
