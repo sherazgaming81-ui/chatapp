@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, ChevronLeft, Bookmark, BookmarkCheck, BookOpen, X, Clock } from "lucide-react";
 import {
-  fetchSurahList, fetchSurah, JUZ_STARTS, getBookmarks, toggleBookmark,
+  fetchSurahList, fetchSurah, getBookmarks, toggleBookmark,
   saveLastRead, getLastRead, getAllLastRead, BISMILLAH,
   type SurahMeta, type Ayah, type Bookmark as BM,
 } from "@/lib/quran";
@@ -13,11 +13,10 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-xl bg-black/[0.06] ${className}`} />;
 }
 
-function SurahList({ onOpen, onJuz }: { onOpen: (n: number) => void; onJuz: (surah: number, ayah: number) => void }) {
+function SurahList({ onOpen }: { onOpen: (n: number) => void }) {
   const [surahs, setSurahs] = useState<SurahMeta[] | null>(null);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
-  const [showJuz, setShowJuz] = useState(false);
   const lastRead = useMemo(() => getAllLastRead().slice(0, 1)[0], [surahs]);
 
   useEffect(() => {
@@ -58,10 +57,6 @@ function SurahList({ onOpen, onJuz }: { onOpen: (n: number) => void; onJuz: (sur
             className="field w-full py-2.5 pl-10 pr-4 text-sm"
           />
         </div>
-        <div className="flex gap-1.5">
-          <button onClick={() => setShowJuz(false)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${!showJuz ? "bg-[#5865f2] text-white soft-shadow" : "bg-black/5 text-[#5c5e66]"}`}>Suratein</button>
-          <button onClick={() => setShowJuz(true)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${showJuz ? "bg-[#5865f2] text-white soft-shadow" : "bg-black/5 text-[#5c5e66]"}`}>Paare (Juz)</button>
-        </div>
       </div>
 
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-4">
@@ -72,23 +67,10 @@ function SurahList({ onOpen, onJuz }: { onOpen: (n: number) => void; onJuz: (sur
             <button onClick={() => { setErr(false); fetchSurahList().then(setSurahs).catch(() => setErr(true)); }} className="mt-3 rounded-lg bg-[#5865f2] px-4 py-2 text-xs font-bold text-white">Dobara koshish</button>
           </div>
         )}
-        {!err && showJuz && (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {JUZ_STARTS.map((j) => (
-              <button
-                key={j.juz} onClick={() => onJuz(j.surah, j.ayah)}
-                className="rounded-xl border border-black/10 bg-white/60 p-3 text-center transition hover:border-[#5865f2]/40 hover:bg-[#5865f2]/[0.06] active:scale-95"
-              >
-                <span className="block text-lg font-extrabold text-[#5865f2]">{j.juz}</span>
-                <span className="block text-[11px] font-semibold text-[#80848e]">Paara {j.juz}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {!err && !showJuz && !surahs && (
+        {!err && !surahs && (
           <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[68px]" />)}</div>
         )}
-        {!err && !showJuz && surahs && (
+        {!err && surahs && (
           <div className="space-y-1.5">
             {filtered.map((s) => {
               const lr = getLastRead(s.number);
@@ -278,7 +260,6 @@ export default function QuranReader({ onClose }: { onClose: () => void }) {
       {view.kind === "list" && (
         <SurahList
           onOpen={(n) => setView({ kind: "reader", surah: n })}
-          onJuz={(s, a) => setView({ kind: "reader", surah: s, scrollTo: a })}
         />
       )}
       {view.kind === "reader" && (
