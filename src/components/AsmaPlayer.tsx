@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  ChevronLeft, Play, Heart, Share2, ChevronDown,
-  Shuffle, Trophy, Bell, BellOff, SkipBack, SkipForward, Eye,
-  Layers, Target, GraduationCap, X, Check, Clapperboard,
+  ChevronLeft, Play, Pause, Square, Volume2, VolumeX, Maximize,
+  Heart, Share2, ChevronDown, Shuffle, Trophy, Bell, BellOff,
+  SkipBack, SkipForward, Eye, Layers, Target, GraduationCap, Check,
+  Clapperboard, ListMusic,
 } from "lucide-react";
 import { ASMA_UL_HUSNA, ASMA_FAZILAT } from "@/lib/asma";
 import { toast } from "@/lib/store";
@@ -17,10 +18,31 @@ const dayOfYear = () => {
   const n = new Date();
   return Math.floor((n.getTime() - new Date(n.getFullYear(), 0, 0).getTime()) / 864e5);
 };
+const fmtT = (s: number) => {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+};
 
 const YT_ID = "lgm3puP3tMA"; // Atif Aslam — Asma-ul-Husna (Coke Studio official)
 const YT_THUMB = `https://i.ytimg.com/vi/${YT_ID}/maxresdefault.jpg`;
-const YT_EMBED = `https://www.youtube-nocookie.com/embed/${YT_ID}?autoplay=1&rel=0`;
+
+/* ───────── YouTube IFrame API — lazy load (performance!) ───────── */
+let ytApiPromise: Promise<any> | null = null;
+function loadYTApi(): Promise<any> {
+  if ((window as any).YT?.Player) return Promise.resolve((window as any).YT);
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve, reject) => {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    tag.async = true;
+    tag.onerror = () => { ytApiPromise = null; reject(new Error("YT API failed")); };
+    const prev = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => { try { prev?.(); } catch {} resolve((window as any).YT); };
+    document.head.appendChild(tag);
+    window.setTimeout(() => reject(new Error("YT API timeout")), 15000);
+  }).catch((e) => { ytApiPromise = null; throw e; });
+  return ytApiPromise;
+}
 
 const ACH_DEFS = [
   { id: "first", icon: "☝️", title: "Pehla naam!", desc: "99 naamon ka safar shuru" },
@@ -29,9 +51,10 @@ const ACH_DEFS = [
   { id: "mem25", icon: "🌟", title: "25 yaad!", desc: "Memorize me 25 naam reveal" },
 ];
 
-type Mode = "video" | "flash" | "quiz" | "memorize";
+type Mode = "video" | "naam" | "flash" | "quiz" | "memorize";
 const TABS: { id: Mode; label: string; icon: any }[] = [
   { id: "video", label: "Video", icon: Clapperboard },
+  { id: "naam", label: "99 Naam", icon: ListMusic },
   { id: "flash", label: "Flashcards", icon: Layers },
   { id: "quiz", label: "Quiz", icon: Target },
   { id: "memorize", label: "Yaad karo", icon: GraduationCap },
@@ -47,9 +70,22 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
   const [achPop, setAchPop] = useState<{ icon: string; title: string; desc: string } | null>(null);
   const [reminder, setReminder] = useState(() => LS.get("chatsapp:asma:reminder", "0") === "1");
   const [dailyOpen, setDailyOpen] = useState(true);
-  const [videoOn, setVideoOn] = useState(false);
 
-  const achvRef = useState(achv)[0];
+  /* ── YouTube player state (single persistent instance) ── */
+  const playerRef = useRef<any>(null);
+  const playerElRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [ytReady, setYtReady] = useState(false);   // player created
+  const [ytState, setYtState] = useState(-1);      // -1 unstarted, 0 ended, 1 playing, 2 paused
+  const [ytErr, setYtErr] = useState(false);
+  const [pos, setPos] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const creatingRef = useRef(false);
+
+  const playing = ytState === 1;
+  const started = ytReady && ytState !== -1;
+
   const dailyIdx = dayOfYear() % 99;
   const daily = ASMA_UL_HUSNA[dailyIdx];
 
@@ -65,8 +101,9 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     setAchPop({ icon: def.icon, title: def.title, desc: def.desc });
     window.setTimeout(() => setAchPop(null), 3400);
   };
+  useEffect(() => { unlock("first"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── daily reminder toast (once per day, in-app) ── */
+  /* ── daily reminder toast ── */
   useEffect(() => {
     if (LS.get("chatsapp:asma:reminder", "0") !== "1") return;
     const today = new Date().toDateString();
@@ -75,8 +112,79 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     window.setTimeout(() => toast(`🌅 Aaj ka naam: ${daily.tr}`, daily.meaning), 2500);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── first open achievement ── */
-  useEffect(() => { unlock("first"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ── create YT player (lazy — sirf play par) ── */
+  const ensurePlayer = async () => {
+    if (playerRef.current || creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      const YT = await loadYTApi();
+      if (!playerElRef.current) { creatingRef.current = false; return; }
+      playerRef.current = new YT.Player(playerElRef.current, {
+        videoId: YT_ID,
+        playerVars: {
+          controls: 0,          // ← YouTube ka UI NAHI — sirf hamare premium controls
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          iv_load_policy: 3,
+          disablekb: 1,
+        },
+        events: {
+          onReady: (e: any) => {
+            setYtReady(true);
+            setDur(e.target.getDuration?.() || 0);
+            e.target.playVideo();
+          },
+          onStateChange: (e: any) => setYtState(e.data),
+          onError: () => setYtErr(true),
+        },
+      });
+    } catch {
+      setYtErr(true);
+      creatingRef.current = false;
+    }
+  };
+
+  /* ── progress ticker ── */
+  useEffect(() => {
+    if (!playing) return;
+    const iv = window.setInterval(() => {
+      const p = playerRef.current;
+      if (p?.getCurrentTime) {
+        setPos(p.getCurrentTime());
+        const d = p.getDuration?.();
+        if (d) setDur(d);
+      }
+    }, 500);
+    return () => window.clearInterval(iv);
+  }, [playing]);
+
+  /* ── controls ── */
+  const doPlayPause = () => {
+    if (!playerRef.current) { ensurePlayer(); return; }
+    if (playing) playerRef.current.pauseVideo();
+    else playerRef.current.playVideo();
+  };
+  const doStop = () => { try { playerRef.current?.stopVideo(); setPos(0); } catch {} };
+  const doSeek = (frac: number) => {
+    const p = playerRef.current;
+    if (p?.seekTo && dur > 0) { p.seekTo(frac * dur, true); setPos(frac * dur); }
+  };
+  const doMute = () => {
+    const p = playerRef.current;
+    if (!p) return;
+    if (muted) { p.unMute(); setMuted(false); }
+    else { p.mute(); setMuted(true); }
+  };
+  const doFullscreen = () => {
+    const el = frameRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else el.requestFullscreen?.().catch(() => {});
+  };
+
+  /* ── close par video roko ── */
+  const handleClose = () => { try { playerRef.current?.pauseVideo(); } catch {} onClose(); };
 
   const toggleFav = (i: number) => {
     const next = favs.includes(i) ? favs.filter((f) => f !== i) : [...favs, i];
@@ -127,16 +235,18 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     toast(next ? "🔔 Reminder on" : "🔕 Reminder off", next ? "Roz subah aaj ka naam milega" : "");
   };
 
-  const list = useMemo(() => {
+  const list = (() => {
     const all = ASMA_UL_HUSNA.map((_, i) => i);
     return filter === "fav" ? all.filter((i) => favs.includes(i)) : all;
-  }, [filter, favs]);
+  })();
+
+  const isVideoTab = mode === "video";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#f4f4f6]">
       {/* header */}
       <header className="flex shrink-0 items-center gap-2 border-b border-black/10 bg-white/80 px-3 py-2.5 backdrop-blur">
-        <button onClick={onClose} className="rounded-lg p-2 text-[#5c5e66] hover:bg-black/5" aria-label="Wapas">
+        <button onClick={handleClose} className="rounded-lg p-2 text-[#5c5e66] hover:bg-black/5" aria-label="Wapas">
           <ChevronLeft size={20} />
         </button>
         <div className="min-w-0 flex-1">
@@ -176,72 +286,146 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* body */}
-      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-        {mode === "video" && (
-          <VideoMode
-            videoOn={videoOn} setVideoOn={setVideoOn}
+      <div className="thin-scroll relative min-h-0 flex-1 overflow-y-auto">
+        {mode === "naam" && (
+          <NamesList
             favs={favs} filter={filter} setFilter={setFilter}
             expanded={expanded} setExpanded={setExpanded}
-            list={list}
+            list={list} achv={achv}
             dailyIdx={dailyIdx} daily={daily} dailyOpen={dailyOpen} setDailyOpen={setDailyOpen}
-            achv={achv}
             onToggleFav={toggleFav} onShare={share}
           />
         )}
         {mode === "flash" && <Flashcards />}
         {mode === "quiz" && <Quiz onMaster={() => unlock("quiz10")} />}
         {mode === "memorize" && <Memorize onReveal25={() => unlock("mem25")} />}
+
+        {/* ═══ video player — CSS se hide hota hai, kabhi unmount NAHI (iframe zinda rehta hai) ═══ */}
+        <div className={isVideoTab
+          ? "mx-auto flex min-h-full max-w-2xl flex-col justify-center p-3 sm:p-6"
+          : "hidden"
+        }>
+          {isVideoTab ? (
+            <div ref={frameRef} className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#0e6b4a] to-[#083a27] p-2.5 soft-shadow">
+              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
+                <div ref={playerElRef} className={`absolute inset-0 h-full w-full ${ytReady ? "" : "invisible"}`} />
+                {!ytReady && !ytErr && (
+                  <button onClick={ensurePlayer} className="group absolute inset-0 h-full w-full" aria-label="Video chalao">
+                    <img src={YT_THUMB} alt="Atif Aslam — Asma-ul-Husna" className="h-full w-full object-cover" loading="lazy" draggable={false} />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                    <span className="absolute inset-0 grid place-items-center">
+                      <span className="grid h-20 w-20 place-items-center rounded-full bg-[#d4af37] text-[#083a27] shadow-2xl transition group-hover:scale-110 group-active:scale-95">
+                        <Play size={36} className="ml-1.5" fill="currentColor" />
+                      </span>
+                    </span>
+                    <span className="absolute bottom-3 left-4 right-4 text-left">
+                      <span className="block font-quran text-2xl text-[#ffe9a8] drop-shadow" dir="rtl" lang="ar">أَسْمَاءُ ٱلْحُسْنَىٰ</span>
+                      <span className="mt-0.5 block text-[13px] font-bold text-white/90">Atif Aslam — 99 Names of Allah 🎙️</span>
+                    </span>
+                    <span className="absolute right-3 top-3 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">HD</span>
+                  </button>
+                )}
+                {ytErr && (
+                  <div className="absolute inset-0 grid place-items-center p-6 text-center">
+                    <p className="text-sm font-bold text-white/90">Video load nahi ho saki 🌐<br /><span className="text-xs font-medium text-white/70">Internet check karke dobara kholo</span></p>
+                  </div>
+                )}
+              </div>
+              {ytReady && (
+                <div className="px-2 pb-1.5 pt-2.5">
+                  <button
+                    onClick={(e) => {
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      doSeek(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+                    }}
+                    className="block w-full py-1.5" aria-label="Seek"
+                  >
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                      <div className="h-full rounded-full bg-[#d4af37] transition-all" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
+                    </div>
+                  </button>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <button onClick={doPlayPause} className="grid h-11 w-11 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition hover:brightness-110 active:scale-95" aria-label={playing ? "Pause" : "Play"}>
+                      {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
+                    </button>
+                    <button onClick={doStop} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25 active:scale-95" aria-label="Stop">
+                      <Square size={15} fill="currentColor" />
+                    </button>
+                    <span className="ml-1 text-xs font-bold tabular-nums text-white/80">{fmtT(pos)} / {fmtT(dur)}</span>
+                    <span className="flex-1" />
+                    <button onClick={doMute} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Mute">
+                      {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
+                    <button onClick={doFullscreen} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white/90 transition hover:bg-white/25" aria-label="Fullscreen">
+                      <Maximize size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : started ? (
+            <div className="flex items-center gap-2.5 rounded-2xl bg-[#0e6b4a] p-2.5 pr-3 text-white shadow-2xl">
+              <img src={YT_THUMB} alt="" className="h-11 w-16 shrink-0 rounded-lg object-cover" draggable={false} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-extrabold">Asma-ul-Husna</p>
+                <p className="text-[11px] font-bold tabular-nums text-white/70">{fmtT(pos)} / {fmtT(dur)}</p>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/20">
+                  <div className="h-full rounded-full bg-[#d4af37]" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
+                </div>
+              </div>
+              <button onClick={doPlayPause} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition active:scale-95" aria-label={playing ? "Pause" : "Play"}>
+                {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} className="ml-0.5" fill="currentColor" />}
+              </button>
+              <button onClick={doStop} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Stop">
+                <Square size={13} fill="currentColor" />
+              </button>
+              <button onClick={() => setMode("video")} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Video par wapas">
+                <Maximize size={14} />
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {/* mini-player — dusre tabs par: video (audio) chalti rahe */}
+        {!isVideoTab && started && (
+          <div className="fixed bottom-3 left-3 right-3 z-40 sm:left-auto sm:right-6 sm:w-[380px]">
+            <div className="flex items-center gap-2.5 rounded-2xl bg-[#0e6b4a] p-2.5 pr-3 text-white shadow-2xl">
+              <img src={YT_THUMB} alt="" className="h-11 w-16 shrink-0 rounded-lg object-cover" draggable={false} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-extrabold">Asma-ul-Husna</p>
+                <p className="text-[11px] font-bold tabular-nums text-white/70">{fmtT(pos)} / {fmtT(dur)}</p>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/20">
+                  <div className="h-full rounded-full bg-[#d4af37]" style={{ width: dur > 0 ? `${(pos / dur) * 100}%` : "0%" }} />
+                </div>
+              </div>
+              <button onClick={doPlayPause} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37] text-[#083a27] transition active:scale-95" aria-label={playing ? "Pause" : "Play"}>
+                {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} className="ml-0.5" fill="currentColor" />}
+              </button>
+              <button onClick={doStop} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Stop">
+                <Square size={13} fill="currentColor" />
+              </button>
+              <button onClick={() => setMode("video")} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white/90 transition active:scale-95" aria-label="Video par wapas">
+                <Maximize size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ═══════════════ VIDEO MODE (YouTube facade — fast load) ═══════════════ */
-function VideoMode(p: {
-  videoOn: boolean; setVideoOn: (v: boolean) => void;
+/* ═══════════════ NAMES LIST (shared) ═══════════════ */
+function NamesList(p: {
   favs: number[]; filter: "all" | "fav"; setFilter: (f: "all" | "fav") => void;
   expanded: number | null; setExpanded: (v: number | null) => void;
-  list: number[];
+  list: number[]; achv: string[];
   dailyIdx: number; daily: any; dailyOpen: boolean; setDailyOpen: (v: boolean) => void;
-  achv: string[];
   onToggleFav: (i: number) => void; onShare: (i: number) => void;
 }) {
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-3 sm:p-4">
-      {/* video card — facade: thumbnail pehle, iframe sirf play par (fast!) */}
-      <div className="overflow-hidden rounded-2xl bg-[#0e6b4a] soft-shadow">
-        <div className="relative aspect-video w-full bg-[#083a27]">
-          {p.videoOn ? (
-            <iframe
-              className="absolute inset-0 h-full w-full"
-              src={YT_EMBED}
-              title="Atif Aslam — Asma-ul-Husna (99 Names)"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              loading="lazy"
-            />
-          ) : (
-            <button onClick={() => p.setVideoOn(true)} className="group absolute inset-0 h-full w-full" aria-label="Video chalao">
-              <img src={YT_THUMB} alt="Atif Aslam — Asma-ul-Husna" className="h-full w-full object-cover" loading="lazy" draggable={false} />
-              <span className="absolute inset-0 bg-black/25 transition group-hover:bg-black/15" />
-              <span className="absolute inset-0 grid place-items-center">
-                <span className="grid h-16 w-16 place-items-center rounded-full bg-[#d4af37] text-[#083a27] shadow-2xl transition group-hover:scale-110 group-active:scale-95">
-                  <Play size={30} className="ml-1" fill="currentColor" />
-                </span>
-              </span>
-              <span className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
-                <span className="truncate text-[13px] font-bold text-white drop-shadow">Atif Aslam — Asma-ul-Husna 🎙️</span>
-                <span className="shrink-0 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">HD</span>
-              </span>
-            </button>
-          )}
-        </div>
-        <p className="px-4 py-2.5 text-center text-[13px] font-semibold text-white/85">
-          Video ke sath neeche naamon ko parho ✨
-        </p>
-      </div>
-
-      {/* daily naam */}
+      {/* daily */}
       <div className="overflow-hidden rounded-2xl border border-[#d4af37]/40 bg-[#fffdf3] soft-shadow">
         <button onClick={() => p.setDailyOpen(!p.dailyOpen)} className="flex w-full items-center gap-3 p-4 text-left">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#d4af37]/15 text-2xl">🌅</span>
@@ -259,7 +443,7 @@ function VideoMode(p: {
         )}
       </div>
 
-      {/* achievements gallery */}
+      {/* achievements */}
       <div className="rounded-2xl border border-black/10 bg-white/70 p-4 soft-shadow">
         <p className="flex items-center gap-1.5 text-[13px] font-extrabold text-[#2f3035]"><Trophy size={14} className="text-[#d4af37]" /> Achievements</p>
         <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
@@ -275,7 +459,7 @@ function VideoMode(p: {
         </div>
       </div>
 
-      {/* filter chips */}
+      {/* filter */}
       <div className="flex gap-1.5">
         {(["all", "fav"] as const).map((f) => (
           <button
@@ -286,7 +470,7 @@ function VideoMode(p: {
         ))}
       </div>
 
-      {/* names list */}
+      {/* list */}
       <div className="space-y-1.5 pb-2">
         {p.list.length === 0 && (
           <p className="rounded-xl bg-black/[0.04] p-6 text-center text-sm text-[#80848e]">Koi pasandida naam nahi — ❤️ dabao!</p>
@@ -298,9 +482,7 @@ function VideoMode(p: {
           return (
             <div key={i} className="rounded-xl border border-black/10 bg-white/70 p-3 soft-shadow">
               <div className="flex items-center gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-black/[0.06] text-xs font-extrabold tabular-nums text-[#80848e]">
-                  {i + 1}
-                </span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-black/[0.06] text-xs font-extrabold tabular-nums text-[#80848e]">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-extrabold text-[#2f3035]">{n.tr}</span>
                   <span className="block truncate text-xs text-[#80848e]">{n.meaning}</span>
