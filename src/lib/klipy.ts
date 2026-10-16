@@ -17,8 +17,8 @@ function toItem(r: any): KlipyItem | null {
   const id = String(r?.id || "");
   if (!id) return null;
   const mf = r?.media_formats || {};
-  // preview: tiny gif preview (fast loading)
-  const preview = mf.tinygifpreview?.url || mf.nanogifpreview?.url || mf.tinygif?.url || "";
+  // preview: animated tiny gif (GIPHY jaisa — chalta hua!)
+  const preview = mf.tinygif?.url || mf.nanogif?.url || mf.gif?.url || "";
   // full: medium gif (good quality, reasonable size)
   const url = mf.mediumgif?.url || mf.gif?.url || "";
   if (!preview || !url) return null;

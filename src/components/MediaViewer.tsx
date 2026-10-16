@@ -40,6 +40,8 @@ export default function MediaViewer() {
 
   if (!viewer || images.length === 0) return null;
   const m = images[idx];
+  // Safety: agar message nahi mila to viewer band karo (crash se bacho)
+  if (!m || !m.src) return null;
   const close = () => patchUI({ viewer: null });
   const nav = (d: number) => {
     setIdx((i) => (i + d + images.length) % images.length);
