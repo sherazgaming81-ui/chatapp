@@ -3,17 +3,29 @@
 // Sab GIFs apne server (GitHub + jsDelivr CDN) se ate hain.
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { getLocalGifs, searchLocalGifs, LOCAL_CATEGORIES, type LocalItem } from "@/lib/localLibrary";
+import { getLocalGifs, searchLocalGifs, GIF_CATEGORIES, type LocalItem } from "@/lib/localLibrary";
 import type { GifItem } from "@/lib/gifs";
 
 const CAT_META: Record<string, { emoji: string; label: string }> = {
   funny: { emoji: "😂", label: "Funny" },
   reactions: { emoji: "🎭", label: "Reactions" },
   sad: { emoji: "😢", label: "Sad" },
+  love: { emoji: "❤️", label: "Love" },
+  happy: { emoji: "😊", label: "Happy" },
+  thankyou: { emoji: "🙏", label: "Thanks" },
+  goodmorning: { emoji: "🌅", label: "Good Morning" },
+  goodnight: { emoji: "🌙", label: "Good Night" },
+  birthday: { emoji: "🎂", label: "Birthday" },
+  congrats: { emoji: "🎉", label: "Congrats" },
+  wow: { emoji: "😮", label: "Wow" },
+  lol: { emoji: "🤣", label: "LOL" },
+  omg: { emoji: "😱", label: "OMG" },
+  facepalm: { emoji: "🤦", label: "Facepalm" },
+  shrug: { emoji: "🤷", label: "Shrug" },
 };
 
 export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) {
-  const [cat, setCat] = useState(LOCAL_CATEGORIES[0] || "funny");
+  const [cat, setCat] = useState(GIF_CATEGORIES[0] || "funny");
   const [q, setQ] = useState("");
 
   const query = q.trim().toLowerCase();
@@ -39,7 +51,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
       {/* Categories — sirf local wali */}
       {!query && (
         <div className="thin-scroll flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/10 px-2 py-1.5">
-          {LOCAL_CATEGORIES.map((c) => {
+          {GIF_CATEGORIES.map((c) => {
             const meta = CAT_META[c] || { emoji: "🎬", label: c };
             const active = cat === c;
             return (
