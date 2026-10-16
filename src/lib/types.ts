@@ -31,7 +31,7 @@ export interface Member {
   privacy?: PrivacySettings; // E1 — audience settings (default: everyone)
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "riddle";
 
 export interface Message {
   id: string;
@@ -79,6 +79,7 @@ export interface UIState {
   globalSearchOpen: boolean; // I15 global search overlay
   jumpToMsg: string | null; // I15 — message id to scroll to after search jump
   settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
+  createGroupOpen: boolean; // CreateGroup modal
 }
 
 export interface State {

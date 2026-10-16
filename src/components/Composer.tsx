@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2 } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact } from "@/lib/db";
+import { sendText, sendMedia, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -17,6 +17,9 @@ const COMMANDS: Cmd[] = [
   { name: "unban", desc: "Ban hatao", usage: "/unban @naam", staff: true },
   { name: "pin", desc: "Reply wale message ko pin karo", usage: "/pin", staff: true, hint: "pehle kisi message par reply karo" },
   { name: "safai", desc: "Chat view saaf karo (sirf aapke liye)", usage: "/safai", staff: true },
+  { name: "quiz", desc: "Deen Quiz shuru karo (5 sawal)", usage: "/quiz", staff: false },
+  { name: "tictactoe", desc: "Kisi ko TicTacToe challenge karo", usage: "/tictactoe @naam", staff: false },
+  { name: "paheli", desc: "Aaj ki paheli bhejo", usage: "/paheli", staff: false },
   { name: "help", desc: "Saare commands dekho", usage: "/help", staff: false },
 ];
 
@@ -128,8 +131,18 @@ export default function Composer({ chatId }: { chatId: string }) {
         update({ messages: getState().messages.filter((m) => m.chatId !== chatId) });
         toast("Chat saaf ho gayi", "Sirf aapke view se"); break;
       }
+      case "quiz":
+        sendQuiz(chatId); setText(""); break;
+      case "tictactoe": {
+        const t = findMemberByName(members, args.split(/\s+/)[0] || "");
+        if (!t) { toast("Member nahi mila", "Jaise /tictactoe @Ahmed"); return true; }
+        if (t.id === meId) { toast("Khud ko challenge nahi!", "Kisi aur ko chunno"); return true; }
+        sendTicTacToe(chatId, t.id); setText(""); break;
+      }
+      case "paheli":
+        sendRiddle(chatId); setText(""); break;
       case "help":
-        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai"); break;
+        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai /quiz /tictactoe /paheli"); break;
     }
     return true;
   };
@@ -144,7 +157,7 @@ export default function Composer({ chatId }: { chatId: string }) {
 
   const pickCmd = (c: Cmd) => {
     if (c.name === "help") { execCommand("/help"); setText(""); return; }
-    if (c.name === "pin" || c.name === "safai") { execCommand("/" + c.name); setText(""); return; }
+    if (c.name === "pin" || c.name === "safai" || c.name === "quiz" || c.name === "paheli") { execCommand("/" + c.name); setText(""); return; }
     setText("/" + c.name + " ");
     ta.current?.focus();
   };
@@ -342,12 +355,16 @@ export default function Composer({ chatId }: { chatId: string }) {
           </div>
         </>
       )}
-      {/* B8 — emoji picker popup */}
+      {/* B8 — emoji picker popup (+ B10 stickers tab) */}
       {emojiOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setEmojiOpen(false)} />
           <div className="relative z-40">
-            <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />
+            <EmojiPicker
+              onPick={insertEmoji}
+              onSticker={(id) => { setEmojiOpen(false); sendSticker(chatId, id); }}
+              onClose={() => setEmojiOpen(false)}
+            />
           </div>
         </>
       )}

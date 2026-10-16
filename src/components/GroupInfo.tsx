@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   X, ChevronLeft, Pencil, Check, Images, FolderOpen, ScrollText,
-  BarChart3, Camera, ShieldCheck, PartyPopper,
+  BarChart3, Camera, ShieldCheck, PartyPopper, MessageCircle, Trash2, AlertTriangle,
 } from "lucide-react";
 import { useStore, patchUI, toast } from "@/lib/store";
 import {
@@ -11,6 +11,8 @@ import {
   getWelcomeEnabled, setWelcomeEnabled,
   type GroupInsights,
 } from "@/lib/db";
+import { deleteGroup, openDM } from "@/lib/groups";
+import { MAIN_GROUP_ID } from "@/lib/supabase";
 import { Avatar, Badge, fmtTime, fmtFull, nameColor } from "@/components/ui";
 import { isStaff } from "@/lib/types";
 import MediaGallery from "@/components/MediaGallery";
@@ -214,6 +216,71 @@ function WelcomeToggle({ chatId }: { chatId: string }) {
   );
 }
 
+/* ───────── Delete Group — danger zone (owner only, main group kabhi nahi) ───────── */
+function DeleteZone({ chatId, chatName }: { chatId: string; chatName: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const doDelete = async () => {
+    setBusy(true);
+    const ok = await deleteGroup(chatId);
+    setBusy(false);
+    if (ok) { setConfirming(false); setTyped(""); }
+  };
+
+  return (
+    <>
+      <section className="rounded-2xl border border-[#ed4245]/30 bg-[#ed4245]/[0.05] p-4">
+        <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#ed4245]">
+          <AlertTriangle size={16} /> Danger Zone
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
+          Group delete karne se <b>saare messages hamesha ke liye</b> mit jayenge. Ye wapas nahi hoga.
+        </p>
+        <button
+          onClick={() => { setTyped(""); setConfirming(true); }}
+          className="btn btn-danger mt-3 flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm"
+        >
+          <Trash2 size={15} /> Group Delete karo
+        </button>
+      </section>
+
+      {confirming && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setConfirming(false)} />
+          <div className="pop-in fixed left-1/2 top-1/2 z-[70] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 soft-shadow">
+            <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#ed4245]">
+              <Trash2 size={19} /> Pakka delete karein?
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
+              <b className="text-[#2f3035]">“{chatName}”</b> aur uske saare messages hamesha ke liye delete ho jayenge.
+            </p>
+            <p className="mt-3 text-xs font-bold text-[#80848e]">Confirm karne ke liye group ka naam likho:</p>
+            <input
+              autoFocus
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={chatName}
+              className="field mt-1.5 w-full px-3.5 py-2.5 text-sm"
+            />
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setConfirming(false)} className="btn btn-ghost flex-1 px-4 py-2.5 text-sm">Rehne do</button>
+              <button
+                onClick={doDelete}
+                disabled={typed.trim() !== chatName.trim() || busy}
+                className="btn btn-danger flex-1 px-4 py-2.5 text-sm disabled:opacity-40"
+              >
+                {busy ? "Delete ho raha…" : "Delete karo"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "files" }) {
   const chats = useStore((s) => s.chats);
   const members = useStore((s) => s.members);
@@ -403,24 +470,40 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                 <h3 className="text-sm font-extrabold text-[#2f3035]">Members · {members.length}</h3>
                 <div className="mt-2 max-h-72 space-y-0.5 overflow-y-auto thin-scroll">
                   {sorted.map((m) => (
-                    <button
+                    <div
                       key={m.id}
-                      onClick={() => patchUI({ profileId: m.id })}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-black/[0.04] active:scale-[0.99]"
+                      className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-black/[0.04]"
                     >
-                      <Avatar m={m} size={36} showDot />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
-                          <Badge role={m.role} />
+                      <button onClick={() => patchUI({ profileId: m.id })} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                        <Avatar m={m} size={36} showDot />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
+                            <Badge role={m.role} />
+                          </span>
+                          <span className="block text-[11px] text-[#80848e]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
                         </span>
-                        <span className="block text-[11px] text-[#80848e]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
-                      </span>
-                      {m.id === meId && <ShieldCheck size={15} className="shrink-0 text-[#5865f2]" />}
-                    </button>
+                      </button>
+                      {m.id === meId ? (
+                        <ShieldCheck size={15} className="shrink-0 text-[#5865f2]" />
+                      ) : (
+                        <button
+                          onClick={() => openDM(m.id)}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#80848e] hover:bg-[#5865f2]/10 hover:text-[#5865f2]"
+                          title={`${m.name} ko DM karo`}
+                          aria-label="DM karo"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </section>
+              {/* danger zone — sirf owner, main group kabhi nahi */}
+              {me?.role === "owner" && chat?.type === "group" && chatId !== MAIN_GROUP_ID && (
+                <DeleteZone chatId={chatId} chatName={chat.name || "Group"} />
+              )}
               <p className="pb-2 text-center text-[11px] text-[#a0a3ab]">ChatsApp · Madrasa Group 🕌</p>
             </div>
           </div>

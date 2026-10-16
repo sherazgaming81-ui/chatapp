@@ -272,6 +272,8 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
     toast("Message nahi gaya", "Internet check karo");
   }
   checkMessageBadges();
+  // Phase 7 — apna jawab bhi paheli se milao
+  setTimeout(() => checkRiddleAnswer(chatId, m.text, m.from).catch(() => {}), 300);
   return m;
 }
 
@@ -716,6 +718,10 @@ export function startRealtime() {
       }
       return { messages: [...st.messages, m], chats };
     });
+    // Phase 7 — paheli ka jawab check karo
+    if (m.type === "text" && m.text) {
+      setTimeout(() => checkRiddleAnswer(m.chatId, m.text, m.from).catch(() => {}), 300);
+    }
   });
   ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p: any) => {
     const m = toMessage(p.new);
@@ -822,3 +828,192 @@ export function startRealtime() {
 }
 
 export { uid };
+
+// ───────── Phase 7 — Games & Fun ─────────
+import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer } from "./games";
+
+/** I1 — Deen Quiz shuru karo (5 sawal, har sawal 15 sec) */
+export async function sendQuiz(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  // ek waqt me ek hi active quiz
+  const active = s.messages.find((m) => m.chatId === chatId && m.type === "quiz" && !m.deleted && !parseQuiz(m.caption)?.done);
+  if (active) { toast("Quiz pehle se chal raha hai", "Khatam hone ka intezar karo"); return null; }
+  const questions = pickQuizQuestions();
+  const state = { questions, current: 0, qEndsAt: Date.now() + 15000, done: false };
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "quiz", text: "🧠 Deen Quiz!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "quiz",
+      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { toast("Quiz nahi gaya", "Internet check karo"); }
+  return m;
+}
+/** Quiz ka jawab do — ek sawal par ek hi jawab (badal sakte ho timer tak) */
+export async function answerQuiz(msgId: string, qIdx: number, optIdx: number) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parseQuiz(m.caption);
+  if (!st || st.done || st.current !== qIdx || Date.now() > st.qEndsAt) return;
+  const next = { ...m.reactions };
+  for (let o = 0; o < 4; o++) {
+    const k = `__quiz_${qIdx}_${o}`;
+    const rest = ((next[k] as string[]) || []).filter((u) => u !== s.me);
+    if (rest.length === 0) delete next[k]; else next[k] = rest;
+  }
+  const key = `__quiz_${qIdx}_${optIdx}`;
+  next[key] = [...((next[key] as string[]) || []), s.me];
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, reactions: next } : x)) });
+  try { await sb().from("messages").update({ reactions: next }).eq("id", msgId); } catch { /* ignore */ }
+}
+/** Agle sawal par jao (timer khatam par starter ka client chalata hai) */
+export async function advanceQuiz(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parseQuiz(m.caption);
+  if (!st || st.done) return;
+  const nextIdx = st.current + 1;
+  const done = nextIdx >= st.questions.length;
+  const nextState = { ...st, current: nextIdx, qEndsAt: Date.now() + 15000, done };
+  const caption = JSON.stringify(nextState);
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
+  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+  if (done) {
+    // winner announce
+    const scores = quizScores(m.reactions, st.questions);
+    if (scores.length > 0) {
+      const top = scores[0];
+      const name = s.members.find((x) => x.id === top.id)?.name || "Koi";
+      postSystem(chatId_of(m), `🏆 Quiz khatam! Winner: ${name} (${top.pts} points)`);
+    } else {
+      postSystem(chatId_of(m), "🏆 Quiz khatam! Kisi ne jawab nahi diya 😅");
+    }
+  }
+}
+function chatId_of(m: Message): string { return m.chatId; }
+/** system message bhejo (winner announcements waghera) */
+export async function postSystem(chatId: string, text: string) {
+  const s = getState();
+  if (!chatId || !text.trim()) return;
+  const m: Message = { id: uid("m"), from: "system", chatId, type: "system", text: text.trim(), at: Date.now(), reactions: {} };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: s.me, type: "system",
+      text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { /* ignore */ }
+}
+
+/** I2 — TicTacToe challenge bhejo */
+export async function sendTicTacToe(chatId: string, opponentId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !opponentId || opponentId === s.me) return null;
+  const state = {
+    challenger: s.me, opponent: opponentId, accepted: false,
+    board: Array(9).fill(""), turn: s.me, winner: null,
+  };
+  const oppName = s.members.find((x) => x.id === opponentId)?.name || "member";
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "tictactoe", text: `⭕❌ TicTacToe challenge: ${oppName}`, at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "tictactoe",
+      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { toast("Challenge nahi gaya", "Internet check karo"); }
+  return m;
+}
+export async function acceptTicTacToe(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parseTTT(m.caption);
+  if (!st || st.accepted || st.opponent !== s.me) return;
+  // challenger = X, opponent = O; challenger pehle khelega
+  const next = { ...st, accepted: true, turn: st.challenger };
+  const caption = JSON.stringify(next);
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
+  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+}
+export async function tttMove(msgId: string, cell: number) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parseTTT(m.caption);
+  if (!st || !st.accepted || st.winner || st.turn !== s.me) return;
+  if (cell < 0 || cell > 8 || st.board[cell]) return;
+  const mark = s.me === st.challenger ? "X" : "O";
+  const board = [...st.board];
+  board[cell] = mark;
+  const winMark = tttWinner(board);
+  let winner: string | null = null;
+  if (winMark === "X") winner = st.challenger;
+  else if (winMark === "O") winner = st.opponent;
+  else if (winMark === "draw") winner = "draw";
+  const nextTurn = winner ? st.turn : (st.turn === st.challenger ? st.opponent : st.challenger);
+  const next = { ...st, board, turn: nextTurn, winner };
+  const caption = JSON.stringify(next);
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
+  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+  if (winner) {
+    const wname = winner === "draw" ? null : s.members.find((x) => x.id === winner)?.name || "Koi";
+    postSystem(m.chatId, winner === "draw" ? "⭕❌ TicTacToe draw ho gaya! Rematch? 🔄" : `⭕❌ ${wname} jeet gaya! 🎉`);
+  }
+}
+
+/** I3 — Daily Paheli bhejo */
+export async function sendRiddle(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const active = s.messages.find((m) => m.chatId === chatId && m.type === "riddle" && !m.deleted && !parseRiddle(m.caption)?.solved);
+  if (active) { toast("Paheli pehle se chal rahi hai", "Pehle iska jawab do!"); return null; }
+  const { riddle } = dailyRiddle();
+  const state = { q: riddle.q, a: riddle.a, alt: riddle.alt, day: today, solved: false, winner: null };
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "riddle", text: "🧩 Aaj ki Paheli!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "riddle",
+      text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { toast("Paheli nahi gayi", "Internet check karo"); }
+  return m;
+}
+/** kisi text message ko active paheli ke jawab se milao */
+export async function checkRiddleAnswer(chatId: string, text: string, senderId: string) {
+  if (senderId === "system") return;
+  const s = getState();
+  const r = s.messages.find((m) => m.chatId === chatId && m.type === "riddle" && !m.deleted && !parseRiddle(m.caption)?.solved);
+  if (!r) return;
+  const st = parseRiddle(r.caption);
+  if (!st || normAnswer(text).length < 2) return;
+  if (isRiddleAnswer(text, st)) {
+    const next = { ...st, solved: true, winner: senderId };
+    const caption = JSON.stringify(next);
+    update({ messages: s.messages.map((x) => (x.id === r.id ? { ...x, caption } : x)) });
+    try { await sb().from("messages").update({ caption }).eq("id", r.id); } catch { /* ignore */ }
+    const name = getState().members.find((x) => x.id === senderId)?.name || "Kisi ne";
+    postSystem(chatId, `🧩 Paheli solve! ${name} ne sahi jawab diya: "${st.a}" 🎉`);
+  }
+}
+
+/** B10 — Sticker bhejo */
+export async function sendSticker(chatId: string, stickerId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !stickerId) return null;
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "sticker", text: stickerId, at: Date.now(), reactions: {} };
+  update({ messages: [...s.messages, m] });
+  try {
+    await sb().from("messages").insert({
+      id: m.id, chat_id: chatId, sender_id: m.from, type: "sticker",
+      text: m.text, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+    });
+  } catch { toast("Sticker nahi gaya", "Internet check karo"); }
+  return m;
+}

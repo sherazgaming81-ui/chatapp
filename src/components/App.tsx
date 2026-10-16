@@ -21,6 +21,7 @@ import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
 import GroupInfo from "@/components/GroupInfo";
 import GlobalSearch from "@/components/GlobalSearch";
+import CreateGroup from "@/components/CreateGroup";
 import Toasts from "@/components/Toasts";
 import GlobalVideoBar from "@/components/GlobalVideoBar";
 import AppLock from "@/components/AppLock";
@@ -86,7 +87,7 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], groupRules: {}, groupDescs: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false } });
         onboardChecked.current = false;
         setWizardOpen(false);
         setChecklistOpen(false);
@@ -165,6 +166,7 @@ export default function App() {
       <MediaViewer />
       <GroupInfo />
       <GlobalSearch />
+      <CreateGroup />
       <Toasts />
       {/* ★ Asma-ul-Husna mini-player — video chal rahi ho aur player band ho to */}
       <GlobalVideoBar />

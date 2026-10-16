@@ -5,6 +5,10 @@ import { getState, useStore, patchUI } from "@/lib/store";
 import { deleteMessage, toggleReaction, togglePin, toggleStar } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
 import PollMessage from "@/components/PollMessage";
+import QuizMessage from "@/components/QuizMessage";
+import TicTacToeMessage from "@/components/TicTacToeMessage";
+import RiddleMessage from "@/components/RiddleMessage";
+import StickerMessage from "@/components/StickerMessage";
 import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
 import type { Member, Message } from "@/lib/types";
 
@@ -214,7 +218,7 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
     <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
       <Reply size={13} className="shrink-0" />
       <span className="font-semibold" style={{ color: replyMember ? nameColor(replyMember) : undefined }}>{replyMember?.name || "Member"}</span>
-      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
+      <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
     </div>
   );
 }
@@ -232,6 +236,10 @@ function MsgBody({ m, query = "" }: { m: Message; query?: string }) {
   }
   if (m.type === "voice") return <VoiceBubble m={m} />;
   if (m.type === "poll") return <PollMessage m={m} />;
+  if (m.type === "quiz") return <QuizMessage m={m} />;
+  if (m.type === "tictactoe") return <TicTacToeMessage m={m} />;
+  if (m.type === "riddle") return <RiddleMessage m={m} />;
+  if (m.type === "sticker") return <StickerMessage m={m} />;
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
   const urls = extractUrls(m.text);

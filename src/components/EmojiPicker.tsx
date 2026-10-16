@@ -1,19 +1,22 @@
 "use client";
-// B8 — custom emoji picker (NOT the OS keyboard): categories, Recent, search
+// B8 — custom emoji picker (NOT the OS keyboard): categories, Recent, search + Stickers tab
 import { useMemo, useState } from "react";
-import { Search, Clock } from "lucide-react";
+import { Search, Clock, Sticker } from "lucide-react";
 import { EMOJI_CATS, searchEmojis, getRecentEmojis, pushRecentEmoji } from "@/lib/emoji";
+import { StickerGrid } from "@/components/StickerMessage";
 
-export default function EmojiPicker({ onPick, onClose }: { onPick: (e: string) => void; onClose: () => void }) {
+export default function EmojiPicker({ onPick, onSticker, onClose }: { onPick: (e: string) => void; onSticker?: (id: string) => void; onClose: () => void }) {
   const [cat, setCat] = useState("recent");
   const [q, setQ] = useState("");
   const recent = useMemo(() => getRecentEmojis(), [cat]);
 
+  const isStickerTab = cat === "stickers";
   const list = useMemo(() => {
+    if (isStickerTab) return [];
     if (q.trim()) return searchEmojis(q);
     if (cat === "recent") return recent;
     return EMOJI_CATS.find((c) => c.id === cat)?.emojis || [];
-  }, [q, cat, recent]);
+  }, [q, cat, recent, isStickerTab]);
 
   const pick = (e: string) => {
     pushRecentEmoji(e);
@@ -32,7 +35,9 @@ export default function EmojiPicker({ onPick, onClose }: { onPick: (e: string) =
         />
       </div>
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-2">
-        {list.length === 0 ? (
+        {isStickerTab ? (
+          <StickerGrid onPick={(id) => onSticker?.(id)} />
+        ) : list.length === 0 ? (
           <p className="px-2 py-8 text-center text-sm text-[#80848e]">
             {q.trim() ? "Kuch nahi mila" : "Abhi koi recent emoji nahi — koi emoji bhejo!"}
           </p>
@@ -64,6 +69,13 @@ export default function EmojiPicker({ onPick, onClose }: { onPick: (e: string) =
             {c.icon}
           </button>
         ))}
+        <button
+          onClick={() => { setCat("stickers"); setQ(""); }}
+          title="Stickers"
+          className={`rounded-lg p-2 ${cat === "stickers" ? "bg-[#5865f2]/15" : "hover:bg-black/5"}`}
+        >
+          <Sticker size={18} className="text-[#5c5e66]" />
+        </button>
       </div>
     </div>
   );

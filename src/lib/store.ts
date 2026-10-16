@@ -22,6 +22,7 @@ const initialUI: UIState = {
   globalSearchOpen: false,
   jumpToMsg: null,
   settingsOpen: false,
+  createGroupOpen: false,
 };
 
 let state: State = {

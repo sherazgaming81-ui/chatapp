@@ -1,5 +1,5 @@
 "use client";
-import { Hash, Volume2, ChevronDown, Settings, Mic, LogOut, Star } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Settings, Mic, LogOut, Star, Plus } from "lucide-react";
 import { useState } from "react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
@@ -14,7 +14,8 @@ export default function Sidebar() {
   const meId = useStore((s) => s.me);
   const me = members.find((m) => m.id === meId);
   const activeChatId = useStore((s) => s.ui.activeChatId) || chats[0]?.id;
-  const group = chats.find((c) => c.type === "group");
+  const groups = chats.filter((c) => c.type === "group");
+  const group = groups[0];
   const dms = chats.filter((c) => c.type === "dm");
   const [menu, setMenu] = useState(false);
   const settingsOpen = useStore((s) => s.ui.settingsOpen);
@@ -36,18 +37,31 @@ export default function Sidebar() {
       </div>
 
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-2 py-3">
-        {group && (
+        {groups.length > 0 && (
           <>
-            <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#80848e]">Channels</p>
-            <button
-              onClick={() => pick(group.id)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium ${
-                activeChatId === group.id ? "bg-[#5865f2] text-white soft-shadow" : "text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"
-              }`}
-            >
-              <Hash size={18} className="shrink-0 opacity-70" />
-              <span className="truncate">general</span>
-            </button>
+            <div className="flex items-center justify-between px-2 pb-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#80848e]">Groups</p>
+              <button
+                onClick={() => patchUI({ createGroupOpen: true })}
+                className="rounded-md p-1 text-[#80848e] hover:bg-black/5 hover:text-[#5865f2]"
+                title="Naya group banao"
+                aria-label="Naya group banao"
+              >
+                <Plus size={15} strokeWidth={2.5} />
+              </button>
+            </div>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => pick(g.id)}
+                className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium ${
+                  activeChatId === g.id ? "bg-[#5865f2] text-white soft-shadow" : "text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"
+                }`}
+              >
+                <Hash size={18} className="shrink-0 opacity-70" />
+                <span className="truncate">{g.name}</span>
+              </button>
+            ))}
             <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#80848e]/50" title="Jald aa raha hai">
               <Volume2 size={18} className="shrink-0 opacity-70" />
               <span className="truncate">elaan-voice</span>

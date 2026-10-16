@@ -1,5 +1,5 @@
 "use client";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
 
@@ -32,19 +32,25 @@ export default function MobileDrawers() {
   if (drawer === "none") return null;
 
   if (drawer === "channels") {
-    const group = chats.find((c) => c.type === "group");
+    const groups = chats.filter((c) => c.type === "group");
     const dms = chats.filter((c) => c.type === "dm");
     return (
       <Drawer side="left" onClose={close} title="Chats">
-        {group && (
-          <button onClick={() => pick(group.id)} className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left ${activeChatId === group.id ? "bg-[#5865f2] soft-shadow" : "hover:bg-black/5"}`}>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-lg font-bold text-white">م</span>
+        <button
+          onClick={() => { close(); patchUI({ createGroupOpen: true }); }}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#5865f2]/10 px-3 py-2.5 text-sm font-extrabold text-[#5865f2] transition active:scale-[0.98]"
+        >
+          <Plus size={16} strokeWidth={2.5} /> Naya Group
+        </button>
+        {groups.map((group) => (
+          <button key={group.id} onClick={() => pick(group.id)} className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left ${activeChatId === group.id ? "bg-[#5865f2] soft-shadow" : "hover:bg-black/5"}`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-lg font-bold text-white">{(group.name || "G")[0]?.toUpperCase()}</span>
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm font-bold ${activeChatId === group.id ? "text-white" : "text-[#2f3035]"}`}>{group.name}</span>
-              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#80848e]"}`}># general</span>
+              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#80848e]"}`}>group</span>
             </span>
           </button>
-        )}
+        ))}
         {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#80848e]">Direct messages</p>}
         {dms.map((dm) => {
           const other = members.find((m) => m.id === dm.otherId);

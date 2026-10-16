@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { X, AtSign, VolumeX, Volume2, AlertTriangle, Gavel, ShieldCheck, Crown } from "lucide-react";
+import { X, AtSign, VolumeX, Volume2, AlertTriangle, Gavel, ShieldCheck, Crown, MessageCircle } from "lucide-react";
 import { useStore, patchUI, toast } from "@/lib/store";
 import { setMute, setBan, addWarn, setRole, sendText } from "@/lib/db";
+import { openDM } from "@/lib/groups";
 import { Avatar, Badge, nameColor, fmtLastSeen } from "@/components/ui";
 import { visibleOnline, visibleLastSeen, visibleAbout } from "@/lib/prefs";
 import { isStaff } from "@/lib/types";
@@ -60,6 +61,11 @@ export default function ProfileModal() {
           {m.warns.length > 0 && <p className="mt-2 text-xs font-semibold text-[#b36b00]">⚠️ {m.warns.length} warning{m.warns.length > 1 ? "s" : ""}</p>}
 
           <div className="mt-4 space-y-2">
+            {!isMe && (
+              <button onClick={() => openDM(m.id)} className="btn btn-primary flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm">
+                <MessageCircle size={15} /> Message karo
+              </button>
+            )}
             {!isMe && activeChatId && (
               <button onClick={() => { sendText(activeChatId, `@${m.name} `); close(); }} className="btn btn-ghost flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm">
                 <AtSign size={15} /> Mention karo
