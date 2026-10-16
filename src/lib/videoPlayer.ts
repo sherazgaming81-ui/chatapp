@@ -34,7 +34,9 @@ function emit() { listeners.forEach((l) => { try { l(); } catch { /* ignore */ }
 /* ───────── React bindings ───────── */
 export function subscribeVideo(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; }
 export function getVideoSnapshot(): VideoSnapshot { return snap; }
-export function useVideo(): VideoSnapshot { return useSyncExternalStore(subscribeVideo, getVideoSnapshot); }
+// SSR/prerender ke liye server snapshot
+const videoServerSnap: VideoSnapshot = { started: false, playing: false, pos: 0, dur: 0, muted: false, err: false, ended: false };
+export function useVideo(): VideoSnapshot { return useSyncExternalStore(subscribeVideo, getVideoSnapshot, () => videoServerSnap); }
 
 /* video khatam hone par — AsmaPlayer achievement popup ke liye */
 const endedCbs = new Set<() => void>();

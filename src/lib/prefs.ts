@@ -24,8 +24,14 @@ function readSnap(): PrefsSnap {
 }
 function refresh() { snap = readSnap(); emit(); }
 if (typeof window !== "undefined") snap = readSnap();
+// SSR/prerender ke liye server snapshot (client hydration par real snap ayega)
+const serverSnap: PrefsSnap = { ...snap };
 export function usePrefs(): PrefsSnap {
-  return useSyncExternalStore((cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; }, () => snap);
+  return useSyncExternalStore(
+    (cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
+    () => snap,
+    () => serverSnap,
+  );
 }
 
 /* ───────── E1 — privacy ───────── */
