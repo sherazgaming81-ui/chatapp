@@ -78,8 +78,12 @@ export async function load(userId: string, email: string): Promise<boolean> {
     if (main?.id) {
       setMainGroupId(main.id);
       if (!myChatIds.includes(main.id)) myChatIds.push(main.id);
-      // ensure user is a participant (RLS needs this to read messages) — safe upsert
-      try { await sb().from("chat_participants").upsert({ chat_id: main.id, user_id: userId }, { onConflict: "chat_id,user_id" }); } catch { /* ignore */ }
+      // ensure user is a participant (RLS needs this to read messages)
+      // NOTE: upsert nahi — sirf INSERT (RLS UPDATE allow nahi karta, 403 ata hai)
+      try {
+        const { data: ex } = await sb().from("chat_participants").select("chat_id").eq("chat_id", main.id).eq("user_id", userId).maybeSingle();
+        if (!ex) await sb().from("chat_participants").insert({ chat_id: main.id, user_id: userId });
+      } catch { /* ignore */ }
     }
   } catch { /* keep going */ }
   const allChatIds = myChatIds.length > 0 ? myChatIds : [MAIN_GROUP_ID];
