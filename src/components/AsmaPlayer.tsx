@@ -9,9 +9,9 @@ import {
 import { ASMA_UL_HUSNA, ASMA_FAZILAT } from "@/lib/asma";
 import { toast } from "@/lib/store";
 import {
-  useVideo, setVideoSlot, onVideoEnded,
+  useVideo, onVideoEnded, attachVideo,
   videoPlay, videoToggle, videoStop, videoSeekFrac, videoSkip, videoToggleMute,
-  fmtVideoTime, VIDEO_POSTER,
+  fmtVideoTime, VIDEO_SRC, VIDEO_POSTER,
 } from "@/lib/videoPlayer";
 
 /* ───────── helpers ───────── */
@@ -54,13 +54,22 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
   const [reminder, setReminder] = useState(() => LS.get("chatsapp:asma:reminder", "0") === "1");
   const [dailyOpen, setDailyOpen] = useState(true);
 
-  /* ── video — APP-LEVEL singleton (VideoStage me ek hi element, kabhi unmount nahi) ── */
+  /* ── video — seedha isi component me (NO portal). Tab switch ya hide par
+        element kabhi unmount nahi hota — sirf CSS se visible/invisible. ── */
   const v = useVideo();
   const frameRef = useRef<HTMLDivElement>(null);
-  const slotRef = useRef<HTMLDivElement>(null);
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
   const [seekFlash, setSeekFlash] = useState<string | null>(null);
   const flashTimer = useRef(0);
   const lastTap = useRef<{ t: number } | null>(null);
+
+  /* video element singleton se attach — ek dafa */
+  const attachRef = (el: HTMLVideoElement | null) => {
+    if (el && !videoElRef.current) {
+      videoElRef.current = el;
+      attachVideo(el);
+    }
+  };
 
   const playing = v.playing;
   const started = v.started;
@@ -95,17 +104,8 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
     window.setTimeout(() => toast(`🌅 Aaj ka naam: ${daily.tr}`, daily.meaning), 2500);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── video slot: video tab open ho to video is frame me (portal), warna invisible host me ── */
+  /* ── video tab flag (video element hamesha mounted rehta hai) ── */
   const isVideoTab = mode === "video";
-  useEffect(() => {
-    if (isVideoTab && slotRef.current) {
-      setVideoSlot(slotRef.current);
-      return () => setVideoSlot(null);
-    }
-    setVideoSlot(null);
-  }, [isVideoTab]);
-  // unmount (AsmaPlayer close) par slot hatao — video invisible host me wapas, CHALTI RAHEGI
-  useEffect(() => () => setVideoSlot(null), []);
 
   /* ── video khatam → achievement popup (confetti+toast singleton me) ── */
   useEffect(() => onVideoEnded(() => unlock("mukammal")), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -293,8 +293,17 @@ export default function AsmaPlayer({ onClose }: { onClose: () => void }) {
                     }}
                     onDoubleClick={(e) => onTapZone(e.clientX, e.currentTarget)}
                   >
-                    {/* ★ portal slot — video element yahan ata hai jab ye tab open ho */}
-                    <div ref={slotRef} className="absolute inset-0" />
+                    {/* ★ video element — seedha yahan, kabhi unmount nahi hota.
+                        Dusre tab par 1px invisible (NOT display:none) → chalti rehti hai. */}
+                    <video
+                      ref={attachRef}
+                      src={VIDEO_SRC}
+                      poster={VIDEO_POSTER}
+                      preload="none"
+                      playsInline
+                      className={isVideoTab ? "absolute inset-0 h-full w-full bg-black" : "fixed left-0 top-0 h-px w-px opacity-0 pointer-events-none"}
+                      aria-hidden={!isVideoTab}
+                    />
 
                     {!started && !v.err && (
                       <button onClick={videoPlay} className="group absolute inset-0 h-full w-full" aria-label="Video chalao">

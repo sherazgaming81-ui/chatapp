@@ -29,22 +29,12 @@ let snap: VideoSnapshot = { started: false, playing: false, pos: 0, dur: 0, mute
 const listeners = new Set<() => void>();
 const wired = new WeakSet<HTMLVideoElement>();
 
-/* portal target — AsmaPlayer ka video frame jab video tab open ho */
-let slot: HTMLElement | null = null;
-const slotListeners = new Set<() => void>();
-
 function emit() { listeners.forEach((l) => { try { l(); } catch { /* ignore */ } }); }
-function emitSlot() { slotListeners.forEach((l) => { try { l(); } catch { /* ignore */ } }); }
 
 /* ───────── React bindings ───────── */
 export function subscribeVideo(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; }
 export function getVideoSnapshot(): VideoSnapshot { return snap; }
 export function useVideo(): VideoSnapshot { return useSyncExternalStore(subscribeVideo, getVideoSnapshot); }
-
-export function subscribeVideoSlot(l: () => void) { slotListeners.add(l); return () => { slotListeners.delete(l); }; }
-export function getVideoSlot(): HTMLElement | null { return slot; }
-export function useVideoSlot(): HTMLElement | null { return useSyncExternalStore(subscribeVideoSlot, getVideoSlot); }
-export function setVideoSlot(el: HTMLElement | null) { if (slot !== el) { slot = el; emitSlot(); } }
 
 /* video khatam hone par — AsmaPlayer achievement popup ke liye */
 const endedCbs = new Set<() => void>();

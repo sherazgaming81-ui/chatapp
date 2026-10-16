@@ -9,6 +9,19 @@ import AsmaPlayer from "@/components/AsmaPlayer";
 import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
 import { useVideo, getSavedProgress, videoPlay, fmtVideoTime } from "@/lib/videoPlayer";
 
+/* ★ AsmaPlayer wrapper — pehli open ke baad unmount nahi hota, sirf hidden.
+   Video element zinda rehta hai → background play kabhi nahi rukti. */
+function AsmaPlayerWrap({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [everOpened, setEverOpened] = useState(false);
+  useEffect(() => { if (open) setEverOpened(true); }, [open ]);
+  if (!everOpened) return null;
+  return (
+    <div className={open ? "" : "hidden"} aria-hidden={!open}>
+      <AsmaPlayer onClose={onClose} />
+    </div>
+  );
+}
+
 function useNow(ms = 1000) {
   const [, t] = useState(0);
   useEffect(() => { const i = setInterval(() => t((x) => x + 1), ms); return () => clearInterval(i); }, [ms]);
@@ -275,7 +288,9 @@ export default function DeenPage() {
       </div>
 
       {quranOpen && <QuranReader onClose={() => setQuranOpen(false)} />}
-      {asmaOpen && <AsmaPlayer onClose={() => patchUI({ asmaOpen: false })} />}
+      {/* ★ AsmaPlayer: pehli dafa open hone ke baad HAMESHA mounted rehta hai (hidden) —
+          taake video element kabhi unmount na ho, background play na ruke */}
+      <AsmaPlayerWrap open={asmaOpen} onClose={() => patchUI({ asmaOpen: false })} />
     </div>
   );
 }

@@ -15,7 +15,6 @@ import DeenPage from "@/components/DeenPage";
 import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
 import Toasts from "@/components/Toasts";
-import VideoStage from "@/components/VideoStage";
 import GlobalVideoBar from "@/components/GlobalVideoBar";
 
 export default function App() {
@@ -107,8 +106,7 @@ export default function App() {
       <ProfileModal />
       <MediaViewer />
       <Toasts />
-      {/* ★ Asma-ul-Husna video — app-level, hamesha mounted (kabhi unmount nahi) */}
-      <VideoStage />
+      {/* ★ Asma-ul-Husna mini-player — video chal rahi ho aur player band ho to */}
       <GlobalVideoBar />
     </div>
   );
