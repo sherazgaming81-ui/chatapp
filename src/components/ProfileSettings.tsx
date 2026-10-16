@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy,
+  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy, Sparkles,
   User as UserIcon, Eye, EyeOff, Download, KeyRound, Trash2, Upload,
 } from "lucide-react";
 import { getState, useStore, toast, update } from "@/lib/store";
@@ -90,6 +90,13 @@ function ProfileTab({ onClose }: { onClose: () => void }) {
       <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="Aapka naam" className="field mb-3 w-full px-3 py-2.5 text-[15px]" />
       <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">About</label>
       <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={2} placeholder="Apne baare me kuch…" className="field mb-4 w-full resize-none px-3 py-2.5 text-[15px]" />
+      {/* ✨ Nitro Profile Studio */}
+      <button
+        onClick={() => { onClose(); update({ ui: { ...getState().ui, studioOpen: true } }); }}
+        className="btn mb-2 flex w-full items-center justify-center gap-2 bg-gradient-to-r from-[#5865f2] to-[#9b7bff] px-4 py-3 text-[15px] text-white"
+      >
+        <Sparkles size={17} /> Profile Studio — banner, effects, badges
+      </button>
       <button onClick={save} disabled={saving} className="btn btn-blurple flex w-full items-center justify-center gap-2 px-4 py-3 text-[15px] disabled:opacity-60">
         <Check size={17} /> {saving ? "Save ho raha…" : "Save karo"}
       </button>
