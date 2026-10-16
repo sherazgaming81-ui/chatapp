@@ -200,6 +200,7 @@ export default function App() {
           Offline ho — reconnecting… 📡
         </div>
       )}
+      <div className={`flex min-h-0 min-w-0 flex-1 ${compactCls}`}>
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
@@ -257,6 +258,7 @@ export default function App() {
       {checklistOpen && !wizardOpen && (
         <SetupChecklist onDone={() => setChecklistOpen(false)} onOpenProfile={() => patchUI({ settingsOpen: true })} />
       )}
+      </div>
     </div>
   );
 }
