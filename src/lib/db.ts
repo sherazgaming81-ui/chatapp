@@ -79,6 +79,8 @@ export async function load(userId: string, email: string): Promise<boolean> {
     if (main?.id) {
       setMainGroupId(main.id);
       if (!myChatIds.includes(main.id)) myChatIds.push(main.id);
+      // ensure user is a participant (RLS needs this to read messages) — safe upsert
+      try { await sb().from("chat_participants").upsert({ chat_id: main.id, user_id: userId }, { onConflict: "chat_id,user_id" }); } catch { /* ignore */ }
     }
   } catch { /* keep going */ }
   const allChatIds = myChatIds.length > 0 ? myChatIds : [MAIN_GROUP_ID];
