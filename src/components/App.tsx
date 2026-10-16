@@ -141,6 +141,7 @@ export default function App() {
       const wait = Math.max(0, 3000 - (Date.now() - t0));
       setTimeout(() => {
         if (cancelled) return;
+        update({ loading: false });
         try {
           rt = startRealtime();
         } catch { /* ignore */ }
@@ -151,7 +152,12 @@ export default function App() {
 
     getSession().then((s) => {
       if (s?.user) boot(s);
-      else update({ loading: false }); // logged out → straight to login
+      else {
+        // logged out → 3s premium loader phir login (mobile+web identical)
+        const t0 = Date.now();
+        const wait = Math.max(0, 3000 - (Date.now() - t0));
+        setTimeout(() => { if (!cancelled) update({ loading: false }); }, wait);
+      }
     });
     const off = onAuthChange((s) => {
       if (s?.user) {

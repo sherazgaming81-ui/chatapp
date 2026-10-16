@@ -262,7 +262,6 @@ export async function load(userId: string, email: string): Promise<boolean> {
   update({
     me: userId,
     session: true,
-    loading: false,
     members,
     messages,
     chats,
