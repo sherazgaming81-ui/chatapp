@@ -6,6 +6,7 @@ import { prayerTimes, nextPrayer, qiblaBearing, hijri, DUAS, TASBEEH_PRESETS, PR
 import { fmtTime } from "@/components/ui";
 import QuranReader from "@/components/QuranReader";
 import AsmaPlayer from "@/components/AsmaPlayer";
+import MoonPage from "@/components/MoonPage";
 import { DailyAyat, DailyHadees, CelebrationBanner, AzaanAlertTop, AzaanToggle } from "@/components/DeenExtras";
 import { useVideo, getSavedProgress, videoPlay, fmtVideoTime } from "@/lib/videoPlayer";
 import { unlockBadge } from "@/lib/achievements";
@@ -229,6 +230,7 @@ export default function DeenPage() {
   const nx = nextPrayer(loc.lat, loc.lng, now);
   const isNext = (k: PrayerKey) => k === nx.key;
   const [quranOpen, setQuranOpen] = useState(false);
+  const [moonOpen, setMoonOpen] = useState(false);
   const asmaOpen = useStore((s) => s.ui.asmaOpen);
 
   return (
@@ -287,6 +289,19 @@ export default function DeenPage() {
             <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#80848e]" />
           </button>
 
+          {/* Chaand page entry */}
+          <button
+            onClick={() => setMoonOpen(true)}
+            className="flex w-full items-center gap-4 rounded-2xl border border-[#5865f2]/20 bg-white/70 p-4 text-left transition hover:border-[#5865f2]/40 hover:bg-white active:scale-[0.99] soft-shadow"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#5865f2]/10 text-2xl">🌙</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-extrabold tracking-tight text-[#2f3035]">Chaand aur Hijri mahina</span>
+              <span className="block text-xs text-[#80848e]">Live moon phase · Hijri date · Chaand ki dua</span>
+            </span>
+            <ChevronLeft size={18} className="rotate-180 shrink-0 text-[#80848e]" />
+          </button>
+
           {/* Namaz timings */}
           <Card>
             <Title icon={<Moon size={17} className="text-[#5865f2]" />} text="Aaj ki namaz" />
@@ -311,6 +326,7 @@ export default function DeenPage() {
       </div>
 
       {quranOpen && <QuranReader onClose={() => setQuranOpen(false)} />}
+      {moonOpen && <MoonPage onClose={() => setMoonOpen(false)} />}
       {/* ★ AsmaPlayer: pehli dafa open hone ke baad HAMESHA mounted rehta hai (hidden) —
           taake video element kabhi unmount na ho, background play na ruke */}
       <AsmaPlayerWrap open={asmaOpen} onClose={() => patchUI({ asmaOpen: false })} />

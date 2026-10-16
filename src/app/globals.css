@@ -531,3 +531,23 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   .send-morph, .emoji-burst, .online-dot, .unread-glow, .wavebar,
   .viewer-zoom-in, .photo-zoom-in, .version-banner { animation: none !important; }
 }
+
+/* ── explainer video scenes ── */
+@keyframes ex-in { from { opacity: 0; transform: translateY(24px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes ex-pop { 0% { opacity: 0; transform: scale(.3); } 70% { transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes ex-slide-l { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
+@keyframes ex-slide-r { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
+.ex-in { opacity: 0; animation: ex-in .6s cubic-bezier(.2,.9,.3,1) forwards; }
+.ex-pop { opacity: 0; animation: ex-pop .6s cubic-bezier(.2,1.4,.4,1) forwards; }
+.ex-l { opacity: 0; animation: ex-slide-l .6s cubic-bezier(.2,.9,.3,1) forwards; }
+.ex-r { opacity: 0; animation: ex-slide-r .6s cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes ex-float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+.ex-float { animation: ex-float 2.2s ease-in-out infinite; }
+@keyframes ex-wiggle { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.ex-wiggle { animation: ex-wiggle 1.4s ease-in-out infinite; }
+@keyframes ex-spin-slow { to { transform: rotate(360deg); } }
+.ex-spin-slow { animation: ex-spin-slow 8s linear infinite; }
+@keyframes moon-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.moon-float { animation: moon-float 3.2s ease-in-out infinite; }
+@keyframes ex-typing { 0%,60%,100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-5px); opacity: 1; } }
+.ex-typing { animation: ex-typing 1.1s infinite; }

@@ -1,7 +1,8 @@
 "use client";
 // Phase 6 — F1 Welcome Splash. Pehli dafa app khulne par 3 slides.
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, MessagesSquare, MoonStar, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, MessagesSquare, MoonStar, Zap } from "lucide-react";
+import Explainer from "@/components/Explainer";
 
 const SLIDES = [
   {
@@ -26,8 +27,33 @@ const SLIDES = [
 
 export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
   const [idx, setIdx] = useState(0);
+  const [video, setVideo] = useState(false);
   const S = SLIDES[idx];
   const Icon = S.icon;
+
+  if (video) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col bg-[#f4f5fa]">
+        <div className="flex items-center justify-between px-5 pt-5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-xl font-bold text-white soft-shadow">م</span>
+            <span className="text-lg font-extrabold tracking-tight text-[#2f3035]">Ye app kya hai? 🎬</span>
+          </div>
+          <button onClick={() => setVideo(false)} className="rounded-lg px-3 py-1.5 text-sm font-bold text-[#80848e] hover:bg-black/5">
+            Band karo
+          </button>
+        </div>
+        <div className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-xl">
+            <Explainer onEnd={() => { /* video khatam — user khud band karega ya shuru karega */ }} />
+            <button onClick={onDone} className="btn btn-blurple mt-5 flex w-full items-center justify-center gap-2 px-6 py-3.5 text-base">
+              Shuru karo 🚀
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#f4f5fa]">
@@ -69,7 +95,14 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* bottom nav */}
-      <div className="flex items-center justify-between gap-3 px-6 pb-10">
+      <div className="flex flex-col gap-3 px-6 pb-10">
+        <button
+          onClick={() => setVideo(true)}
+          className="flex items-center justify-center gap-2 rounded-xl border border-[#5865f2]/25 bg-white px-6 py-3 text-[15px] font-bold text-[#5865f2] transition hover:border-[#5865f2]/50 active:scale-[0.99] soft-shadow"
+        >
+          <Clapperboard size={18} /> App ka video tour dekho (30s)
+        </button>
+        <div className="flex items-center justify-between gap-3">
         <button
           onClick={() => setIdx((i) => Math.max(0, i - 1))}
           disabled={idx === 0}
@@ -91,6 +124,7 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
           </button>
         )}
         <span className="w-12" />
+        </div>
       </div>
     </div>
   );

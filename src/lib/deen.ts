@@ -73,6 +73,15 @@ export function hijri(date = new Date()) {
   } catch { return { d: 1, m: 1, y: 1447, name: "Muharram" }; }
 }
 
+/* Chaand ki halat — synodic month se hisabi andaza */
+export function moonInfo(date = new Date()) {
+  const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14);
+  const age = (((date.getTime() - ref) / 864e5) % syn + syn) % syn;
+  const phase = age / syn, illum = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+  const names = ["Naya Chaand", "Hilal (barhta)", "Pehli Tarbeeya", "Barhta Gibbous", "Poora Chaand", "Ghatta Gibbous", "Aakhri Tarbeeya", "Ghatta Hilal"];
+  return { age, phase, illum, name: names[Math.floor(((phase + 1 / 16) % 1) * 8)], toNew: syn - age };
+}
+
 export const DUAS: { id: string; time: "subah" | "shaam" | "dono"; title: string; ar: string; rom: string; tr: string; src: string }[] = [
   { id: "d1", time: "subah", title: "Subah ki dua", ar: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ", rom: "Asbahna wa asbahal mulku lillah, walhamdu lillah, la ilaha illallahu wahdahu la shareeka lah", tr: "Hum ne subah ki aur saari badshahi Allah ki hai, tamam tareefein Allah ke liye hain, Allah ke siwa koi ma'bood nahi, wo akela hai us ka koi shareek nahi.", src: "Sahih Muslim" },
   { id: "d2", time: "shaam", title: "Shaam ki dua", ar: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ", rom: "Amsayna wa amsal mulku lillah, walhamdu lillah, la ilaha illallahu wahdahu la shareeka lah", tr: "Hum ne shaam ki aur saari badshahi Allah ki hai, tamam tareefein Allah ke liye hain, wo akela hai us ka koi shareek nahi.", src: "Sahih Muslim" },
