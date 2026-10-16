@@ -7,6 +7,7 @@ import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui"
 import type { Member, Message } from "@/lib/types";
 
 const QUICK = ["❤️", "👍", "😂", "🤲", "🌙"];
+const EMPTY_ARR: string[] = [];
 
 function VoiceBubble({ m }: { m: Message }) {
   const [playing, setPlaying] = useState(false);
@@ -45,7 +46,7 @@ export default function MessageItem({ m, member, prevSame }: { m: Message; membe
   const replySrc = m.replyTo ? messages.find((x) => x.id === m.replyTo) : null;
   const replyMember = replySrc ? getState().members.find((x) => x.id === replySrc.from) : null;
   const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
-  const pinnedIds = useStore((s) => s.pins[m.chatId] || []);
+  const pinnedIds = useStore((s) => s.pins[m.chatId] || EMPTY_ARR);
   const isPinned = pinnedIds.includes(m.id);
 
   if (m.deleted) {

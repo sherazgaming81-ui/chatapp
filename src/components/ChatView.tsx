@@ -7,6 +7,8 @@ import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
 
+const EMPTY_ARR: string[] = [];
+
 export default function ChatView() {
   const chats = useStore((s) => s.chats);
   const messages = useStore((s) => s.messages);
@@ -35,7 +37,7 @@ export default function ChatView() {
   };
 
   const typer = members.find((m) => m.id === typing[0]);
-  const pinIds = useStore((s) => (activeChatId ? s.pins[activeChatId] || [] : []));
+  const pinIds = useStore((s) => (activeChatId && s.pins[activeChatId]) || EMPTY_ARR);
   const pinnedMsgs = useMemo(
     () => pinIds.map((id) => messages.find((m) => m.id === id && !m.deleted)).filter(Boolean) as typeof messages,
     [pinIds, messages]
