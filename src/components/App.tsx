@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
-import { useStore, patchUI, toast, update } from "@/lib/store";
+import { useStore, patchUI, toast, update, getState } from "@/lib/store";
 import { isStaff } from "@/lib/types";
 import Login from "@/components/Login";
 import Loader from "@/components/Loader";
@@ -50,12 +50,16 @@ export default function App() {
       else update({ loading: false }); // logged out → straight to login
     });
     const off = onAuthChange((s) => {
-      if (s?.user) boot(s);
-      else {
+      if (s?.user) {
+        boot(s);
+      } else if (started.current) {
+        // real sign-out (was logged in before) → reset to login, NO reload loop
         started.current = false;
         rt?.stop();
-        window.location.reload();
+        rt = null;
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], ui: { ...getState().ui, activeChatId: null, profileId: null } });
       }
+      // initial null (login page) → do nothing, just show Login
     });
     const onVis = () => touchPresence(!document.hidden);
     document.addEventListener("visibilitychange", onVis);
