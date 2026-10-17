@@ -1225,30 +1225,6 @@ export function startRealtime() {
       // Phase 8 — auto-mod realtime
       const cid = key.replace(/^badwords_/, "");
       try { if (p.new?.value) localStorage.setItem(`chatsapp:badwords:${cid}`, JSON.stringify(p.new.value)); } catch { /* ignore */ }
-    } else if (typeof key === "string" && key.startsWith("theme_")) {
-      // AI Themes realtime — owner ne theme badla → sab ko foran dikhe (no reload)
-      // (Sirf groups — DM themes kabhi Supabase me nahi likhe jate)
-      const cid = key.replace(/^theme_/, "");
-      try {
-        const s0 = getState();
-        const isDM0 = (s0.chats || []).some((c: any) => c.id === cid && c.type === "dm");
-        if (isDM0) return; // DM: ignore (defensive — aisa row hona hi nahi chahiye)
-      } catch { /* ignore */ }
-      const v = p.new?.value;
-      const tid = v && typeof v === "object" ? String((v as any).theme || "") : "";
-      import("./chatTheme").then(({ onRemoteThemeChange }) => {
-        onRemoteThemeChange(cid, tid || "default");
-      }).catch(() => {});
-      // Active chat ka theme badla to toast
-      if (tid) {
-        import("./themes").then(({ getTheme }) => {
-          const s = getState();
-          if (s.ui.activeChatId === cid) {
-            const t = getTheme(tid);
-            if (t && t.id !== "default") toast(`${t.emoji} Theme badal gaya!`, `${t.name} — owner ne lagaya ✨`);
-          }
-        }).catch(() => {});
-      }
     }
   });
 

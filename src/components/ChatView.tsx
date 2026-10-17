@@ -4,8 +4,6 @@ import { Hash, Menu, Users, Pin, Search, Globe, ChevronUp, ChevronDown, X, Trash
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { markRead, loadOlderMessages, refreshChat, deleteMessage, hideMessageForMe, toggleStar, sendText } from "@/lib/db";
 import { Avatar, fmtDayHeader } from "@/components/ui";
-import { ThemeLayers, ChatThemeBtn, useChatThemeAttrs } from "@/components/ThemePicker";
-import { loadChatTheme } from "@/lib/chatTheme";
 import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
@@ -90,9 +88,6 @@ export default function ChatView() {
   const activeChat = chats.find((c) => c.id === activeChatId);
   const isDM = activeChat?.type === "dm";
   const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
-  // Theme button: group me SIRF owner, DM me dono (personal chat)
-  const myRole = members.find((x: any) => x.id === meId)?.role || "member";
-  const canSetTheme = isDM ? true : myRole === "owner";
   const sc = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
 
@@ -100,8 +95,6 @@ export default function ChatView() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
-  // Per-chat theme attrs (background + bubbles) — realtime sync
-  const chatThemeAttrs = useChatThemeAttrs(activeChatId);
 
   /* 2 — chat switch par skeleton shimmer */
   const [skel, setSkel] = useState(false);
@@ -112,17 +105,10 @@ export default function ChatView() {
       setSkel(true);
       setHasMore(true);
       patchUI({ selectedMsgs: [] }); // chat badlo to selection saaf
-      // Per-chat theme Supabase se load karo (realtime sync)
-      if (activeChatId) loadChatTheme(activeChatId);
       const t = setTimeout(() => setSkel(false), 550);
       return () => clearTimeout(t);
     }
   }, [activeChatId]);
-
-  // Pehli load par bhi theme lao
-  useEffect(() => {
-    if (activeChatId) loadChatTheme(activeChatId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* 13 — pull to refresh (mobile) */
   const [ptrY, setPtrY] = useState<number | null>(null);
@@ -308,7 +294,6 @@ export default function ChatView() {
         <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-black/5 ${searchOn ? "text-[#5865f2]" : "text-[#5c5e66]"}`} aria-label="Search">
           <Search size={20} />
         </button>
-        {canSetTheme && <ChatThemeBtn chatId={activeChatId} chatName={activeChat?.name} isDM={isDM} />}
         <button onClick={() => patchUI({ mobileDrawer: "members" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Members">
           <Users size={20} />
         </button>
@@ -355,9 +340,8 @@ export default function ChatView() {
         </button>
       )}
 
-      {/* Theme system: per-chat AI theme — background + bubbles (realtime sync) */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col" {...chatThemeAttrs}>
-        <ThemeLayers chatId={activeChatId} />
+      {/* WhatsApp-style doodle — permanent, har chat me, koi change nahi kar sakta */}
+      <div className="chat-doodle-bg relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={sc}
         onScroll={onScroll}
