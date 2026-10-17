@@ -406,7 +406,7 @@ export default function Composer({ chatId }: { chatId: string }) {
             <EmojiPicker
               onPick={insertEmoji}
               onSticker={(id) => { setEmojiOpen(false); sendSticker(chatId, id); }}
-              onGif={(url, title) => { setEmojiOpen(false); sendGif(chatId, url, title); }}
+              onGif={(g) => { setEmojiOpen(false); sendGif(chatId, g.preview, g.title, g.url); }}
               onClose={() => setEmojiOpen(false)}
             />
           </div>

@@ -7,7 +7,7 @@ import {
 import { EMOJI_CATS, searchEmojis, getRecentEmojis, pushRecentEmoji } from "@/lib/emoji";
 import StickerPicker from "@/components/StickerPicker";
 import GifPicker from "@/components/GifPicker";
-import { GifItem } from "@/lib/gifs";
+import type { GiphyItem } from "@/lib/giphy";
 
 type Tab = "emoji" | "gif" | "sticker";
 
@@ -36,7 +36,7 @@ export default function EmojiPicker({
 }: {
   onPick: (e: string) => void;
   onSticker?: (id: string) => void;
-  onGif?: (url: string, title?: string) => void;
+  onGif?: (g: GiphyItem) => void;
   onClose: () => void;
   /** sirf emoji tab (reactions ke liye) — GIF/Sticker tabs chhupao */
   onlyEmoji?: boolean;
@@ -100,7 +100,7 @@ export default function EmojiPicker({
         {tab === "sticker" ? (
           <StickerPicker onPick={(url) => onSticker?.(url)} />
         ) : tab === "gif" ? (
-          <GifPicker onPick={(g) => onGif?.(g.url, g.title)} />
+          <GifPicker onPick={(g) => onGif?.(g)} />
         ) : list.length === 0 ? (
           <p className="px-2 py-10 text-center text-sm text-[#80848e]">
             {q.trim() ? "Kuch nahi mila" : "Abhi koi recent emoji nahi — koi emoji bhejo!"}

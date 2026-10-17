@@ -9,9 +9,11 @@ const BASE = "https://api.giphy.com/v1";
 export interface GiphyItem {
   id: string;
   title: string;
-  /** small preview for grids */
+  /** tiny 100px thumb — picker grids (fast, WhatsApp-like) */
+  thumb: string;
+  /** 200px preview — chat message display */
   preview: string;
-  /** full-size url */
+  /** full-size url — fullscreen viewer only */
   url: string;
   /** original width/height for aspect-ratio rendering */
   w?: number;
@@ -33,11 +35,13 @@ interface GiphyResponse {
 }
 
 function toItem(g: GiphyResponse["data"][number]): GiphyItem {
+  const fws = g.images.fixed_width_small;
   const fw = g.images.fixed_width;
   const orig = g.images.original;
   return {
     id: g.id,
     title: g.title || "GIF",
+    thumb: fws?.url || fw?.url || orig?.url || "",
     preview: fw?.url || orig?.url || "",
     url: orig?.url || fw?.url || "",
     w: fw ? parseInt(fw.width, 10) || undefined : undefined,

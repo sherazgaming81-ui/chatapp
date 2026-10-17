@@ -163,9 +163,10 @@ export default function StickerPicker({ onPick }: { onPick: (url: string) => voi
                 className="flex aspect-square items-center justify-center rounded-xl p-1.5 transition hover:bg-black/5 active:scale-90"
               >
                 <img
-                  src={s.preview}
+                  src={s.thumb}
                   alt={s.title}
                   loading="lazy"
+                  decoding="async"
                   draggable={false}
                   className="max-h-full max-w-full object-contain drop-shadow-sm"
                 />

@@ -481,7 +481,8 @@ function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?:
   );
 }
 
-/* ───────── GIF message: animated, rounded corners, tap → fullscreen ───────── */
+/* ───────── GIF message: animated, rounded corners, tap → fullscreen ─────────
+   Chat me MEDIUM preview (fixed_width, fast) — fullscreen viewer me ORIGINAL. */
 function GifMessage({ m }: { m: Message }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -494,15 +495,17 @@ function GifMessage({ m }: { m: Message }) {
       className="relative mt-1 block w-56 max-w-full cursor-zoom-in overflow-hidden rounded-xl soft-shadow transition hover:brightness-95 active:scale-[0.98]"
       title="Bada dekho"
     >
-      {!loaded && <span className="block aspect-[4/3] w-full animate-pulse bg-black/10" />}
+      {!loaded && <span className="block aspect-[4/3] w-full animate-pulse bg-gradient-to-br from-black/10 via-black/[0.04] to-black/10" />}
       <img
         src={url}
         alt="GIF"
         draggable={false}
+        decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => setError(true)}
-        className={`block h-auto w-full object-cover ${loaded ? "" : "hidden"}`}
-        loading="lazy"
+        className={`block h-auto w-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "absolute inset-0 opacity-0"}`}
+        loading="eager"
+        fetchPriority="high"
       />
       <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
         GIF

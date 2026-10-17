@@ -4,6 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore, patchUI, getState } from "@/lib/store";
 import { fmtTime, fmtDayLabel } from "@/components/ui";
+import type { Message } from "@/lib/types";
+
+/** GIF fullscreen: caption me stored original URL, fallback m.src (purane messages) */
+export function getGifFullUrl(m: Message): string {
+  try {
+    const d = JSON.parse(m.caption || "{}");
+    if (d && typeof d.full === "string" && /^https?:\/\//i.test(d.full)) return d.full;
+  } catch { /* purana message — caption JSON nahi */ }
+  return m.src || "";
+}
 
 export default function MediaViewer() {
   const viewer = useStore((s) => s.ui.viewer);
@@ -117,7 +127,7 @@ export default function MediaViewer() {
       >
         <img
           key={m.id}
-          src={m.src}
+          src={m.type === "gif" ? getGifFullUrl(m) : m.src}
           alt=""
           draggable={false}
           className="viewer-zoom-in max-h-full max-w-full select-none object-contain transition-transform duration-150"

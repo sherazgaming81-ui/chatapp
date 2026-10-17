@@ -1449,16 +1449,17 @@ export async function sendSticker(chatId: string, stickerId: string): Promise<Me
   return m;
 }
 
-/** GIF bhejo (animated image URL — KLIPY se) */
-export async function sendGif(chatId: string, gifUrl: string, gifTitle?: string): Promise<Message | null> {
+/** GIF bhejo — chat me medium preview (fast), fullscreen viewer me original (full quality) */
+export async function sendGif(chatId: string, gifUrl: string, gifTitle?: string, fullUrl?: string): Promise<Message | null> {
   const s = getState();
   if (!chatId || !gifUrl) return null;
   // Ban check — banned user GIF nahi bhej sakta (sendText jaisa)
   if (s.members.find((m) => m.id === s.me)?.banned) { toast("🚫 Aap ban ho", "Owner ne ban kiya hai"); return null; }
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gif", text: gifTitle || "GIF", src: gifUrl, at: Date.now(), reactions: {} };
+  const caption = fullUrl && fullUrl !== gifUrl ? JSON.stringify({ full: fullUrl }) : undefined;
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gif", text: gifTitle || "GIF", src: gifUrl, caption, at: Date.now(), reactions: {} };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "gif",
-    text: m.text, media_url: gifUrl, reply_to: null, created_at: m.at, read_by: [],
+    text: m.text, media_url: gifUrl, caption: caption || null, reply_to: null, created_at: m.at, read_by: [],
   }, "GIF nahi gaya");
   if (!ok) return null;
   return m;

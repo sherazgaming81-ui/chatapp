@@ -7,7 +7,6 @@ import {
   Zap, Hand, CircleHelp, Loader2, ChevronDown,
 } from "lucide-react";
 import { trendingGifs, searchGifs, PAGE_SIZE, type GiphyItem } from "@/lib/giphy";
-import type { GifItem } from "@/lib/gifs";
 
 interface Cat {
   id: string;
@@ -35,7 +34,33 @@ const CATS: Cat[] = [
   { id: "shrug", query: "shrug", icon: <CircleHelp size={20} />, label: "Shrug" },
 ];
 
-export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) {
+/* Per-item thumb: aspect-ratio reserved (no layout shift) + shimmer + fade-in */
+function GifThumb({ item, onPick }: { item: GiphyItem; onPick: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+  const ratio = item.w && item.h ? `${item.w} / ${item.h}` : "4 / 3";
+  return (
+    <button
+      onClick={onPick}
+      className="relative block w-full break-inside-avoid overflow-hidden rounded-xl transition hover:brightness-95 active:scale-95"
+      style={{ aspectRatio: ratio, background: "#e9e4d8" }}
+    >
+      {!loaded && (
+        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-black/10 via-black/[0.04] to-black/10" aria-hidden />
+      )}
+      <img
+        src={item.thumb}
+        alt={item.title}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+      />
+    </button>
+  );
+}
+
+export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }) {
   const [cat, setCat] = useState(CATS[0]);
   const [q, setQ] = useState("");
   const [items, setItems] = useState<GiphyItem[]>([]);
@@ -91,7 +116,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
   };
 
   const handlePick = (item: GiphyItem) => {
-    onPick({ id: item.id, title: item.title, url: item.url, preview: item.preview } as GifItem);
+    onPick(item);
   };
 
   const searching = debouncedQ.trim().length > 0;
@@ -163,22 +188,10 @@ export default function GifPicker({ onPick }: { onPick: (g: GifItem) => void }) 
         </div>
       ) : (
         <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-2">
-          {/* Vertical scrolling masonry grid */}
+          {/* Vertical scrolling masonry grid — tiny thumbs = no lag */}
           <div className="columns-2 gap-2 [&>*]:mb-2">
             {items.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => handlePick(g)}
-                className="relative block w-full break-inside-avoid overflow-hidden rounded-xl bg-black/5 transition hover:brightness-95 active:scale-95"
-              >
-                <img
-                  src={g.preview}
-                  alt={g.title}
-                  loading="lazy"
-                  draggable={false}
-                  className="block h-auto w-full"
-                />
-              </button>
+              <GifThumb key={g.id} item={g} onPick={() => handlePick(g)} />
             ))}
           </div>
 
