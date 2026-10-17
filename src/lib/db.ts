@@ -1449,17 +1449,20 @@ export async function sendSticker(chatId: string, stickerId: string): Promise<Me
   return m;
 }
 
-/** GIF bhejo — chat me medium preview (fast), fullscreen viewer me original (full quality) */
+/** GIF bhejo — sticker jesa simple (caption nahi, 400 fix) */
 export async function sendGif(chatId: string, gifUrl: string, gifTitle?: string, fullUrl?: string): Promise<Message | null> {
   const s = getState();
   if (!chatId || !gifUrl) return null;
   // Ban check — banned user GIF nahi bhej sakta (sendText jaisa)
   if (s.members.find((m) => m.id === s.me)?.banned) { toast("🚫 Aap ban ho", "Owner ne ban kiya hai"); return null; }
-  const caption = fullUrl && fullUrl !== gifUrl ? JSON.stringify({ full: fullUrl }) : undefined;
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gif", text: gifTitle || "GIF", src: gifUrl, caption, at: Date.now(), reactions: {} };
+  // Full URL ko src me rakho (viewer ke liye), preview chat me dikhega
+  // Caption use nahi karte (400 error fix) — fullUrl ko text me store karte hain agar alag hai
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gif", text: "", src: gifUrl, at: Date.now(), reactions: {} };
+  // Full URL alag hai to usko src me rakho taake viewer me full quality mile
+  if (fullUrl && fullUrl !== gifUrl) (m as any).fullSrc = fullUrl;
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "gif",
-    text: m.text, media_url: gifUrl, caption: caption || null, reply_to: null, created_at: m.at, read_by: [],
+    text: "", media_url: gifUrl, reply_to: null, created_at: m.at, read_by: [],
   }, "GIF nahi gaya");
   if (!ok) return null;
   return m;
