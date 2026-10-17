@@ -12,13 +12,22 @@ import Explainer from "@/components/Explainer";
 import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
 import { BADGES, getBadges } from "@/lib/achievements";
 import {
-  getPrivacy, setPrivacy, getCompact, setCompact, getDark, setDark,
+  getPrivacy, setPrivacy, getCompact, setCompact,
   getSound, setSound,
   hasPin, setPin, verifyPin, clearPin, usePrefs,
   getLastBackup, markBackupDone,
 } from "@/lib/prefs";
-import { WallpaperButton } from "@/components/WallpaperPicker";
 import ThemePicker from "@/components/ThemePicker";
+import {
+  getAnimSpeed, setAnimSpeed, ANIM_SPEEDS, ANIM_LABELS, type AnimSpeed,
+  getMsgFontSize, setMsgFontSize, FONT_MIN, FONT_MAX,
+} from "@/lib/themePrefs";
+import {
+  isAutoTheme, setAutoTheme, getDayThemeId, setDayThemeId,
+  getNightThemeId, setNightThemeId, dayThemes, nightThemes,
+  scheduledThemeId, isDayTime, useAutoThemeTicker,
+} from "@/lib/themeScheduler";
+import { getTheme } from "@/lib/themes";
 
 /** Kya current user kahin owner hai? (wallpaper/theme sirf owner badal sakta hai) */
 export function useIsOwner(): boolean {
@@ -255,10 +264,23 @@ function LockTab() {
 function AppearanceTab() {
   const prefs = usePrefs();
   const [compact, setC] = useState(getCompact());
-  const [dark, setD] = useState(getDark());
   const [sound, setS] = useState(getSound());
+  // 🌙☀️ Auto theme scheduler
+  const [autoTheme, setAutoThemeState] = useState(isAutoTheme());
+  const [dayId, setDayId] = useState(getDayThemeId());
+  const [nightId, setNightId] = useState(getNightThemeId());
+  // Feature 13 ✨ + 14 🔤
+  const [animSpeed, setAnimSpeedState] = useState<AnimSpeed>(getAnimSpeed());
+  const [fontSize, setFontSizeState] = useState(getMsgFontSize());
   const file = useRef<HTMLInputElement>(null);
   const isOwner = useIsOwner();
+  // Active chat (per-chat theme ke liye)
+  const activeChatId = useStore((s) => s.ui.activeChatId);
+  const chats = useStore((s) => s.chats);
+  const activeChat = chats.find((c) => c.id === activeChatId);
+  const activeChatName = activeChat?.name;
+  const activeIsDM = activeChat?.type === "dm";
+  // DM me dono apna local theme badal sakte hain; group me sirf owner
 
   const toggleCompact = () => {
     const v = !compact;
@@ -276,24 +298,62 @@ function AppearanceTab() {
     toast(v ? "Notification sound ON 🔊" : "Notification sound OFF 🔇", "");
   };
 
-  /* 4 — dark mode toggle 🌙 */
-  const toggleDark = () => {
-    const v = !dark;
-    setD(v);
-    setDark(v);
-    toast(v ? "Dark mode ON 🌙" : "Light mode ON ☀️", "");
+  /* 🌙☀️ Auto theme scheduler */
+  const toggleAutoTheme = () => {
+    const v = !autoTheme;
+    setAutoThemeState(v);
+    setAutoTheme(v);
+    const t = getTheme(scheduledThemeId());
+    toast(
+      v ? "Auto theme ON 🌙☀️" : "Auto theme OFF",
+      v ? `Abhi: ${t.emoji} ${t.name} — DMs me auto badlegi!` : "Tumhare DMs wapas manual"
+    );
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-xl bg-black/[0.03] p-3">
-        <div>
-          <p className="text-sm font-bold text-[#2f3035]">Dark mode 🌙</p>
-          <p className="text-xs text-[#80848e]">Raat ko ankhon ke liye aram</p>
+      {/* 🌙☀️ Auto theme scheduler */}
+      <div className="rounded-xl bg-black/[0.03] p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-[#2f3035]">Auto theme 🌙☀️</p>
+            <p className="text-xs text-[#80848e]">Din me bright, raat me cozy — DMs me auto!</p>
+          </div>
+          <button onClick={toggleAutoTheme} className={`relative h-7 w-12 shrink-0 rounded-full transition ${autoTheme ? "bg-[#5865f2]" : "bg-black/15"}`} aria-label="Auto theme">
+            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${autoTheme ? "left-6" : "left-1"}`} />
+          </button>
         </div>
-        <button onClick={toggleDark} className={`relative h-7 w-12 shrink-0 rounded-full transition ${dark ? "bg-[#5865f2]" : "bg-black/15"}`} aria-label="Dark mode">
-          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${dark ? "left-6" : "left-1"}`} />
-        </button>
+        {autoTheme && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold text-[#5c5e66]">☀️ Din (6AM–6PM)</span>
+              <select
+                value={dayId}
+                onChange={(e) => { setDayId(e.target.value); setDayThemeId(e.target.value); }}
+                className="w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[12px] font-bold text-[#2f3035] outline-none"
+              >
+                {dayThemes().map((t) => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold text-[#5c5e66]">🌙 Raat (6PM–6AM)</span>
+              <select
+                value={nightId}
+                onChange={(e) => { setNightId(e.target.value); setNightThemeId(e.target.value); }}
+                className="w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[12px] font-bold text-[#2f3035] outline-none"
+              >
+                {nightThemes().map((t) => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.name}</option>
+                ))}
+              </select>
+            </label>
+            <p className="col-span-2 text-[11px] text-[#80848e]">
+              Abhi {isDayTime() ? "☀️ din" : "🌙 raat"} hai — <b>{getTheme(scheduledThemeId()).emoji} {getTheme(scheduledThemeId()).name}</b> active hogi
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-xl bg-black/[0.03] p-3">
@@ -317,28 +377,74 @@ function AppearanceTab() {
         </button>
       </div>
 
-      <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Chat wallpaper</p>
-        {isOwner ? (
-          <>
-            <WallpaperButton />
-            <p className="mt-2 text-xs text-[#80848e]">Mixed wallpapers + AI themes — sab ek jagah! 🎨</p>
-          </>
-        ) : (
-          <p className="text-xs text-[#80848e]">Sirf group owner wallpaper badal sakta hai 👑</p>
-        )}
+      {/* Feature 13 ✨ — animation speed */}
+      <div className="rounded-xl bg-black/[0.03] p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-[#2f3035]">Animation speed ✨</p>
+            <p className="text-xs text-[#80848e]">Theme animations tez ya slow</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {ANIM_SPEEDS.map((s) => (
+            <button
+              key={s}
+              onClick={() => { setAnimSpeed(s); setAnimSpeedState(s); }}
+              className={`rounded-xl py-2 text-[12px] font-bold transition active:scale-95 ${
+                animSpeed === s
+                  ? "bg-[#5865f2] text-white shadow"
+                  : "bg-black/[0.05] text-[#5c5e66] hover:bg-black/[0.08]"
+              }`}
+            >
+              {ANIM_LABELS[s]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* AI Themes — sirf owner (pehle kabhi add hi nahi hua tha!) */}
+      {/* Feature 14 🔤 — message font size */}
+      <div className="rounded-xl bg-black/[0.03] p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-[#2f3035]">Message font size 🔤</p>
+            <p className="text-xs text-[#80848e]">Chat bubbles ka text size</p>
+          </div>
+          <span className="rounded-lg bg-[#5865f2]/10 px-2.5 py-1 text-[13px] font-bold text-[#5865f2]">
+            {fontSize}px
+          </span>
+        </div>
+        <input
+          type="range"
+          min={FONT_MIN}
+          max={FONT_MAX}
+          step={1}
+          value={fontSize}
+          onChange={(e) => { const n = parseInt(e.target.value, 10); setMsgFontSize(n); setFontSizeState(n); }}
+          className="w-full accent-[#5865f2]"
+          aria-label="Message font size"
+        />
+        <div className="mt-1 flex justify-between text-[10px] font-bold text-[#80848e]">
+          <span>{FONT_MIN}px</span>
+          <span className="msg-text" style={{ color: "#2f3035" }}>Preview text 👋</span>
+          <span>{FONT_MAX}px</span>
+        </div>
+      </div>
+
+      {/* AI Themes — per-chat (DM: dono ka apna local, Group: sirf owner) */}
       <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">AI Themes ⚡</p>
-        {isOwner ? (
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Chat Themes 🎨</p>
+        {activeIsDM || isOwner ? (
           <div className="max-h-[420px] overflow-hidden rounded-2xl border border-black/10">
-            <ThemePicker />
+            <ThemePicker chatId={activeChatId || undefined} chatName={activeChatName} isDM={activeIsDM} />
           </div>
         ) : (
           <p className="text-xs text-[#80848e]">Sirf group owner theme badal sakta hai 👑</p>
         )}
+        <p className="mt-2 text-xs text-[#80848e]">
+          {activeIsDM
+            ? "Theme sirf tumhe dikhega — dusre user ko nahi! ✨"
+            : "Theme chat ke background par lagega — sab members ko foran dikhega! ✨"}
+        </p>
       </div>
     </div>
   );

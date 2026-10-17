@@ -626,7 +626,5 @@ export function applyTheme(id: string) {
     s.setProperty("--th-glow", p.glow || p.accent);
     s.setProperty("--th-font", theme.fontFamily || "inherit");
     s.setProperty("--th-bubble-font-style", theme.bubbleFontStyle || "normal");
-    // Dark mode class bhi sync karo
-    root.classList.toggle("dark", theme.dark);
   } catch { /* ignore */ }
 }

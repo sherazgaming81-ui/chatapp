@@ -271,10 +271,6 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   animation: skelshimmer 1.35s ease-in-out infinite;
   border-radius: 8px;
 }
-.dark .skel {
-  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0.05) 75%);
-  background-size: 200% 100%;
-}
 
 /* 3 — ripple effect (JS adds .ripple-ink span) */
 .btn-ripple { position: relative; overflow: hidden; }
@@ -284,34 +280,6 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   animation: ripplego 0.55s ease-out forwards;
 }
 @keyframes ripplego { to { transform: scale(2.8); opacity: 0; } }
-
-/* 4 — DARK MODE 🌙 */
-.dark body { background: #141519; color: #e3e5e8; }
-.dark .mesh-bg {
-  background:
-    radial-gradient(44% 36% at 10% 6%, rgba(88, 101, 242, 0.14), transparent 70%),
-    radial-gradient(36% 32% at 90% 10%, rgba(236, 72, 189, 0.07), transparent 70%),
-    linear-gradient(135deg, #191b21 0%, #141519 45%, #1c1a24 100%);
-}
-.dark .glass { background: rgba(43, 45, 52, 0.72); border-color: rgba(255,255,255,0.09); box-shadow: rgba(0,0,0,0.3) 0px 1px 4px 0px; }
-.dark .glass-strong { background: rgba(49, 51, 58, 0.92); border-color: rgba(255,255,255,0.11); box-shadow: rgba(0,0,0,0.35) 0px 1px 4px 0px; }
-.dark .text-\[\#2f3035\] { color: #e8eaed !important; }
-.dark .text-\[\#5c5e66\] { color: #b8bdc4 !important; }
-.dark .text-\[\#80848e\] { color: #8e959e !important; }
-.dark .bg-white { background-color: #2b2d33 !important; }
-.dark .bg-white\/60 { background-color: rgba(43,45,51,0.6) !important; }
-.dark .bg-white\/70 { background-color: rgba(43,45,51,0.7) !important; }
-.dark .bg-white\/85 { background-color: rgba(43,45,51,0.85) !important; }
-.dark .field { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: #e8eaed; }
-.dark .field::placeholder { color: #8e959e; }
-.dark .btn-ghost { background: rgba(255,255,255,0.07); color: #e8eaed; border-color: rgba(255,255,255,0.1); }
-.dark .bubble-theirs { background: #2b2d33; color: #e8eaed; border-color: rgba(255,255,255,0.09); }
-.dark .bubble-theirs .bubble-time { color: #8e959e; }
-.dark .skel { border-radius: 8px; }
-.dark .msg-row:hover { background: rgba(255,255,255,0.04); }
-.dark .thin-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); }
-.dark .thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
-.dark .islamic-pattern { filter: brightness(0.7); }
 
 /* 5 — custom scrollbar (global, patli + khubsurat) */
 * { scrollbar-width: thin; scrollbar-color: rgba(88,101,242,0.35) transparent; }
@@ -327,7 +295,6 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
 .thin-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
 .thin-scroll::-webkit-scrollbar-thumb { background: rgba(88,101,242,0.3); border: none; border-radius: 99px; }
 .thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(88,101,242,0.5); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); background-clip: content-box; border: 2px solid transparent; }
 
 /* 6 — WhatsApp-style bubbles (tails ke sath) */
 .bubble { position: relative; max-width: min(78%, 480px); padding: 8px 12px 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); word-wrap: break-word; }
@@ -427,7 +394,6 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   border-top: 1px solid rgba(0,0,0,0.08);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.dark .mobile-nav { background: rgba(30,31,36,0.88); border-top-color: rgba(255,255,255,0.09); }
 .mobile-nav button { -webkit-tap-highlight-color: transparent; }
 
 /* 16 — prayer progress ring */
@@ -518,10 +484,6 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   box-shadow: 0 8px 28px rgba(31, 38, 135, 0.16);
 }
 .ctx-glass button { border-radius: 10px; }
-.dark .ctx-glass {
-  background: rgba(43, 45, 49, 0.78);
-  border-color: rgba(255, 255, 255, 0.12);
-}
 
 /* 13 — version banner slide-down */
 @keyframes versionslide { from { transform: translateY(-100%); } to { transform: translateY(0); } }
@@ -557,7 +519,7 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
    ═══════════════════════════════════════════════════════════ */
 
 /* Base: apply CSS variables to chat bubbles when a non-default theme is active */
-html[data-theme]:not([data-theme="default"]) .bubble-mine {
+[data-chat-theme]:not([data-chat-theme="default"]) .bubble-mine {
   background: var(--th-bubble-own) !important;
   color: var(--th-bubble-own-text) !important;
   border: var(--th-bubble-own-border) !important;
@@ -566,10 +528,10 @@ html[data-theme]:not([data-theme="default"]) .bubble-mine {
   font-family: var(--th-font) !important;
   font-style: var(--th-bubble-font-style) !important;
 }
-html[data-theme]:not([data-theme="default"]) .bubble-mine::before {
+[data-chat-theme]:not([data-chat-theme="default"]) .bubble-mine::before {
   border-top-color: transparent !important;
 }
-html[data-theme]:not([data-theme="default"]) .bubble-theirs {
+[data-chat-theme]:not([data-chat-theme="default"]) .bubble-theirs {
   background: var(--th-bubble-other) !important;
   color: var(--th-bubble-other-text) !important;
   border: var(--th-bubble-other-border) !important;
@@ -578,7 +540,7 @@ html[data-theme]:not([data-theme="default"]) .bubble-theirs {
   font-family: var(--th-font) !important;
   font-style: var(--th-bubble-font-style) !important;
 }
-html[data-theme]:not([data-theme="default"]) .bubble-theirs::before {
+[data-chat-theme]:not([data-chat-theme="default"]) .bubble-theirs::before {
   border-top-color: transparent !important;
 }
 
@@ -614,8 +576,8 @@ html[data-theme]:not([data-theme="default"]) .bubble-theirs::before {
 }
 
 /* ── Toxic Lime: caution stripes ── */
-html[data-theme="toxic-lime"] .chat-bg::before,
-html[data-theme="toxic-lime"] .chat-bg::after {
+[data-chat-theme="toxic-lime"] .chat-bg::before,
+[data-chat-theme="toxic-lime"] .chat-bg::after {
   content: "";
   position: absolute;
   left: 0; right: 0;
@@ -627,22 +589,22 @@ html[data-theme="toxic-lime"] .chat-bg::after {
   z-index: 1;
   pointer-events: none;
 }
-html[data-theme="toxic-lime"] .chat-bg::before { top: 0; }
-html[data-theme="toxic-lime"] .chat-bg::after { bottom: 0; }
+[data-chat-theme="toxic-lime"] .chat-bg::before { top: 0; }
+[data-chat-theme="toxic-lime"] .chat-bg::after { bottom: 0; }
 @keyframes theme-stripes {
   to { background-position: 34px 0; }
 }
 
 /* ── Golden Hour / Sakura / Desert: animated bg drift ── */
-html[data-theme="golden-hour"] .chat-bg,
-html[data-theme="sakura-storm"] .chat-bg,
-html[data-theme="desert-mirage"] .chat-bg {
+[data-chat-theme="golden-hour"] .chat-bg,
+[data-chat-theme="sakura-storm"] .chat-bg,
+[data-chat-theme="desert-mirage"] .chat-bg {
   background-size: 250% 250% !important;
   animation: theme-rainbow 14s ease-in-out infinite;
 }
 
 /* ── Frost Byte: cyber grid ── */
-html[data-theme="frost-byte"] .chat-bg::after {
+[data-chat-theme="frost-byte"] .chat-bg::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -657,8 +619,8 @@ html[data-theme="frost-byte"] .chat-bg::after {
 }
 
 /* ── Ultraviolet: pulse rings ── */
-html[data-theme="ultraviolet"] .chat-bg::before,
-html[data-theme="ultraviolet"] .chat-bg::after {
+[data-chat-theme="ultraviolet"] .chat-bg::before,
+[data-chat-theme="ultraviolet"] .chat-bg::after {
   content: "";
   position: absolute;
   left: 50%; top: 52%;
@@ -670,35 +632,68 @@ html[data-theme="ultraviolet"] .chat-bg::after {
   pointer-events: none;
   z-index: 0;
 }
-html[data-theme="ultraviolet"] .chat-bg::after {
+[data-chat-theme="ultraviolet"] .chat-bg::after {
   animation-delay: -0.9s;
   border-color: rgba(190,120,255,.45);
 }
 
 /* ── Obsidian Rose: serif italic already via font vars ── */
-html[data-theme="obsidian-rose"] .bubble {
+[data-chat-theme="obsidian-rose"] .bubble {
   font-family: Georgia, 'Times New Roman', serif !important;
   font-style: italic !important;
   font-weight: 700 !important;
 }
 
 /* ── ChatGPT serif themes ── */
-html[data-theme="shahi-mahal"] .bubble,
-html[data-theme="eidi"] .bubble,
-html[data-theme="angithi"] .bubble {
+[data-chat-theme="shahi-mahal"] .bubble,
+[data-chat-theme="eidi"] .bubble,
+[data-chat-theme="angithi"] .bubble {
   font-family: "Fraunces", "Iowan Old Style", Georgia, serif !important;
 }
-html[data-theme="aatish"] .bubble,
-html[data-theme="ultra"] .bubble {
+[data-chat-theme="aatish"] .bubble,
+[data-chat-theme="ultra"] .bubble {
   font-family: "Space Grotesk", ui-monospace, monospace !important;
 }
 
 /* ── Angithi: fire flicker on bg ── */
-html[data-theme="angithi"] .chat-bg {
+[data-chat-theme="angithi"] .chat-bg {
   animation: theme-flicker 6s ease-in-out infinite;
 }
 
 /* ── Ultra: strobe feel ── */
-html[data-theme="ultra"] .bubble-mine {
+[data-chat-theme="ultra"] .bubble-mine {
   animation: theme-pulse-glow 4.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Feature 13 ✨ — ANIMATION SPEED CONTROL (html[data-anim])
+   slow = calm 30s • fast = energetic 3s • off = no motion
+   ═══════════════════════════════════════════════════════════ */
+html[data-anim="slow"] [data-chat-theme] .chat-bg,
+html[data-anim="slow"] [data-chat-theme] .chat-bg::before,
+html[data-anim="slow"] [data-chat-theme] .chat-bg::after,
+html[data-anim="slow"] [data-chat-theme] .bubble-mine,
+html[data-anim="slow"] [data-chat-theme] .bubble-theirs {
+  animation-duration: 30s !important;
+}
+html[data-anim="fast"] [data-chat-theme] .chat-bg,
+html[data-anim="fast"] [data-chat-theme] .chat-bg::before,
+html[data-anim="fast"] [data-chat-theme] .chat-bg::after,
+html[data-anim="fast"] [data-chat-theme] .bubble-mine,
+html[data-anim="fast"] [data-chat-theme] .bubble-theirs {
+  animation-duration: 3s !important;
+}
+html[data-anim="off"] [data-chat-theme] .chat-bg,
+html[data-anim="off"] [data-chat-theme] .chat-bg::before,
+html[data-anim="off"] [data-chat-theme] .chat-bg::after,
+html[data-anim="off"] [data-chat-theme] .bubble-mine,
+html[data-anim="off"] [data-chat-theme] .bubble-theirs {
+  animation: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Feature 14 🔤 — MESSAGE FONT SIZE (global, --msg-font-size)
+   ═══════════════════════════════════════════════════════════ */
+.msg-text {
+  font-size: var(--msg-font-size, 15px);
 }

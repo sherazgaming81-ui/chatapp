@@ -10,30 +10,23 @@ const LS = {
   del(k: string) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
 };
 
-/* ───────── reactive prefs snapshot (compact + wallpaper + dark update live) ───────── */
-interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; dark: boolean; sound: boolean; wallpaperBlur: number; }
-let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null, dark: false, sound: true, wallpaperBlur: 0 };
+/* ───────── reactive prefs snapshot (compact + wallpaper + sound update live) ───────── */
+interface PrefsSnap { compact: boolean; wallpaper: string; wallpaperCustom: string | null; sound: boolean; wallpaperBlur: number; }
+let snap: PrefsSnap = { compact: false, wallpaper: "default", wallpaperCustom: null, sound: true, wallpaperBlur: 0 };
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach((l) => { try { l(); } catch { /* ignore */ } }); }
-/* 4 — dark mode: <html> par .dark class lagao */
-function applyDark(d: boolean) {
-  try {
-    if (typeof document !== "undefined") document.documentElement.classList.toggle("dark", d);
-  } catch { /* ignore */ }
-}
 function readSnap(): PrefsSnap {
   const blurRaw = parseInt(LS.get("chatsapp:wallpaperblur") || "0", 10);
   return {
     compact: LS.get("chatsapp:compact") === "1",
     wallpaper: LS.get("chatsapp:wallpaper") || "default",
     wallpaperCustom: LS.get("chatsapp:wallpaper:custom"),
-    dark: LS.get("chatsapp:dark") === "1",
     sound: LS.get("chatsapp:sound") !== "0",
     wallpaperBlur: isNaN(blurRaw) ? 0 : Math.min(20, Math.max(0, blurRaw)),
   };
 }
-function refresh() { snap = readSnap(); applyDark(snap.dark); emit(); }
-if (typeof window !== "undefined") { snap = readSnap(); applyDark(snap.dark); }
+function refresh() { snap = readSnap(); emit(); }
+if (typeof window !== "undefined") { snap = readSnap(); try { localStorage.removeItem("chatsapp:dark"); } catch { /* ignore */ } }
 // SSR/prerender ke liye server snapshot (client hydration par real snap ayega)
 const serverSnap: PrefsSnap = { ...snap };
 export function usePrefs(): PrefsSnap {
@@ -75,13 +68,6 @@ export const visibleLastSeen = (viewerId: string | undefined, m: Member) => canS
 export const getCompact = () => LS.get("chatsapp:compact") === "1";
 export function setCompact(v: boolean) {
   LS.set("chatsapp:compact", v ? "1" : "0");
-  refresh();
-}
-
-/* ───────── 4 — dark mode toggle 🌙 ───────── */
-export const getDark = () => LS.get("chatsapp:dark") === "1";
-export function setDark(v: boolean) {
-  LS.set("chatsapp:dark", v ? "1" : "0");
   refresh();
 }
 

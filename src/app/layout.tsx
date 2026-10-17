@@ -27,12 +27,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&display=swap" rel="stylesheet" />
-        {/* Dark mode FOUC fix: paint se pehle .dark lagao */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem("chatsapp:dark")==="1")document.documentElement.classList.add("dark")}catch(e){}`,
-          }}
-        />
       </head>
       <body>
         <div className="mesh-bg" aria-hidden />

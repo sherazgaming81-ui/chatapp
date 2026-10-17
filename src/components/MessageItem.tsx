@@ -427,7 +427,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
                 <p className={`truncate text-xs italic ${mine ? "text-[#111b21]/70" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
               </div>
             )}
-            <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+            <p className="msg-text whitespace-pre-wrap break-words leading-relaxed">
               {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
             </p>
             {extractUrls(m.text).slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} mine={mine} />)}

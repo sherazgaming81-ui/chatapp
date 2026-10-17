@@ -4,6 +4,7 @@ import { MessageCircle, Moon, Settings } from "lucide-react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
 import VersionBanner from "@/components/VersionBanner";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
+import { useAutoThemeTicker } from "@/lib/themeScheduler";
 import { isStaff } from "@/lib/types";
 import { trackActiveDay } from "@/lib/achievements";
 import Login from "@/components/Login";
@@ -75,6 +76,9 @@ export default function App() {
       window.removeEventListener("offline", off);
     };
   }, []);
+
+  /* 🌙☀️ Auto theme scheduler — har 60s me din/raat check */
+  useAutoThemeTicker();
 
   /* 7 — keyboard shortcuts (desktop): Ctrl/Cmd+K = search, Esc = band karo ⌨️ */
   useEffect(() => {
