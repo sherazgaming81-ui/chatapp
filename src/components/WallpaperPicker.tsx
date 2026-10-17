@@ -5,15 +5,17 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Check, Dices, RotateCcw, Upload, ImagePlus, Sparkles } from "lucide-react";
 import {
-  ALL_WALLPAPERS, WALLPAPER_CATS, wallpapersByKind,
+  ALL_WALLPAPERS, MIXED_WALLPAPERS,
   wallpaperTileStyle, wallpaperBg, wallpaperAnimClass,
   getChatWallpaper, setChatWallpaper, clearChatWallpaper,
   setAllWallpaper, resetWallpapers, randomWallpaper,
   getCustomWallpaper, setCustomWallpaper,
   getSettings, setSettings, useWallpaperVersion, tintLayerStyle,
-  type WallpaperDef, type WallpaperKind,
+  type WallpaperDef,
 } from "@/lib/wallpapers";
 import { toast } from "@/lib/store";
+import { THEMES, getStoredThemeId, setStoredThemeId, applyTheme } from "@/lib/themes";
+import { ThemeCard } from "@/components/ThemePicker";
 
 /* ─── Mock chat preview — wallpaper ke upar sample bubbles ─── */
 function MockChat({ wpId, blur, opacity, tint, tintOpacity, customUrl }: {
@@ -171,25 +173,24 @@ function PreviewModal({ wp, chatId, chatName, onClose }: {
   );
 }
 
-/* ═══════════ Main picker ═══════════ */
+/* ═══════════ Main picker: [Wallpapers] + [Themes] ═══════════ */
 export default function WallpaperPicker({ chatId, chatName, onClose }: {
   chatId?: string; chatName?: string; onClose: () => void;
 }) {
-  const [cat, setCat] = useState<WallpaperKind | "all">("color");
   const [preview, setPreview] = useState<WallpaperDef | null>(null);
   const [q, setQ] = useState("");
+  const [themeId, setThemeId] = useState(getStoredThemeId());
   const file = useRef<HTMLInputElement>(null);
   const current = getChatWallpaper(chatId);
 
   const items = useMemo(() => {
-    let list = cat === "all" ? ALL_WALLPAPERS : wallpapersByKind(cat as WallpaperKind);
-    // custom category me upload tile bhi
+    // ONE mixed category: doodle + gradients + rang + patterns — sab shuffle
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
-      list = ALL_WALLPAPERS.filter((w) => w.name.toLowerCase().includes(needle));
+      return ALL_WALLPAPERS.filter((w) => w.name.toLowerCase().includes(needle));
     }
-    return list;
-  }, [cat, q]);
+    return MIXED_WALLPAPERS;
+  }, [q]);
 
   const doRandom = () => {
     const wp = randomWallpaper();
@@ -201,6 +202,14 @@ export default function WallpaperPicker({ chatId, chatName, onClose }: {
     else resetWallpapers();
     toast("Wallpaper reset ho gaya", "Default par wapas");
     onClose();
+  };
+
+  const selectTheme = (id: string) => {
+    setThemeId(id);
+    setStoredThemeId(id);
+    applyTheme(id);
+    const t = THEMES.find((x) => x.id === id);
+    toast(`${t?.emoji || "🎨"} ${t?.name || "Theme"} lag gaya!`, "");
   };
 
   const pickCustom = async (f: File | undefined) => {
@@ -235,9 +244,9 @@ export default function WallpaperPicker({ chatId, chatName, onClose }: {
         {/* header */}
         <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
           <div>
-            <h2 className="text-xl font-extrabold tracking-tight text-[#2f3035]">Wallpapers 🎨</h2>
+            <h2 className="text-xl font-extrabold tracking-tight text-[#2f3035]">Wallpapers & Themes 🎨</h2>
             <p className="text-xs text-[#80848e]">
-              {chatName ? `${chatName} ke liye chuno` : "Apni pasand ka background lagao"} · {ALL_WALLPAPERS.length}+ designs
+              {chatName ? `${chatName} ke liye chuno` : "Apni pasand lagao"} · sirf owner badal sakta hai 👑
             </p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -256,38 +265,23 @@ export default function WallpaperPicker({ chatId, chatName, onClose }: {
         </div>
 
         {/* search */}
-        <div className="shrink-0 px-5 pb-2">
+        <div className="shrink-0 px-5 pb-3">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Dhoondo… (jaise: gulab, samandar, eid)"
+            placeholder="Dhoondo… (jaise: gulab, doodle, eid)"
             className="w-full rounded-xl bg-black/[0.04] px-3.5 py-2 text-sm text-[#2f3035] outline-none placeholder:text-[#80848e] focus:ring-2 focus:ring-[#5865f2]/30"
           />
         </div>
 
-        {/* category tabs */}
-        {!q && (
-          <div className="thin-scroll flex shrink-0 gap-1.5 overflow-x-auto px-5 pb-3">
-            {WALLPAPER_CATS.map((c) => {
-              const active = cat === c.id;
-              const count = c.id === "custom" ? "" : wallpapersByKind(c.id as WallpaperKind).length;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setCat(c.id as WallpaperKind)}
-                  className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${active ? "bg-[#5865f2] text-white shadow" : "bg-black/[0.05] text-[#2f3035] hover:bg-black/10"}`}
-                >
-                  {c.label} {count !== "" && <span className={`ml-0.5 text-[10px] ${active ? "text-white/70" : "text-[#80848e]"}`}>{count}</span>}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* grid */}
-        <div className="thin-scroll grid min-h-0 flex-1 grid-cols-3 gap-2.5 overflow-y-auto px-5 pb-5 sm:grid-cols-4">
-          {/* custom upload tile */}
-          {(cat === "custom" || !!q) && (
+        {/* scrollable: wallpapers section + themes section */}
+        <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+          {/* ── SECTION 1: WALLPAPERS (one mixed grid) ── */}
+          <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.08em] text-[#80848e]">
+            🖼️ Wallpapers <span className="ml-1 font-bold normal-case tracking-normal text-[#80848e]/70">{MIXED_WALLPAPERS.length} mixed designs</span>
+          </p>
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+            {/* custom upload tile */}
             <button
               onClick={() => file.current?.click()}
               className="group relative flex aspect-[4/5] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border-2 border-dashed border-[#5865f2]/40 bg-[#5865f2]/[0.04] transition hover:border-[#5865f2] hover:bg-[#5865f2]/[0.08]"
@@ -295,46 +289,59 @@ export default function WallpaperPicker({ chatId, chatName, onClose }: {
               <ImagePlus size={26} className="text-[#5865f2]" />
               <span className="px-1 text-center text-[10px] font-bold text-[#5865f2]">Apni photo lagao</span>
             </button>
-          )}
-          {cat === "custom" && getCustomWallpaper() && (
-            <button
-              onClick={() => setPreview({ id: "custom", name: "Apni Photo 📤", kind: "custom", bg: "" })}
-              className={`relative aspect-[4/5] overflow-hidden rounded-2xl border-2 transition ${current === "custom" ? "border-[#5865f2]" : "border-black/10 hover:border-black/30 hover:shadow-md"}`}
-              style={wallpaperTileStyle("custom")}
-            >
-              {current === "custom" && (
-                <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/30"><Check size={20} className="text-white" /></span>
-              )}
-              <span className="absolute bottom-1 left-1 right-1 truncate rounded-md bg-black/45 px-1 py-0.5 text-center text-[9px] font-bold text-white">Apni Photo</span>
-            </button>
-          )}
-          {items.filter((w) => w.kind !== "custom").map((w) => {
-            const active = current === w.id;
-            return (
+            {getCustomWallpaper() && (
               <button
-                key={w.id}
-                onClick={() => setPreview(w)}
-                title={w.name}
-                className={`group relative aspect-[4/5] overflow-hidden rounded-2xl border-2 transition hover:shadow-md ${active ? "border-[#5865f2] shadow-md" : "border-black/10 hover:border-black/30"}`}
-                style={wallpaperTileStyle(w.id)}
+                onClick={() => setPreview({ id: "custom", name: "Apni Photo 📤", kind: "custom", bg: "" })}
+                className={`relative aspect-[4/5] overflow-hidden rounded-2xl border-2 transition ${current === "custom" ? "border-[#5865f2]" : "border-black/10 hover:border-black/30 hover:shadow-md"}`}
+                style={wallpaperTileStyle("custom")}
               >
-                {w.anim && (
-                  <span className="absolute right-1 top-1 rounded-full bg-black/40 p-1"><Sparkles size={10} className="text-white" /></span>
+                {current === "custom" && (
+                  <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/30"><Check size={20} className="text-white" /></span>
                 )}
-                {active && (
-                  <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/30"><Check size={20} className="text-white drop-shadow" /></span>
-                )}
-                <span className="absolute bottom-1 left-1 right-1 truncate rounded-md bg-black/45 px-1 py-0.5 text-center text-[9px] font-bold text-white opacity-0 transition group-hover:opacity-100">
-                  {w.name}
-                </span>
+                <span className="absolute bottom-1 left-1 right-1 truncate rounded-md bg-black/45 px-1 py-0.5 text-center text-[9px] font-bold text-white">Apni Photo</span>
               </button>
-            );
-          })}
-        </div>
+            )}
+            {items.filter((w) => w.kind !== "custom").map((w) => {
+              const active = current === w.id;
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => setPreview(w)}
+                  title={w.name}
+                  className={`group relative aspect-[4/5] overflow-hidden rounded-2xl border-2 transition hover:shadow-md ${active ? "border-[#5865f2] shadow-md" : "border-black/10 hover:border-black/30"}`}
+                  style={wallpaperTileStyle(w.id)}
+                >
+                  {w.anim && (
+                    <span className="absolute right-1 top-1 rounded-full bg-black/40 p-1"><Sparkles size={10} className="text-white" /></span>
+                  )}
+                  {active && (
+                    <span className="absolute inset-0 grid place-items-center bg-[#5865f2]/30"><Check size={20} className="text-white drop-shadow" /></span>
+                  )}
+                  <span className="absolute bottom-1 left-1 right-1 truncate rounded-md bg-black/45 px-1 py-0.5 text-center text-[9px] font-bold text-white opacity-0 transition group-hover:opacity-100">
+                    {w.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-        {items.length === 0 && !q && (
-          <div className="flex flex-1 items-center justify-center p-8 text-sm text-[#80848e]">Kuch nahi mila</div>
-        )}
+          {items.length === 0 && (
+            <div className="flex items-center justify-center p-8 text-sm text-[#80848e]">Kuch nahi mila</div>
+          )}
+
+          {/* ── SECTION 2: THEMES ── */}
+          <p className="mb-2 mt-6 text-xs font-extrabold uppercase tracking-[0.08em] text-[#80848e]">
+            ⚡ Themes <span className="ml-1 font-bold normal-case tracking-normal text-[#80848e]/70">{THEMES.length} AI designs</span>
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {THEMES.map((t) => (
+              <ThemeCard key={t.id} theme={t} active={themeId === t.id} onSelect={() => selectTheme(t.id)} />
+            ))}
+          </div>
+          <p className="mt-3 text-center text-[11px] text-[#80848e]">
+            Theme poori app ka rang badal deta hai — bubbles, header, sab kuch! ✨
+          </p>
+        </div>
 
         <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => pickCustom(e.target.files?.[0])} />
       </div>
@@ -355,7 +362,7 @@ export function WallpaperButton({ chatId, chatName }: { chatId?: string; chatNam
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 rounded-xl bg-[#5865f2]/10 px-3.5 py-2.5 text-sm font-bold text-[#5865f2] transition hover:bg-[#5865f2] hover:text-white active:scale-95"
       >
-        <Upload size={15} /> Wallpaper Gallery
+        <Upload size={15} /> Wallpapers & Themes
       </button>
       {open && <WallpaperPicker chatId={chatId} chatName={chatName} onClose={() => setOpen(false)} />}
     </>

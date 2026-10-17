@@ -89,6 +89,9 @@ export default function ChatView() {
   const activeChat = chats.find((c) => c.id === activeChatId);
   const isDM = activeChat?.type === "dm";
   const dmOther = isDM ? members.find((m) => m.id === activeChat?.otherId) : null;
+  // Wallpaper/theme button: group me SIRF owner, DM me dono (personal chat)
+  const myRole = members.find((x: any) => x.id === meId)?.role || "member";
+  const canSetWallpaper = isDM ? true : myRole === "owner";
   const sc = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
 
@@ -295,7 +298,7 @@ export default function ChatView() {
         <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-black/5 ${searchOn ? "text-[#5865f2]" : "text-[#5c5e66]"}`} aria-label="Search">
           <Search size={20} />
         </button>
-        <ChatWallpaperBtn chatId={activeChatId} chatName={activeChat?.name} />
+        {canSetWallpaper && <ChatWallpaperBtn chatId={activeChatId} chatName={activeChat?.name} />}
         <button onClick={() => patchUI({ mobileDrawer: "members" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Members">
           <Users size={20} />
         </button>

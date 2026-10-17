@@ -18,6 +18,14 @@ import {
   getLastBackup, markBackupDone,
 } from "@/lib/prefs";
 import { WallpaperButton } from "@/components/WallpaperPicker";
+import ThemePicker from "@/components/ThemePicker";
+
+/** Kya current user kahin owner hai? (wallpaper/theme sirf owner badal sakta hai) */
+export function useIsOwner(): boolean {
+  const me = useStore((s) => s.me);
+  const members = useStore((s) => s.members);
+  return members.some((m: any) => m.id === me && m.role === "owner");
+}
 
 async function resizePhoto(file: File, max = 512): Promise<string> {
   const img = new Image();
@@ -250,6 +258,7 @@ function AppearanceTab() {
   const [dark, setD] = useState(getDark());
   const [sound, setS] = useState(getSound());
   const file = useRef<HTMLInputElement>(null);
+  const isOwner = useIsOwner();
 
   const toggleCompact = () => {
     const v = !compact;
@@ -310,8 +319,26 @@ function AppearanceTab() {
 
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Chat wallpaper</p>
-        <WallpaperButton />
-        <p className="mt-2 text-xs text-[#80848e]">130+ wallpapers — rang, gradients, patterns, Islamic, nature, animated aur bohat kuch! 🎨</p>
+        {isOwner ? (
+          <>
+            <WallpaperButton />
+            <p className="mt-2 text-xs text-[#80848e]">Mixed wallpapers + AI themes — sab ek jagah! 🎨</p>
+          </>
+        ) : (
+          <p className="text-xs text-[#80848e]">Sirf group owner wallpaper badal sakta hai 👑</p>
+        )}
+      </div>
+
+      {/* AI Themes — sirf owner (pehle kabhi add hi nahi hua tha!) */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">AI Themes ⚡</p>
+        {isOwner ? (
+          <div className="max-h-[420px] overflow-hidden rounded-2xl border border-black/10">
+            <ThemePicker />
+          </div>
+        ) : (
+          <p className="text-xs text-[#80848e]">Sirf group owner theme badal sakta hai 👑</p>
+        )}
       </div>
     </div>
   );

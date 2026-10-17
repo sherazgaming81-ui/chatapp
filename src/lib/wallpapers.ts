@@ -312,6 +312,35 @@ export const ALL_WALLPAPERS: WallpaperDef[] = [
   ...minimalWalls,
 ];
 
+/* ═══════════════ MIXED — sab ek hi grid me (doodle + gradients + rang + patterns mix) ═══════════════ */
+// Deterministic shuffle — har render par order same rahe
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let s = seed >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** ONE mixed wallpaper category: rang + gradients + patterns + doodle + minimal + islamic + seasonal + texture + animated — sab shuffle */
+export const MIXED_WALLPAPERS: WallpaperDef[] = seededShuffle(
+  [
+    ...colorWalls,
+    ...gradientWalls,
+    ...patternWalls,
+    doodleWall,
+    ...minimalWalls,
+    ...islamicWalls,
+    ...seasonalWalls,
+    ...textureWalls,
+    ...animatedWalls,
+  ],
+  20261017
+);
+
 export const wallpapersByKind = (kind: WallpaperKind): WallpaperDef[] =>
   ALL_WALLPAPERS.filter((w) => w.kind === kind);
 

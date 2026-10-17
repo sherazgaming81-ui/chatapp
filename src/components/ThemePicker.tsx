@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Palette, Sparkles } from "lucide-react";
 import { THEMES, getStoredThemeId, setStoredThemeId, applyTheme, type Theme } from "@/lib/themes";
 
-function ThemeCard({ theme, active, onSelect }: { theme: Theme; active: boolean; onSelect: () => void }) {
+export function ThemeCard({ theme, active, onSelect }: { theme: Theme; active: boolean; onSelect: () => void }) {
   const p = theme.palette;
   const previewBg = theme.previewBg || p.bgGradient;
   return (
