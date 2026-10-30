@@ -30,45 +30,6 @@ export function parseSpin(caption?: string): SpinPayload | null {
   return null;
 }
 
-/* ───────── Lafz Silsila ───────── */
-export interface SilsilaWord { w: string; by: string }
-export interface SilsilaPayload {
-  words: SilsilaWord[];
-  scores: Record<string, number>;
-  lastBy: string | null;
-  done: boolean;
-  winner: string | null;
-  endedBy?: string | null;
-  t?: string;
-}
-export function parseSilsila(caption?: string): SilsilaPayload | null {
-  try {
-    const d = JSON.parse(caption || "");
-    if (
-      d &&
-      Array.isArray(d.words) &&
-      d.words.length > 0 &&
-      d.words.every((x: any) => x && typeof x.w === "string" && typeof x.by === "string") &&
-      d.scores &&
-      typeof d.scores === "object" &&
-      !Array.isArray(d.scores) &&
-      Object.values(d.scores).every((v) => typeof v === "number") &&
-      typeof d.done === "boolean"
-    ) {
-      return {
-        words: d.words as SilsilaWord[],
-        scores: d.scores as Record<string, number>,
-        lastBy: typeof d.lastBy === "string" ? d.lastBy : null,
-        done: d.done,
-        winner: typeof d.winner === "string" ? d.winner : null,
-        endedBy: typeof d.endedBy === "string" ? d.endedBy : null,
-        t: typeof d.t === "string" ? d.t : undefined,
-      };
-    }
-  } catch { /* ignore */ }
-  return null;
-}
-
 /* ───────── Truth or Dare ───────── */
 export interface TruthDarePayload {
   mode: "truth" | "dare";

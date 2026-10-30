@@ -163,3 +163,225 @@ export const STICKERS: Sticker[] = [
 export function getSticker(id: string): Sticker | null {
   return STICKERS.find((s) => s.id === id) || null;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Naye Games (Games Update)
+   ───────────────────────────────────────────────────────────── */
+
+/* ───────── 1) Hisaab Race ───────── */
+function hisaabRand(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+export function genHisaab(): { q: string; a: number } {
+  const op = Math.floor(Math.random() * 3);
+  if (op === 0) {
+    const x = hisaabRand(5, 99);
+    const y = hisaabRand(5, 99);
+    return { q: `${x} + ${y}`, a: x + y };
+  }
+  if (op === 1) {
+    const x = hisaabRand(5, 99);
+    const y = hisaabRand(5, 99);
+    const hi = Math.max(x, y);
+    const lo = Math.min(x, y);
+    return { q: `${hi} − ${lo}`, a: hi - lo };
+  }
+  const x = hisaabRand(2, 12);
+  const y = hisaabRand(2, 12);
+  return { q: `${x} × ${y}`, a: x * y };
+}
+export interface HisaabState {
+  q: string;
+  a: number;
+  round: number;
+  total: number;
+  scores: Record<string, number>;
+  lastWin: { by: string } | null;
+  done: boolean;
+  winner: string | null;
+  qEndsAt?: number;
+  t?: string;
+}
+export function parseHisaab(caption?: string): HisaabState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && typeof d.q === "string" && typeof d.a === "number" && typeof d.round === "number" && typeof d.total === "number" && d.scores && typeof d.scores === "object" && !Array.isArray(d.scores)) return d as HisaabState;
+  } catch { /* ignore */ }
+  return null;
+}
+
+/* ───────── 2) Emoji Paheli (sirf Urdu lafz, easy) ───────── */
+export const EMOJI_BANK: { e: string; a: string; alt: string[] }[] = [
+  { e: "🚪", a: "darwaza", alt: ["darwaza", "darwazah"] },
+  { e: "📖", a: "kitab", alt: ["kitab", "kitaab"] },
+  { e: "🌙", a: "chand", alt: ["chand", "chaand"] },
+  { e: "🕌", a: "masjid", alt: ["masjid"] },
+  { e: "🍎", a: "seb", alt: ["seb", "saib"] },
+  { e: "🍌", a: "kela", alt: ["kela", "kayla"] },
+  { e: "💧", a: "pani", alt: ["pani", "paani"] },
+  { e: "🔥", a: "aag", alt: ["aag"] },
+  { e: "🌸", a: "phool", alt: ["phool", "phul"] },
+  { e: "🌳", a: "darakht", alt: ["darakht"] },
+  { e: "🐟", a: "machhli", alt: ["machhli", "machli"] },
+  { e: "🐴", a: "ghora", alt: ["ghora"] },
+  { e: "🐦", a: "chirya", alt: ["chirya", "chidiya", "chiriya"] },
+  { e: "☀️", a: "suraj", alt: ["suraj", "sooraj"] },
+  { e: "⭐", a: "sitara", alt: ["sitara", "sitaara"] },
+  { e: "🌧️", a: "barish", alt: ["barish", "baarish"] },
+  { e: "🥛", a: "doodh", alt: ["doodh", "dudh"] },
+  { e: "🍞", a: "roti", alt: ["roti"] },
+  { e: "☕", a: "chaye", alt: ["chaye", "chai", "chaaye"] },
+  { e: "🏠", a: "ghar", alt: ["ghar"] },
+  { e: "🏫", a: "madrasa", alt: ["madrasa", "madarsa", "madrassa"] },
+  { e: "✏️", a: "qalam", alt: ["qalam", "kalam"] },
+  { e: "⌚", a: "ghari", alt: ["ghari", "ghadi"] },
+  { e: "🍇", a: "angoor", alt: ["angoor", "angur"] },
+  { e: "🥭", a: "aam", alt: ["aam"] },
+  { e: "🪑", a: "kursi", alt: ["kursi"] },
+];
+export interface EmojiState {
+  i: number;
+  used: number[];
+  scores: Record<string, number>;
+  last: { by: string; a: string } | null;
+  done: boolean;
+  winner: string | null;
+  t?: string;
+}
+export function parseEmojiPaheli(caption?: string): EmojiState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && typeof d.i === "number" && Array.isArray(d.used) && d.scores && typeof d.scores === "object" && !Array.isArray(d.scores)) return d as EmojiState;
+  } catch { /* ignore */ }
+  return null;
+}
+export function isEmojiAnswer(text: string, entry: { a: string; alt: string[] }): boolean {
+  const t = normAnswer(text);
+  if (!t) return false;
+  if (t === normAnswer(entry.a)) return true;
+  return entry.alt.some((x) => t === normAnswer(x));
+}
+
+/* ───────── 3) Sach Ya Jhoot ───────── */
+export const SACH_BANK: { s: string; truth: boolean }[] = [
+  { s: "Quran-e-Pak me 114 suratein hain", truth: true },
+  { s: "Din me 5 namazein farz hain", truth: true },
+  { s: "Pakistan ka dar-ul-hukumat Islamabad hai", truth: true },
+  { s: "Surah Al-Fatiha Quran ki pehli surah hai", truth: true },
+  { s: "Insan ke jism me 206 haddiyan hoti hain", truth: true },
+  { s: "Ramzan saal ka 9th Islami mahina hai", truth: true },
+  { s: "Zameen par sab se bara samandar Pacific hai", truth: true },
+  { s: "Hazrat Muhammad ﷺ par pehli wahi Ghar-e-Hira me nazil hui", truth: true },
+  { s: "Makkah me Khana Kaaba hai", truth: true },
+  { s: "Ek saal me 12 mahine hote hain", truth: true },
+  { s: "Chand apni khud ki roshni banata hai", truth: false },
+  { s: "Saal me 13 mahine hote hain", truth: false },
+  { s: "Machhli pani ke baghair zinda reh sakti hai", truth: false },
+  { s: "Pakistan ka sab se bara sheher Lahore hai", truth: false },
+  { s: "Surah Baqarah Quran ki sab se chhoti surah hai", truth: false },
+  { s: "Ek haftay me 8 din hote hain", truth: false },
+  { s: "Oont ki sirf 2 taangein hoti hain", truth: false },
+  { s: "Suraj zameen ke gird ghoomta hai", truth: false },
+  { s: "Hathi sab se chhota janwar hai", truth: false },
+  { s: "Ek din me 25 ghante hote hain", truth: false },
+];
+export interface SachState {
+  order: number[];
+  round: number;
+  qEndsAt: number;
+  scores: Record<string, number>;
+  lastResult: { truth: boolean; correct: number } | null;
+  done: boolean;
+  winner: string | null;
+  t?: string;
+}
+export function parseSachJhoot(caption?: string): SachState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && Array.isArray(d.order) && typeof d.round === "number" && typeof d.qEndsAt === "number" && d.scores && typeof d.scores === "object" && !Array.isArray(d.scores)) return d as SachState;
+  } catch { /* ignore */ }
+  return null;
+}
+/** reactions se sahi jawab wale users: __sj_<round>_<choice> (0 = Sach, 1 = Jhoot) */
+export function sachCorrectUsers(reactions: Record<string, string[]>, round: number, truth: boolean): string[] {
+  const correctChoice = truth ? 0 : 1;
+  return reactions[`__sj_${round}_${correctChoice}`] || [];
+}
+
+/* ───────── 4) Number Guess ───────── */
+export interface NumGuessState {
+  target: number;
+  list: { n: number; by: string; h: "up" | "down" | "hit" }[];
+  done: boolean;
+  winner: string | null;
+  t?: string;
+}
+export function parseNumGuess(caption?: string): NumGuessState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && typeof d.target === "number" && Array.isArray(d.list)) return d as NumGuessState;
+  } catch { /* ignore */ }
+  return null;
+}
+
+/* ───────── 5) Kainchi Pathar Kaghaz ───────── */
+export type KainchiChoice = "rock" | "paper" | "scissors";
+export interface KainchiState {
+  challenger: string;
+  opponent: string;
+  accepted: boolean;
+  score: Record<string, number>;
+  picks: Record<string, string>;
+  last: { a: string; b: string; w: string | null } | null;
+  round: number;
+  done: boolean;
+  winner: string | null;
+  t?: string;
+}
+export function parseKainchi(caption?: string): KainchiState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && typeof d.challenger === "string" && typeof d.opponent === "string" && d.score && typeof d.score === "object" && !Array.isArray(d.score) && d.picks && typeof d.picks === "object") return d as KainchiState;
+  } catch { /* ignore */ }
+  return null;
+}
+export function kainchiResult(a: string, b: string): "a" | "b" | "draw" {
+  if (a === b) return "draw";
+  if (
+    (a === "rock" && b === "scissors") ||
+    (a === "scissors" && b === "paper") ||
+    (a === "paper" && b === "rock")
+  ) return "a";
+  return "b";
+}
+
+/* ───────── 6) Pasa Race (Ludo Style) ───────── */
+export const PASA_COLORS = ["🔴", "🟢", "🟡", "🔵"];
+export const PASA_OFFSETS = [0, 13, 26, 39];
+export const PASA_SAFE_CELLS = [0, 8, 13, 21, 26, 34, 39, 47];
+export const PASA_FINISH = 58;
+export function pasaCell(playerIdx: number, progress: number): number | null {
+  if (progress < 1 || progress > 52) return null;
+  const offset = PASA_OFFSETS[playerIdx];
+  if (typeof offset !== "number") return null;
+  return (offset + progress - 1) % 52;
+}
+export interface PasaState {
+  players: string[];
+  pos: Record<string, number>;
+  turn: string;
+  started: boolean;
+  host: string;
+  lastRoll: { by: string; v: number } | null;
+  log: string[];
+  done: boolean;
+  winner: string | null;
+  t?: string;
+}
+export function parsePasa(caption?: string): PasaState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && Array.isArray(d.players) && d.pos && typeof d.pos === "object" && !Array.isArray(d.pos) && typeof d.turn === "string" && typeof d.host === "string") return d as PasaState;
+  } catch { /* ignore */ }
+  return null;
+}

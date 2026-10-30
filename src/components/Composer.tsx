@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, Link2, HelpCircle, EyeOff } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendSilsila, sendTruthDare, sendGumnam } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, sendPasa } from "@/lib/db";
 import { pickTruthDare } from "@/lib/fun";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -59,7 +59,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   const [pollOpen, setPollOpen] = useState(false); // B5 poll creator
   const [contactOpen, setContactOpen] = useState(false); // B7 contact share
   const [spinOpen, setSpinOpen] = useState(false); // Fun — Spin Wheel
-  const [silsilaOpen, setSilsilaOpen] = useState(false); // Fun — Lafz Silsila
+  const [kainchiOpen, setKainchiOpen] = useState(false); // Fun — Kainchi Pathar Kaghaz
   const [truthDareOpen, setTruthDareOpen] = useState(false); // Fun — Truth or Dare
   const [gumnamOpen, setGumnamOpen] = useState(false); // Fun — Gumnam Paigham
   const [photoFile, setPhotoFile] = useState<File | null>(null); // UI-11 — photo send options (caption + quality)
@@ -424,8 +424,13 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
             <AttachItem icon={<RotateCw size={19} />} color="#5865f2" bg="#5865f2/10" label="Spin Wheel 🎡" desc="Wheel ghumao, kismat azmao" onClick={() => { setAttachOpen(false); setSpinOpen(true); }} />
-            <AttachItem icon={<Link2 size={19} />} color="#23a55a" bg="#23a55a/10" label="Lafz Silsila 🔤" desc="Lafzon ki chain game" onClick={() => { setAttachOpen(false); setSilsilaOpen(true); }} />
             <AttachItem icon={<HelpCircle size={19} />} color="#ed4245" bg="#ed4245/10" label="Truth or Dare 🎲" desc="Sawal ya challenge chuno" onClick={() => { setAttachOpen(false); setTruthDareOpen(true); }} />
+            <AttachItem icon={<Calculator size={19} />} color="#5865f2" bg="#5865f2/10" label="Hisaab Race 🔢" desc="Tez hisaab, pehla jawab jeete" onClick={() => { setAttachOpen(false); sendHisaab(chatId); }} />
+            <AttachItem icon={<Smile size={19} />} color="#f5a623" bg="#f5a623/10" label="Emoji Paheli 🧩" desc="Emoji se Urdu lafz guess karo" onClick={() => { setAttachOpen(false); sendEmojiPaheli(chatId); }} />
+            <AttachItem icon={<BadgeCheck size={19} />} color="#23a55a" bg="#23a55a/10" label="Sach Ya Jhoot ✅" desc="Sach hai ya jhoot, batao" onClick={() => { setAttachOpen(false); sendSachJhoot(chatId); }} />
+            <AttachItem icon={<Target size={19} />} color="#ed4245" bg="#ed4245/10" label="Number Guess 🎯" desc="1-100 chhupa number guess karo" onClick={() => { setAttachOpen(false); sendNumGuess(chatId); }} />
+            <AttachItem icon={<Scissors size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Kainchi Pathar ✂️" desc="Dost ko challenge karo" onClick={() => { setAttachOpen(false); setKainchiOpen(true); }} />
+            <AttachItem icon={<Dices size={19} />} color="#00b0f4" bg="#00b0f4/10" label="Pasa Race 🎲" desc="Ludo style race, 2-4 players" onClick={() => { setAttachOpen(false); sendPasa(chatId); }} />
             <AttachItem icon={<EyeOff size={19} />} color="#5c5e66" bg="#5c5e66/10" label="Gumnam Paigham 🕵️" desc="Naam chhupa kar bhejo" onClick={() => { setAttachOpen(false); setGumnamOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
@@ -449,7 +454,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       {pollOpen && <PollModal chatId={chatId} onClose={() => setPollOpen(false)} />}
       {contactOpen && <ContactModal chatId={chatId} pickDevice={pickDeviceContact} onClose={() => setContactOpen(false)} />}
       {spinOpen && <SpinModal chatId={chatId} onClose={() => setSpinOpen(false)} />}
-      {silsilaOpen && <SilsilaModal chatId={chatId} onClose={() => setSilsilaOpen(false)} />}
+      {kainchiOpen && <KainchiModal chatId={chatId} onClose={() => setKainchiOpen(false)} />}
       {truthDareOpen && <TruthDareModal chatId={chatId} onClose={() => setTruthDareOpen(false)} />}
       {gumnamOpen && <GumnamModal chatId={chatId} onClose={() => setGumnamOpen(false)} />}
       {photoFile && <PhotoSendModal chatId={chatId} file={photoFile} onClose={() => setPhotoFile(null)} />}
@@ -600,33 +605,36 @@ function SpinModal({ chatId, onClose }: { chatId: string; onClose: () => void })
   );
 }
 
-// Fun — Lafz Silsila starter modal
-function SilsilaModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
-  const [word, setWord] = useState("");
+// Fun — Kainchi Pathar Kaghaz challenge modal (PollModal pattern — dost chuno)
+function KainchiModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const members = useStore((s) => s.members);
+  const meId = useStore((s) => s.me);
   const busy = useRef(false);
-  const send = async () => {
+  const others = members.filter((x) => x.id !== meId);
+  const pick = async (memberId: string) => {
     if (busy.current) return;
-    if (word.trim().length < 3) { toast("Lafz chhota hai", "Kam se kam 3 harf ka lafz do"); return; }
     busy.current = true;
-    const r = await sendSilsila(chatId, word);
-    busy.current = false;
-    if (r) onClose(); // null = ghalti — modal khula rahe taake theek kar sake
+    await sendKainchi(chatId, memberId);
+    onClose();
   };
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Link2 size={19} className="text-[#23a55a]" /> Lafz Silsila 🔤</h3>
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Scissors size={19} className="text-[#9b7bff]" /> Kainchi Pathar ✂️</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
         </div>
-        <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Pehla lafz…" maxLength={30}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
-          className="field mt-4 w-full px-3.5 py-2.5 text-[15px]" />
-        <p className="mt-2 text-xs leading-relaxed text-[#80848e]">
-          Har agla lafz pichle lafz ke aakhri harf se shuru hoga. Ghalat lafz = game khatam, sab se zyada score wala winner!
-        </p>
-        <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Game shuru karo</button>
+        <p className="mt-1 text-sm text-[#80848e]">Kis dost ko challenge karna hai? Pehle 2 rounds jeetne wala winner.</p>
+        <div className="mt-4 space-y-1.5">
+          {others.length === 0 && <p className="text-sm italic text-[#80848e]">Koi aur member nahi hai</p>}
+          {others.map((mb) => (
+            <button key={mb.id} onClick={() => pick(mb.id)} className="flex w-full items-center gap-3 rounded-xl border border-black/10 px-3.5 py-2.5 text-left transition hover:border-[#9b7bff]/50 hover:bg-[#9b7bff]/[0.06] active:scale-[0.99]">
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#2f3035]">{mb.name}</span>
+              <span className="shrink-0 text-xs font-bold text-[#9b7bff]">Challenge ⚔️</span>
+            </button>
+          ))}
+        </div>
       </div>
     </>
   );

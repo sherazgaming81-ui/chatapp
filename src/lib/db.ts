@@ -74,7 +74,7 @@ function toMessage(r: any): Message {
   // store hota hai — DB me `caption` column hai hi nahi, wahan bhejne se insert 400
   // ho jata tha (poll waghera isi liye fail thay). Yahan text se caption wapas banao
   // aur display text alag rakho taake previews me raw JSON na dikhe.
-  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "silsila", "truthdare", "gumnam", "super"].includes(msg.type) && msg.text.startsWith("{")) {
+  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "truthdare", "gumnam", "super", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa"].includes(msg.type) && msg.text.startsWith("{")) {
     try {
       const d = JSON.parse(msg.text);
       msg.caption = msg.text;
@@ -464,6 +464,9 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
   checkMessageBadges();
   // Phase 7 — apna jawab bhi paheli se milao
   setTimeout(() => checkRiddleAnswer(chatId, m.text, m.from).catch(() => {}), 300);
+  setTimeout(() => checkHisaabAnswer(chatId, m.text, m.from).catch(() => {}), 300);
+  setTimeout(() => checkEmojiAnswer(chatId, m.text, m.from).catch(() => {}), 300);
+  setTimeout(() => checkNumGuess(chatId, m.text, m.from).catch(() => {}), 300);
   return m;
 }
 
@@ -1306,7 +1309,7 @@ export function startRealtime() {
 export { uid };
 
 // ───────── Phase 7 — Games & Fun ─────────
-import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer } from "./games";
+import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer, genHisaab, parseHisaab, EMOJI_BANK, isEmojiAnswer, SACH_BANK, sachCorrectUsers, parseSachJhoot, parsePasa, pasaCell, PASA_SAFE_CELLS, PASA_FINISH, kainchiResult } from "./games";
 
 /** I1 — Deen Quiz shuru karo (5 sawal, har sawal 15 sec) */
 export async function sendQuiz(chatId: string): Promise<Message | null> {
@@ -1638,52 +1641,6 @@ export async function spinWheelNow(msgId: string) {
   await updatePayloadMsg(msgId, { ...st, result, spunBy: s.me });
 }
 
-/* ───────── B3 — Lafz Silsila (word chain, score ke sath) ───────── */
-export async function sendSilsila(chatId: string, firstWord: string): Promise<Message | null> {
-  const s = getState();
-  const w = firstWord.trim().toLowerCase();
-  if (!chatId) return null;
-  if (w.length < 3) { toast("Lafz chhota hai", "Kam se kam 3 harf ka lafz do"); return null; }
-  const payload = {
-    words: [{ w, by: s.me }],
-    scores: { [s.me]: 1 } as Record<string, number>,
-    lastBy: s.me, done: false, winner: null as string | null,
-    t: "🔤 Lafz Silsila",
-  };
-  const cap = JSON.stringify(payload);
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "silsila", text: payload.t, at: Date.now(), reactions: {}, caption: cap };
-  const ok = await insertMessageRow(m, {
-    id: m.id, chat_id: chatId, sender_id: m.from, type: "silsila",
-    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
-  }, "Game nahi gaya");
-  if (!ok) return null;
-  return m;
-}
-/** Agla lafz khelo. "ok" = chal gaya · "ended" = ghalat lafz, game khatam · "blocked" = baari nahi · "invalid" */
-export async function silsilaPlay(msgId: string, rawWord: string): Promise<"ok" | "ended" | "blocked" | "invalid"> {
-  const s = getState();
-  const m = s.messages.find((x) => x.id === msgId);
-  const st = parsePayload(m);
-  if (!m || !st || st.done || !Array.isArray(st.words) || st.words.length === 0) return "invalid";
-  if (st.lastBy === s.me) { toast("Aapki baari nahi", "Pehle koi aur lafz bole"); return "blocked"; }
-  const w = rawWord.trim().toLowerCase();
-  const last = String(st.words[st.words.length - 1]?.w || "").toLowerCase();
-  const need = last.replace(/[^a-z]/g, "").slice(-1);
-  const first = w.replace(/[^a-z]/g, "").charAt(0);
-  const used = st.words.some((x: any) => String(x.w || "").toLowerCase() === w);
-  if (w.length < 3 || used || !need || first !== need) {
-    // ghalat lafz — silsila yahin khatam, score ruk gaya; sab se zyada score wala winner
-    const scores = (st.scores || {}) as Record<string, number>;
-    const winner = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-    await updatePayloadMsg(msgId, { ...st, done: true, winner, endedBy: s.me });
-    return "ended";
-  }
-  const scores = { ...((st.scores || {}) as Record<string, number>) };
-  scores[s.me] = (scores[s.me] || 0) + 1;
-  await updatePayloadMsg(msgId, { ...st, words: [...st.words, { w, by: s.me }], scores, lastBy: s.me });
-  return "ok";
-}
-
 /* ───────── B4 — Truth or Dare ───────── */
 export async function sendTruthDare(chatId: string, mode: "truth" | "dare", prompt: string): Promise<Message | null> {
   const s = getState();
@@ -1737,4 +1694,375 @@ export async function sendSuperReaction(chatId: string, emoji: string, kind: Sup
   }, "Super Reaction nahi gaya");
   if (!ok) return null;
   return m;
+}
+
+/* ═══════════════ GAMES UPDATE — 6 naye games ═══════════════
+   Pattern hamesha wahi: JSON state `text` column me, local Message me
+   caption = wahi JSON, display text payload ke `t` me. */
+
+// scores map se sab se zyada score wala user
+function topScoreUser(scores: Record<string, number>): string | null {
+  const entries = Object.entries(scores || {}).sort((a, b) => b[1] - a[1]);
+  return entries[0]?.[0] || null;
+}
+
+/* ───────── G1 — Hisaab Race (🔢 tez maths, 5 rounds) ───────── */
+export async function sendHisaab(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const active = s.messages.find((m) => m.chatId === chatId && m.type === "hisaab" && !m.deleted && !(parseHisaab(m.caption) as any)?.done);
+  if (active) { toast("Hisaab Race pehle se chal raha hai", "Khatam hone ka intezar karo"); return null; }
+  const state: any = { ...genHisaab(), round: 1, total: 5, scores: {} as Record<string, number>, lastWin: null, done: false, winner: null, t: "🔢 Hisaab Race" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "hisaab", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "hisaab",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** text message ko active hisaab race ke jawab se milao — sirf poora number react karta hai */
+export async function checkHisaabAnswer(chatId: string, text: string, senderId: string) {
+  if (senderId === "system") return;
+  const s = getState();
+  const candidates = s.messages.filter((m) => m.chatId === chatId && m.type === "hisaab" && !m.deleted);
+  const r = [...candidates].reverse().find((m) => !(parseHisaab(m.caption) as any)?.done);
+  if (!r) return;
+  const st: any = parseHisaab(r.caption);
+  if (!st || st.done) return;
+  const trimmed = (text || "").trim();
+  if (!/^-?\d+$/.test(trimmed)) return;
+  const n = Number(trimmed);
+  if (n !== st.a) return;
+  const scores: Record<string, number> = { ...((st.scores || {}) as Record<string, number>) };
+  scores[senderId] = (scores[senderId] || 0) + 10;
+  const total = typeof st.total === "number" ? st.total : 5;
+  const round = typeof st.round === "number" ? st.round : 1;
+  if (round >= total) {
+    const winner = topScoreUser(scores) || senderId;
+    await updatePayloadMsg(r.id, { ...st, scores, done: true, winner });
+    const name = getState().members.find((x) => x.id === winner)?.name || "Koi";
+    postSystem(chatId, `🏆 Hisaab Race khatam! Winner: ${name} (${scores[winner] || 0} points)`);
+    return;
+  }
+  await updatePayloadMsg(r.id, { ...st, ...genHisaab(), round: round + 1, total, scores, lastWin: { by: senderId }, done: false, winner: null, t: st.t || "🔢 Hisaab Race" });
+}
+
+/* ───────── G2 — Emoji Paheli (🧩 emoji se Urdu lafz guess, 5 rounds) ───────── */
+export async function sendEmojiPaheli(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !EMOJI_BANK || EMOJI_BANK.length === 0) return null;
+  const active = s.messages.find((m) => {
+    if (m.chatId !== chatId || m.type !== "emojipaheli" || m.deleted) return false;
+    const p = parsePayload(m);
+    return p && !p.done;
+  });
+  if (active) { toast("Emoji Paheli pehle se chal rahi hai", "Khatam hone ka intezar karo"); return null; }
+  const idx = Math.floor(Math.random() * EMOJI_BANK.length);
+  const state: any = { i: idx, used: [idx], scores: {} as Record<string, number>, last: null, done: false, winner: null, t: "🧩 Emoji Paheli" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "emojipaheli", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "emojipaheli",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** text message ko active emoji paheli ke jawab se milao */
+export async function checkEmojiAnswer(chatId: string, text: string, senderId: string) {
+  if (senderId === "system") return;
+  const s = getState();
+  const candidates = s.messages.filter((m) => m.chatId === chatId && m.type === "emojipaheli" && !m.deleted);
+  const r = [...candidates].reverse().find((m) => { const p = parsePayload(m); return p && !p.done; });
+  if (!r) return;
+  const st: any = parsePayload(r);
+  if (!st || st.done) return;
+  const entry: any = (EMOJI_BANK as any[])[st.i];
+  if (!entry) return;
+  if (!isEmojiAnswer(text, entry)) return;
+  const scores: Record<string, number> = { ...((st.scores || {}) as Record<string, number>) };
+  scores[senderId] = (scores[senderId] || 0) + 10;
+  const last = { by: senderId, a: entry.a };
+  const used: number[] = Array.isArray(st.used) ? [...st.used] : [st.i];
+  if (used.length >= 5) {
+    const winner = topScoreUser(scores) || senderId;
+    await updatePayloadMsg(r.id, { ...st, scores, last, done: true, winner });
+    const name = getState().members.find((x) => x.id === winner)?.name || "Koi";
+    postSystem(chatId, `🧩 Emoji Paheli khatam! Winner: ${name} (${scores[winner] || 0} points)`);
+    return;
+  }
+  const unused: number[] = [];
+  for (let i = 0; i < EMOJI_BANK.length; i++) if (!used.includes(i)) unused.push(i);
+  if (unused.length === 0) {
+    const winner = topScoreUser(scores) || senderId;
+    await updatePayloadMsg(r.id, { ...st, scores, last, done: true, winner });
+    const name = getState().members.find((x) => x.id === winner)?.name || "Koi";
+    postSystem(chatId, `🧩 Emoji Paheli khatam! Winner: ${name} (${scores[winner] || 0} points)`);
+    return;
+  }
+  const nextIdx = unused[Math.floor(Math.random() * unused.length)];
+  await updatePayloadMsg(r.id, { ...st, scores, last, used: [...used, nextIdx], i: nextIdx });
+}
+
+/* ───────── G3 — Sach Ya Jhoot (✅❌ 5 statements, har ek 20 sec) ───────── */
+export async function sendSachJhoot(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !SACH_BANK || SACH_BANK.length === 0) return null;
+  const order = SACH_BANK.map((_: any, i: number) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const state: any = { order: order.slice(0, 5), round: 0, qEndsAt: Date.now() + 20000, scores: {} as Record<string, number>, lastResult: null, done: false, winner: null, t: "✅ Sach Ya Jhoot ❌" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "sachjhoot", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "sachjhoot",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** Sach/Jhoot ka jawab do — reactions pattern (answerQuiz jaisa), ek round me ek hi choice */
+export async function answerSachJhoot(msgId: string, choice: 0 | 1) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parseSachJhoot(m.caption);
+  if (!st || st.done || Date.now() > st.qEndsAt) return;
+  const next = { ...m.reactions };
+  for (let c = 0; c < 2; c++) {
+    const k = `__sj_${st.round}_${c}`;
+    const rest = ((next[k] as string[]) || []).filter((u) => u !== s.me);
+    if (rest.length === 0) delete next[k]; else next[k] = rest;
+  }
+  const key = `__sj_${st.round}_${choice}`;
+  next[key] = [...((next[key] as string[]) || []), s.me];
+  update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, reactions: next } : x)) });
+  try { await sb().from("messages").update({ reactions: next }).eq("id", msgId); } catch { /* ignore */ }
+}
+/** Agle statement par jao (timer khatam par chalega) — sahi jawab walon ko +5 */
+export async function advanceSachJhoot(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parseSachJhoot(m.caption);
+  if (!st || st.done) return;
+  const entry: any = (SACH_BANK as any[])[st.order[st.round]];
+  if (!entry) return;
+  const correct: string[] = sachCorrectUsers(m.reactions, st.round, entry.truth) || [];
+  const scores: Record<string, number> = { ...((st.scores || {}) as Record<string, number>) };
+  correct.forEach((u) => { scores[u] = (scores[u] || 0) + 5; });
+  const lastResult = { truth: entry.truth, correct: correct.length };
+  if (st.round >= st.order.length - 1) {
+    const winner = topScoreUser(scores);
+    await updatePayloadMsg(msgId, { ...st, scores, lastResult, done: true, winner });
+    if (winner) {
+      const name = getState().members.find((x) => x.id === winner)?.name || "Koi";
+      postSystem(m.chatId, `✅ Sach Ya Jhoot khatam! Winner: ${name} (${scores[winner] || 0} points)`);
+    } else {
+      postSystem(m.chatId, "✅ Sach Ya Jhoot khatam! Kisi ne sahi jawab nahi diya 😅");
+    }
+    return;
+  }
+  await updatePayloadMsg(msgId, { ...st, scores, lastResult, round: st.round + 1, qEndsAt: Date.now() + 20000 });
+}
+
+/* ───────── G4 — Number Guess (🎯 1–100 chhupa number) ───────── */
+export async function sendNumGuess(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const active = s.messages.find((m) => {
+    if (m.chatId !== chatId || m.type !== "numguess" || m.deleted) return false;
+    const p = parsePayload(m);
+    return p && !p.done;
+  });
+  if (active) { toast("Number Guess pehle se chal raha hai", "Khatam hone ka intezar karo"); return null; }
+  const state: any = { target: 1 + Math.floor(Math.random() * 100), list: [] as any[], done: false, winner: null, t: "🎯 Number Guess" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "numguess", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "numguess",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** text message ko active number guess se milao — sirf 1–100 ka poora number, repeat ignore */
+export async function checkNumGuess(chatId: string, text: string, senderId: string) {
+  if (senderId === "system") return;
+  const s = getState();
+  const candidates = s.messages.filter((m) => m.chatId === chatId && m.type === "numguess" && !m.deleted);
+  const r = [...candidates].reverse().find((m) => { const p = parsePayload(m); return p && !p.done; });
+  if (!r) return;
+  const st: any = parsePayload(r);
+  if (!st || st.done) return;
+  const trimmed = (text || "").trim();
+  if (!/^\d+$/.test(trimmed)) return;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1 || n > 100) return;
+  const list: any[] = Array.isArray(st.list) ? [...st.list] : [];
+  if (list.some((e: any) => e && e.n === n)) return;
+  if (n === st.target) {
+    list.push({ n, by: senderId, h: "hit" });
+    await updatePayloadMsg(r.id, { ...st, list, done: true, winner: senderId });
+    const name = getState().members.find((x) => x.id === senderId)?.name || "Kisi ne";
+    postSystem(chatId, `🎯 ${name} ne sahi number ${st.target} guess kar liya — kul ${list.length} guesses me!`);
+    return;
+  }
+  list.push({ n, by: senderId, h: n < st.target ? "up" : "down" });
+  await updatePayloadMsg(r.id, { ...st, list });
+}
+
+/* ───────── G5 — Kainchi Pathar Kaghaz (✂️ best of 3, 1v1) ───────── */
+export async function sendKainchi(chatId: string, opponentId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !opponentId) return null;
+  if (opponentId === s.me) { toast("Khud ko challenge nahi", "Kisi dost ko chuno"); return null; }
+  const oppName = s.members.find((x) => x.id === opponentId)?.name || "member";
+  const state: any = { challenger: s.me, opponent: opponentId, accepted: false, score: {} as Record<string, number>, picks: {} as Record<string, string>, last: null, round: 1, done: false, winner: null, t: `✂️ Kainchi Pathar Kaghaz: ${oppName}` };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "kainchi", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "kainchi",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Challenge nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+export async function acceptKainchi(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parsePayload(m);
+  if (!st || st.accepted || st.opponent !== s.me) return;
+  await updatePayloadMsg(msgId, { ...st, accepted: true });
+}
+export async function kainchiPick(msgId: string, choice: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parsePayload(m);
+  if (!st || !st.accepted || st.done) return;
+  if (s.me !== st.challenger && s.me !== st.opponent) return;
+  const prevPicks: Record<string, string> = { ...((st.picks || {}) as Record<string, string>) };
+  if (prevPicks[s.me]) return;
+  const picks: Record<string, string> = { ...prevPicks, [s.me]: choice };
+  const challenger: string = st.challenger;
+  const opponent: string = st.opponent;
+  if (!picks[challenger] || !picks[opponent]) {
+    await updatePayloadMsg(msgId, { ...st, picks });
+    return;
+  }
+  const r = kainchiResult(picks[challenger], picks[opponent]);
+  const last = { a: picks[challenger], b: picks[opponent], w: r === "draw" ? null : (r === "a" ? challenger : opponent) };
+  if (r === "draw") {
+    await updatePayloadMsg(msgId, { ...st, picks: {}, last });
+    return;
+  }
+  const winId: string = r === "a" ? challenger : opponent;
+  const score: Record<string, number> = { ...((st.score || {}) as Record<string, number>) };
+  score[winId] = (score[winId] || 0) + 1;
+  if (score[winId] >= 2) {
+    await updatePayloadMsg(msgId, { ...st, picks, score, last, done: true, winner: winId });
+    const name = getState().members.find((x) => x.id === winId)?.name || "Koi";
+    postSystem(m.chatId, `✂️ ${name} Kainchi Pathar Kaghaz jeet gaya! 🎉`);
+    return;
+  }
+  await updatePayloadMsg(msgId, { ...st, picks: {}, score, last, round: (typeof st.round === "number" ? st.round : 1) + 1 });
+}
+
+/* ───────── G6 — Pasa Race / Ludo (🎲 2–4 players, track 0–58) ───────── */
+export async function sendPasa(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const state: any = { players: [s.me], pos: { [s.me]: 0 } as Record<string, number>, turn: s.me, started: false, host: s.me, lastRoll: null, log: [] as string[], done: false, winner: null, t: "🎲 Pasa Race — Ludo" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "pasa", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "pasa",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+export async function joinPasa(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parsePasa(m.caption);
+  if (!st || st.started) return;
+  const players: string[] = Array.isArray(st.players) ? [...st.players] : [];
+  if (players.includes(s.me) || players.length >= 4) return;
+  const pos: Record<string, number> = { ...((st.pos || {}) as Record<string, number>), [s.me]: 0 };
+  await updatePayloadMsg(msgId, { ...st, players: [...players, s.me], pos });
+}
+export async function startPasa(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parsePasa(m.caption);
+  if (!st || st.started || st.host !== s.me) return;
+  const players: string[] = Array.isArray(st.players) ? st.players : [];
+  if (players.length < 2) return;
+  await updatePayloadMsg(msgId, { ...st, started: true, turn: players[0] });
+}
+export async function rollPasa(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st: any = parsePasa(m.caption);
+  if (!st || !st.started || st.done || st.turn !== s.me) return;
+  const players: string[] = Array.isArray(st.players) ? [...st.players] : [];
+  const idx = players.indexOf(s.me);
+  if (idx < 0) return;
+  const members = getState().members;
+  const nameOf = (id: string) => members.find((x) => x.id === id)?.name || "Koi";
+  const myName = nameOf(s.me);
+  const v = 1 + Math.floor(Math.random() * 6);
+  const p: number = (st.pos && typeof st.pos[s.me] === "number") ? st.pos[s.me] : 0;
+  const pos: Record<string, number> = { ...((st.pos || {}) as Record<string, number>) };
+  const entries: string[] = [];
+  let np = p;
+  let entered = false;
+  if (p === 0) {
+    if (v === 6) { np = 1; entered = true; entries.push(`🚪 ${myName} track par aa gaya`); }
+    else { np = 0; entries.push(`🎲 ${myName} ko ${v} aaya — 6 chahiye tha`); }
+  } else {
+    np = p + v;
+    if (np > PASA_FINISH) { np = p; entries.push(`🎯 ${myName} ko exact ${PASA_FINISH - p} chahiye tha, ${v} aaya`); }
+  }
+  if (np >= 1 && np <= 52 && np !== p) {
+    const cell = pasaCell(idx, np);
+    const safeCells: any = PASA_SAFE_CELLS as any;
+    const isSafe = Array.isArray(safeCells) ? safeCells.includes(cell) : (safeCells && typeof safeCells.has === "function" ? safeCells.has(cell) : false);
+    if (!isSafe) {
+      players.forEach((oppId, oppIdx) => {
+        if (oppIdx === idx) return;
+        const oppPos: number = typeof pos[oppId] === "number" ? pos[oppId] : 0;
+        if (oppPos >= 1 && oppPos <= 52 && pasaCell(oppIdx, oppPos) === cell) {
+          pos[oppId] = 0;
+          entries.push(`💥 ${myName} ne ${nameOf(oppId)} ko maar kar wapas bhej diya!`);
+        }
+      });
+    }
+  }
+  let done = !!st.done;
+  let winner: string | null = st.winner || null;
+  if (np === PASA_FINISH) { done = true; winner = s.me; entries.push(`🏁 ${myName} finish — jeet gaya!`); }
+  pos[s.me] = np;
+  const lastRoll = { by: s.me, v };
+  let turn: string = st.turn;
+  if (done) {
+    turn = st.turn;
+  } else if (v === 6 && (entered || np !== p)) {
+    turn = s.me;
+    entries.push(`🔁 6 aane par ${myName} ki ek aur bari`);
+  } else {
+    turn = players[(idx + 1) % players.length];
+  }
+  const log: string[] = [...(Array.isArray(st.log) ? st.log : []), ...entries].slice(-5);
+  await updatePayloadMsg(msgId, { ...st, pos, lastRoll, log, done, winner, turn });
 }
