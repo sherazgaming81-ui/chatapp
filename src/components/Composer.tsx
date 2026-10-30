@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices, Trophy } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, sendPasa } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, createPasa, createTournament } from "@/lib/db";
 import { pickTruthDare } from "@/lib/fun";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
+import LudoLeaderboard from "@/components/LudoLeaderboard";
 
 // ───────── command palette ─────────
 interface Cmd { name: string; desc: string; usage: string; staff: boolean; hint?: string }
@@ -62,6 +63,8 @@ export default function Composer({ chatId }: { chatId: string }) {
   const [kainchiOpen, setKainchiOpen] = useState(false); // Fun — Kainchi Pathar Kaghaz
   const [truthDareOpen, setTruthDareOpen] = useState(false); // Fun — Truth or Dare
   const [gumnamOpen, setGumnamOpen] = useState(false); // Fun — Gumnam Paigham
+  const [tourneyOpen, setTourneyOpen] = useState(false); // 🏆 Ludo Tournament — player select modal
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false); // 🏆 Ludo Leaderboard modal
   const [photoFile, setPhotoFile] = useState<File | null>(null); // UI-11 — photo send options (caption + quality)
   const [locBusy, setLocBusy] = useState(false); // B6 location
   const mr = useRef<MediaRecorder | null>(null);
@@ -430,7 +433,9 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<BadgeCheck size={19} />} color="#23a55a" bg="#23a55a/10" label="Sach Ya Jhoot ✅" desc="Sach hai ya jhoot, batao" onClick={() => { setAttachOpen(false); sendSachJhoot(chatId); }} />
             <AttachItem icon={<Target size={19} />} color="#ed4245" bg="#ed4245/10" label="Number Guess 🎯" desc="1-100 chhupa number guess karo" onClick={() => { setAttachOpen(false); sendNumGuess(chatId); }} />
             <AttachItem icon={<Scissors size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Kainchi Pathar ✂️" desc="Dost ko challenge karo" onClick={() => { setAttachOpen(false); setKainchiOpen(true); }} />
-            <AttachItem icon={<Dices size={19} />} color="#00b0f4" bg="#00b0f4/10" label="Pasa Race 🎲" desc="Ludo style race, 2-4 players" onClick={() => { setAttachOpen(false); sendPasa(chatId); }} />
+            <AttachItem icon={<Dices size={19} />} color="#00b0f4" bg="#00b0f4/10" label="Ludo 🎲" desc="Asal Ludo — gotiyan select karke chalao, 2-4 players" onClick={() => { setAttachOpen(false); createPasa(chatId, { per: 4, timer: true, capture: true, teams: false }); }} />
+            <AttachItem icon={<Trophy size={19} />} color="#f5a623" bg="#f5a623/10" label="🏆 Ludo Tournament" desc="4 players — semi-final aur final" onClick={() => { setAttachOpen(false); setTourneyOpen(true); }} />
+            <AttachItem icon={<Trophy size={19} />} color="#5865f2" bg="#5865f2/10" label="🏆 Ludo Leaderboard" desc="Sab se zyada jeetne wale dekho" onClick={() => { setAttachOpen(false); setLeaderboardOpen(true); }} />
             <AttachItem icon={<EyeOff size={19} />} color="#5c5e66" bg="#5c5e66/10" label="Gumnam Paigham 🕵️" desc="Naam chhupa kar bhejo" onClick={() => { setAttachOpen(false); setGumnamOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
@@ -457,6 +462,8 @@ export default function Composer({ chatId }: { chatId: string }) {
       {kainchiOpen && <KainchiModal chatId={chatId} onClose={() => setKainchiOpen(false)} />}
       {truthDareOpen && <TruthDareModal chatId={chatId} onClose={() => setTruthDareOpen(false)} />}
       {gumnamOpen && <GumnamModal chatId={chatId} onClose={() => setGumnamOpen(false)} />}
+      {tourneyOpen && <TourneyModal chatId={chatId} onClose={() => setTourneyOpen(false)} />}
+      <LudoLeaderboard open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />
       {photoFile && <PhotoSendModal chatId={chatId} file={photoFile} onClose={() => setPhotoFile(null)} />}
     </div>
   );
@@ -698,6 +705,75 @@ function GumnamModal({ chatId, onClose }: { chatId: string; onClose: () => void 
           🕵️ Aapka naam kisi ko nahi dikhega — sirf owner ko pata chalega ke paigham kis ne bheja.
         </p>
         <button onClick={send} className="btn btn-blurple mt-4 flex w-full items-center justify-center gap-1.5 py-3 text-[15px]"><Send size={16} /> Gumnam bhejo</button>
+      </div>
+    </>
+  );
+}
+
+// 🏆 Ludo Tournament — 4 players select modal (PollModal/KainchiModal pattern)
+function TourneyModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const members = useStore((s) => s.members);
+  const meId = useStore((s) => s.me);
+  const [selected, setSelected] = useState<string[]>(() => (meId ? [meId] : []));
+  const busy = useRef(false);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const create = async () => {
+    if (busy.current) return;
+    if (selected.length !== 4) return;
+    busy.current = true;
+    await createTournament(chatId, selected);
+    onClose();
+  };
+
+  const exactly4 = selected.length === 4;
+  const hint =
+    selected.length < 4
+      ? `Abhi ${selected.length}/4 select hue — aur ${4 - selected.length} chuno`
+      : selected.length > 4
+        ? `Zyada ho gaye (${selected.length}/4) — ${selected.length - 4} kam karo`
+        : "Perfect! 4 players tayyar hain 🏆";
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Trophy size={19} className="text-[#f5a623]" /> Ludo Tournament 🏆</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <p className="mt-1 text-sm text-[#80848e]">Bilkul 4 players chuno — 2 semi-finals, phir final hoga. Har match 2 gotiyon wala hoga.</p>
+        <div className="mt-4 space-y-1.5">
+          {members.length === 0 && <p className="text-sm italic text-[#80848e]">Koi member nahi hai</p>}
+          {members.map((mb) => {
+            const checked = selected.includes(mb.id);
+            const isMe = mb.id === meId;
+            return (
+              <label
+                key={mb.id}
+                className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition active:scale-[0.99] ${checked ? "border-[#5865f2]/50 bg-[#5865f2]/[0.06]" : "border-black/10 hover:border-black/25"}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(mb.id)}
+                  className="h-4 w-4 shrink-0 accent-[#5865f2]"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#2f3035]">
+                  {mb.name}{isMe ? " (aap)" : ""}
+                </span>
+                {checked && <Check size={16} className="shrink-0 text-[#5865f2]" />}
+              </label>
+            );
+          })}
+        </div>
+        <p className={`mt-3 text-center text-xs font-bold ${exactly4 ? "text-[#23a55a]" : "text-[#80848e]"}`}>{hint}</p>
+        <button onClick={create} disabled={!exactly4} className="btn btn-blurple mt-3 w-full py-3 text-[15px] disabled:cursor-not-allowed disabled:opacity-50">
+          🏆 Tournament banao
+        </button>
       </div>
     </>
   );

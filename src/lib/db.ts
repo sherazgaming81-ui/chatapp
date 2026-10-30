@@ -74,7 +74,7 @@ function toMessage(r: any): Message {
   // store hota hai — DB me `caption` column hai hi nahi, wahan bhejne se insert 400
   // ho jata tha (poll waghera isi liye fail thay). Yahan text se caption wapas banao
   // aur display text alag rakho taake previews me raw JSON na dikhe.
-  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "truthdare", "gumnam", "super", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa"].includes(msg.type) && msg.text.startsWith("{")) {
+  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "truthdare", "gumnam", "super", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney"].includes(msg.type) && msg.text.startsWith("{")) {
     try {
       const d = JSON.parse(msg.text);
       msg.caption = msg.text;
@@ -1309,7 +1309,7 @@ export function startRealtime() {
 export { uid };
 
 // ───────── Phase 7 — Games & Fun ─────────
-import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer, genHisaab, parseHisaab, EMOJI_BANK, isEmojiAnswer, SACH_BANK, sachCorrectUsers, parseSachJhoot, parsePasa, pasaCell, PASA_SAFE_CELLS, PASA_FINISH, kainchiResult } from "./games";
+import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer, genHisaab, parseHisaab, EMOJI_BANK, isEmojiAnswer, SACH_BANK, sachCorrectUsers, parseSachJhoot, parsePasa, pasaCell, PASA_SAFE_CELLS, PASA_FINISH, kainchiResult, parsePasaV2, pasaBotName, pasaSixChainAfter, pasaLegalMoves, pasaPlayerDone, pasaIsOpponent, parseTourney, type PasaSettings, type PasaStateV2, type TourneyState } from "./games";
 
 /** I1 — Deen Quiz shuru karo (5 sawal, har sawal 15 sec) */
 export async function sendQuiz(chatId: string): Promise<Message | null> {
@@ -1974,11 +1974,85 @@ export async function kainchiPick(msgId: string, choice: string) {
   await updatePayloadMsg(msgId, { ...st, picks: {}, score, last, round: (typeof st.round === "number" ? st.round : 1) + 1 });
 }
 
-/* ───────── G6 — Pasa Race / Ludo (🎲 2–4 players, track 0–58) ───────── */
-export async function sendPasa(chatId: string): Promise<Message | null> {
+/* ───────── G6 — Pasa / Ludo v2 FULL engine (🎲 2–4 players, asal Ludo rules) ─────────
+   Token progress: 0=base, 1..52=track, 53..57=home column, 58=finish.
+   Rules: 6 par base se bahar + extra bari; teesra lagatar 6 zaya; opponent ki 2+ tokens
+   wali cell = block (na guzar sakte ho na land); safe cells par capture nahi; capture /
+   goti finish par extra bari (home column me ghusne par NAHI); exact roll par hi finish.
+   Bots + 10s turn timer auto-play acting-lock ke sath (ek hi client chalata hai). */
+function pasaNameOf(id: string): string {
+  return getState().members.find((x) => x.id === id)?.name || pasaBotName(id) || "Koi";
+}
+function pasaLog(st: PasaStateV2, entries: string[]): string[] {
+  return [...(Array.isArray(st.log) ? st.log : []), ...entries].slice(-8);
+}
+function pasaInitTokens(players: string[], settings: PasaSettings): Record<string, number[]> {
+  const tokens: Record<string, number[]> = {};
+  for (const p of players) tokens[p] = Array(settings.per).fill(0);
+  return tokens;
+}
+/** Bari agle active player ko: leftPlayers wala skip, pasaPlayerDone (saari 58) wala skip. */
+function pasaAdvanceTurn(st: PasaStateV2): PasaStateV2 {
+  const n = st.players.length;
+  if (n === 0) return st;
+  const from = st.players.indexOf(st.turn);
+  for (let k = 1; k <= n; k++) {
+    const cand = st.players[(from + k) % n];
+    if (!pasaPlayerDone(st, cand)) {
+      return { ...st, turn: cand, phase: "roll", roll: null, sixChain: 0, turnAt: Date.now() };
+    }
+  }
+  return { ...st, phase: "roll", roll: null, sixChain: 0, turnAt: Date.now() };
+}
+/** Tourney game khatam hone par tourney message ka slot update karo. */
+async function pasaSyncTourneySlot(st: PasaStateV2) {
+  if (!st.tourney || !st.done || !st.winner) return;
+  const tm = getState().messages.find((x) => x.id === st.tourney!.msgId);
+  if (!tm) return;
+  const ts = parseTourney(tm.caption);
+  if (!ts) return;
+  const slot = st.tourney.slot;
+  const winner = st.winner;
+  const next: TourneyState = {
+    ...ts,
+    semis: ts.semis.map((sm) => ({ ...sm })),
+    final: { ...ts.final },
+  };
+  if (slot === "semi1") next.semis[0] = { ...next.semis[0], winner };
+  else if (slot === "semi2") next.semis[1] = { ...next.semis[1], winner };
+  else if (slot === "final") { next.final = { ...next.final, winner }; next.champion = winner; }
+  if (next.semis[0].winner && next.semis[1].winner) {
+    next.final = { ...next.final, a: next.semis[0].winner, b: next.semis[1].winner };
+  }
+  await updatePayloadMsg(st.tourney.msgId, next);
+}
+
+export async function createPasa(chatId: string, settings: PasaSettings, opts?: { players?: string[]; bots?: Record<string, "easy" | "normal">; started?: boolean; tourney?: { msgId: string; slot: "semi1" | "semi2" | "final" } }): Promise<Message | null> {
   const s = getState();
   if (!chatId) return null;
-  const state: any = { players: [s.me], pos: { [s.me]: 0 } as Record<string, number>, turn: s.me, started: false, host: s.me, lastRoll: null, log: [] as string[], done: false, winner: null, t: "🎲 Pasa Race — Ludo" };
+  const players = opts?.players && opts.players.length > 0 ? [...opts.players] : [s.me];
+  const started = !!opts?.started;
+  const state: PasaStateV2 = {
+    v: 2,
+    players,
+    tokens: pasaInitTokens(players, settings),
+    turn: players[0],
+    phase: "roll",
+    roll: null,
+    sixChain: 0,
+    settings,
+    bots: opts?.bots ? { ...opts.bots } : {},
+    host: s.me,
+    started,
+    log: started ? ["🎲 Ludo shuru!"] : [],
+    done: false,
+    winner: null,
+    leftPlayers: [],
+    tourney: opts?.tourney,
+    turnAt: Date.now(),
+    lastRoll: null,
+    t: "🎲 Ludo",
+  };
   const cap = JSON.stringify(state);
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "pasa", text: state.t, at: Date.now(), reactions: {}, caption: cap };
   const ok = await insertMessageRow(m, {
@@ -1988,81 +2062,413 @@ export async function sendPasa(chatId: string): Promise<Message | null> {
   if (!ok) return null;
   return m;
 }
+/** Wrapper — purana entry point (Composer): default 4-goti, timer on, capture on, FFA. */
+export async function sendPasa(chatId: string) {
+  return createPasa(chatId, { per: 4, timer: true, capture: true, teams: false });
+}
 export async function joinPasa(msgId: string) {
   const s = getState();
   const m = s.messages.find((x) => x.id === msgId);
   if (!m) return;
-  const st: any = parsePasa(m.caption);
-  if (!st || st.started) return;
-  const players: string[] = Array.isArray(st.players) ? [...st.players] : [];
-  if (players.includes(s.me) || players.length >= 4) return;
-  const pos: Record<string, number> = { ...((st.pos || {}) as Record<string, number>), [s.me]: 0 };
-  await updatePayloadMsg(msgId, { ...st, players: [...players, s.me], pos });
+  const st = parsePasaV2(m.caption);
+  if (!st || st.started) return; // v1 message par kuch nahi
+  if (st.players.includes(s.me) || st.players.length >= 4) return;
+  const players = [...st.players, s.me];
+  const tokens = { ...st.tokens, [s.me]: Array(st.settings.per).fill(0) };
+  await updatePayloadMsg(msgId, { ...st, players, tokens });
+}
+export async function leavePasa(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || !st.players.includes(s.me)) return;
+  if (!st.started) {
+    // lobby: bilkul hata do
+    const players = st.players.filter((p) => p !== s.me);
+    const tokens = { ...st.tokens };
+    delete tokens[s.me];
+    const bots = { ...st.bots };
+    delete bots[s.me];
+    await updatePayloadMsg(msgId, { ...st, players, tokens, bots });
+    return;
+  }
+  if (st.done) return;
+  // game chal raha hai: left mark karo, tokens hatao
+  const tokens = { ...st.tokens };
+  delete tokens[s.me];
+  let next: PasaStateV2 = {
+    ...st,
+    tokens,
+    leftPlayers: [...(st.leftPlayers || []), s.me],
+    log: pasaLog(st, [`🚪 ${pasaNameOf(s.me)} game chor kar chala gaya`]),
+  };
+  // jeet check: FFA me 1 active bache to wahi winner; teams me ek hi team bache to usi ki jeet
+  const active = next.players.filter((p) => !pasaPlayerDone(next, p));
+  if (next.settings.teams) {
+    if (active.length > 0) {
+      const teamOf = (p: string) => next.players.indexOf(p) % 2;
+      if (active.every((p) => teamOf(p) === teamOf(active[0]))) {
+        next = { ...next, done: true, winner: active[0], log: pasaLog(next, [`🏆 ${pasaNameOf(active[0])} ki team jeet gayi — baaki sab chale gaye! 🎉`]) };
+      }
+    }
+  } else if (active.length === 1) {
+    next = { ...next, done: true, winner: active[0], log: pasaLog(next, [`🏆 ${pasaNameOf(active[0])} jeet gaya (baaki sab chale gaye)`]) };
+  } else if (active.length === 0) {
+    next = { ...next, done: true };
+  }
+  if (!next.done && next.turn === s.me) {
+    next = pasaAdvanceTurn(next);
+  }
+  await updatePayloadMsg(msgId, next);
+  if (next.done) await pasaSyncTourneySlot(next);
+}
+export async function addBotPasa(msgId: string, level: "easy" | "normal") {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || st.started || st.host !== s.me) return;
+  if (st.players.length >= 4) return;
+  let n = 1;
+  while (st.players.includes(`__bot_${n}`)) n++;
+  const botId = `__bot_${n}`;
+  const players = [...st.players, botId];
+  const tokens = { ...st.tokens, [botId]: Array(st.settings.per).fill(0) };
+  const bots = { ...st.bots, [botId]: level };
+  await updatePayloadMsg(msgId, { ...st, players, tokens, bots, log: pasaLog(st, [`🤖 Bot ${n} (${level}) shamil ho gaya`]) });
+}
+export async function updatePasaSettings(msgId: string, patch: Partial<PasaSettings>) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || st.started || st.host !== s.me) return;
+  const settings: PasaSettings = { ...st.settings, ...patch };
+  // per badla to saari tokens naye count se re-init
+  const tokens = settings.per !== st.settings.per ? pasaInitTokens(st.players, settings) : st.tokens;
+  await updatePayloadMsg(msgId, { ...st, settings, tokens });
 }
 export async function startPasa(msgId: string) {
   const s = getState();
   const m = s.messages.find((x) => x.id === msgId);
   if (!m) return;
-  const st: any = parsePasa(m.caption);
+  const st = parsePasaV2(m.caption);
   if (!st || st.started || st.host !== s.me) return;
-  const players: string[] = Array.isArray(st.players) ? st.players : [];
-  if (players.length < 2) return;
-  await updatePayloadMsg(msgId, { ...st, started: true, turn: players[0] });
+  if (st.players.length < 2) return;
+  if (st.settings.teams && st.players.length !== 4) return; // teams = exactly 4
+  await updatePayloadMsg(msgId, {
+    ...st, started: true, turn: st.players[0], phase: "roll", roll: null, sixChain: 0,
+    turnAt: Date.now(), log: pasaLog(st, ["🎲 Ludo shuru ho gaya!"]),
+  });
 }
-export async function rollPasa(msgId: string) {
-  const s = getState();
-  const m = s.messages.find((x) => x.id === msgId);
-  if (!m) return;
-  const st: any = parsePasa(m.caption);
-  if (!st || !st.started || st.done || st.turn !== s.me) return;
-  const players: string[] = Array.isArray(st.players) ? [...st.players] : [];
-  const idx = players.indexOf(s.me);
-  if (idx < 0) return;
-  const members = getState().members;
-  const nameOf = (id: string) => members.find((x) => x.id === id)?.name || "Koi";
-  const myName = nameOf(s.me);
+
+/** Internal: dice roll apply karo (phase "roll" par). Illegal ho to null. Turn advance andar hi hota hai jab move na ho / teesra 6 ho. */
+function pasaApplyRoll(st: PasaStateV2, playerId: string): PasaStateV2 | null {
+  if (!st.started || st.done || st.turn !== playerId || st.phase !== "roll") return null;
+  if (pasaPlayerDone(st, playerId)) return null;
   const v = 1 + Math.floor(Math.random() * 6);
-  const p: number = (st.pos && typeof st.pos[s.me] === "number") ? st.pos[s.me] : 0;
-  const pos: Record<string, number> = { ...((st.pos || {}) as Record<string, number>) };
-  const entries: string[] = [];
-  let np = p;
-  let entered = false;
-  if (p === 0) {
-    if (v === 6) { np = 1; entered = true; entries.push(`🚪 ${myName} track par aa gaya`); }
-    else { np = 0; entries.push(`🎲 ${myName} ko ${v} aaya — 6 chahiye tha`); }
-  } else {
-    np = p + v;
-    if (np > PASA_FINISH) { np = p; entries.push(`🎯 ${myName} ko exact ${PASA_FINISH - p} chahiye tha, ${v} aaya`); }
+  const sc = pasaSixChainAfter(st.sixChain, v);
+  const name = pasaNameOf(playerId);
+  let next: PasaStateV2 = { ...st, lastRoll: { by: playerId, v } };
+  if (sc.forfeited) {
+    next = { ...next, sixChain: 0, log: pasaLog(next, [`🎲 ${name} ka teesra 6 — zaya! Bari aage.`]) };
+    return pasaAdvanceTurn(next);
   }
-  if (np >= 1 && np <= 52 && np !== p) {
-    const cell = pasaCell(idx, np);
-    const safeCells: any = PASA_SAFE_CELLS as any;
-    const isSafe = Array.isArray(safeCells) ? safeCells.includes(cell) : (safeCells && typeof safeCells.has === "function" ? safeCells.has(cell) : false);
-    if (!isSafe) {
-      players.forEach((oppId, oppIdx) => {
-        if (oppIdx === idx) return;
-        const oppPos: number = typeof pos[oppId] === "number" ? pos[oppId] : 0;
-        if (oppPos >= 1 && oppPos <= 52 && pasaCell(oppIdx, oppPos) === cell) {
-          pos[oppId] = 0;
-          entries.push(`💥 ${myName} ne ${nameOf(oppId)} ko maar kar wapas bhej diya!`);
+  const legal = pasaLegalMoves(next, playerId, v);
+  if (legal.length === 0) {
+    next = { ...next, sixChain: 0, log: pasaLog(next, [`😴 ${name} ko ${v} aaya — koi move nahi`]) };
+    return pasaAdvanceTurn(next);
+  }
+  // move phase — turnAt NAHI badalte (timer poori bari ke liye hai)
+  return { ...next, roll: v, phase: "move", sixChain: sc.chain };
+}
+
+/** Internal: token move apply karo (phase "move" par). Illegal ho to null. */
+function pasaApplyMove(st: PasaStateV2, playerId: string, tokenIdx: number): PasaStateV2 | null {
+  if (!st.started || st.done || st.turn !== playerId || st.phase !== "move" || st.roll === null) return null;
+  const roll = st.roll;
+  const legal = pasaLegalMoves(st, playerId, roll);
+  if (!legal.includes(tokenIdx)) return null;
+  const myIdx = st.players.indexOf(playerId);
+  if (myIdx < 0) return null;
+  const name = pasaNameOf(playerId);
+  const toks = [...(st.tokens[playerId] || [])];
+  const t = toks[tokenIdx];
+  const nt = t === 0 ? 1 : t + roll;
+  const entries: string[] = [];
+  const tokens: Record<string, number[]> = {};
+  for (const p of st.players) tokens[p] = [...(st.tokens[p] || [])];
+  let captured = false;
+  if (t === 0) entries.push(`🚪 ${name} ki goti bahar aa gayi`);
+  // capture: track cell par, safe na ho, settings.capture on ho
+  if (nt >= 1 && nt <= 52 && st.settings.capture) {
+    const cell = pasaCell(myIdx, nt);
+    if (cell !== null && !PASA_SAFE_CELLS.includes(cell)) {
+      st.players.forEach((oppId, oppIdx) => {
+        if (!pasaIsOpponent(st, playerId, oppId)) return;
+        const oppToks = tokens[oppId];
+        if (!oppToks) return;
+        let hit = false;
+        for (let i = 0; i < oppToks.length; i++) {
+          const op = oppToks[i];
+          if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) { oppToks[i] = 0; hit = true; }
         }
+        if (hit) { captured = true; entries.push(`💥 ${name} ne ${pasaNameOf(oppId)} ki goti maar di!`); }
       });
     }
   }
-  let done = !!st.done;
-  let winner: string | null = st.winner || null;
-  if (np === PASA_FINISH) { done = true; winner = s.me; entries.push(`🏁 ${myName} finish — jeet gaya!`); }
-  pos[s.me] = np;
-  const lastRoll = { by: s.me, v };
-  let turn: string = st.turn;
-  if (done) {
-    turn = st.turn;
-  } else if (v === 6 && (entered || np !== p)) {
-    turn = s.me;
-    entries.push(`🔁 6 aane par ${myName} ki ek aur bari`);
-  } else {
-    turn = players[(idx + 1) % players.length];
+  toks[tokenIdx] = nt;
+  tokens[playerId] = toks;
+  const finishedToken = nt === 58;
+  if (finishedToken) entries.push(`🏁 ${name} ki ek goti ghar pohch gayi!`);
+  let next: PasaStateV2 = { ...st, tokens, roll: null, phase: "roll" };
+  // jeet check
+  const allHome = toks.length > 0 && toks.every((x) => x === 58);
+  if (allHome) {
+    if (next.settings.teams) {
+      const partner = next.players[(myIdx + 2) % 4];
+      if (partner && pasaPlayerDone(next, partner)) {
+        next = { ...next, done: true, winner: playerId, log: pasaLog(next, [...entries, `🏆 ${name} ki team Ludo jeet gayi! 🎉`]) };
+        return next;
+      }
+      // apni gotiyan khatam, partner abhi khel raha hai — bari aage (ye player done skip hoga)
+      return pasaAdvanceTurn({ ...next, log: pasaLog(next, entries) });
+    }
+    next = { ...next, done: true, winner: playerId, log: pasaLog(next, [...entries, `🏆 ${name} Ludo jeet gaya! 🎉`]) };
+    return next;
   }
-  const log: string[] = [...(Array.isArray(st.log) ? st.log : []), ...entries].slice(-5);
-  await updatePayloadMsg(msgId, { ...st, pos, lastRoll, log, done, winner, turn });
+  const extra = roll === 6 || captured || finishedToken;
+  if (extra) {
+    const why = roll === 6 ? "6 aaya" : captured ? "goti maari" : "goti ghar pohchi";
+    // extra bari = NAYI bari: turnAt refresh; sixChain sirf tab barqarar jab wajah 6 ho
+    next = {
+      ...next, turnAt: Date.now(),
+      sixChain: roll === 6 ? st.sixChain : 0,
+      log: pasaLog(next, [...entries, `🔁 ${name} ko ek aur bari! (${why})`]),
+    };
+    return next;
+  }
+  return pasaAdvanceTurn({ ...next, log: pasaLog(next, entries) });
+}
+
+export async function rollPasaDice(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || !st.started || st.done) return;
+  if (st.turn !== s.me || st.phase !== "roll") return;
+  if (st.bots[s.me]) return; // bot apni bari khud nahi (host autoPlay chalata hai)
+  const next = pasaApplyRoll(st, s.me);
+  if (!next) return;
+  await updatePayloadMsg(msgId, next);
+  if (next.done) await pasaSyncTourneySlot(next);
+}
+export async function movePasaToken(msgId: string, tokenIdx: number) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || !st.started || st.done) return;
+  if (st.turn !== s.me || st.phase !== "move") return;
+  if (st.bots[s.me]) return;
+  const next = pasaApplyMove(st, s.me, tokenIdx);
+  if (!next) return;
+  await updatePayloadMsg(msgId, next);
+  if (next.done) await pasaSyncTourneySlot(next);
+}
+
+/** Auto-play ke liye token choose: easy = random; normal/human = capture > finish > base se bahar > sab se aage wali goti. */
+function pasaChooseToken(st: PasaStateV2, playerId: string, level: "easy" | "normal"): number {
+  if (st.roll === null) return -1;
+  const roll = st.roll;
+  const legal = pasaLegalMoves(st, playerId, roll);
+  if (legal.length === 0) return -1;
+  if (level === "easy") return legal[Math.floor(Math.random() * legal.length)];
+  const myIdx = st.players.indexOf(playerId);
+  const toks = st.tokens[playerId] || [];
+  const scoreOf = (ti: number): number => {
+    const t = toks[ti];
+    const nt = t === 0 ? 1 : t + roll;
+    if (nt >= 1 && nt <= 52 && st.settings.capture) {
+      const cell = pasaCell(myIdx, nt);
+      if (cell !== null && !PASA_SAFE_CELLS.includes(cell)) {
+        for (const oppId of st.players) {
+          if (!pasaIsOpponent(st, playerId, oppId)) continue;
+          const oppIdx = st.players.indexOf(oppId);
+          for (const op of st.tokens[oppId] || []) {
+            if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) return 400; // capture
+          }
+        }
+      }
+    }
+    if (nt === 58) return 300; // finish
+    if (t === 0) return 200; // base se bahar
+    return 100 + nt; // sab se zyada progress
+  };
+  let best = legal[0];
+  let bestScore = -1;
+  for (const ti of legal) {
+    const sc = scoreOf(ti);
+    if (sc > bestScore) { bestScore = sc; best = ti; }
+  }
+  return best;
+}
+
+/**
+ * Bot ki bari (sirf host chalata hai) ya timer-expired insaan ki bari (sirf wohi player,
+ * 10s ke baad) auto chalao. acting lock: taaza lock (4s) kisi aur ke paas ho to ruk jao.
+ */
+export async function autoPlayPasa(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  const st = parsePasaV2(m.caption);
+  if (!st || !st.started || st.done) return;
+  let p = st.turn;
+  if (pasaPlayerDone(st, p)) return;
+  if (st.acting && Date.now() - st.acting.at < 4000 && st.acting.by !== s.me) return;
+  const isBotTurn = !!st.bots[p];
+  if (isBotTurn) {
+    if (s.me !== st.host) return; // bots sirf host chalata hai
+  } else {
+    // insaan ki bari: sirf timer on + 10s guzarne par + sirf khud us player ka client
+    if (!st.settings.timer || !st.turnAt) return;
+    if (Date.now() - st.turnAt <= 10000) return;
+    if (s.me !== p) return;
+  }
+  const lock = { by: s.me, at: Date.now() };
+  let last: PasaStateV2 = { ...st, acting: lock };
+  await updatePayloadMsg(msgId, last);
+  let finished: PasaStateV2 | null = null;
+  for (let step = 0; step < 12; step++) {
+    const fm = getState().messages.find((x) => x.id === msgId);
+    const fst = fm ? parsePasaV2(fm.caption) : null;
+    if (!fst) break;
+    if (fst.done) { last = fst; finished = fst; break; }
+    if (fst.turn !== p) {
+      if (isBotTurn && fst.bots[fst.turn]) { p = fst.turn; /* agla bot bhi chalao */ }
+      else break; // bari khatam / insaan ki bari aa gayi
+    }
+    if (pasaPlayerDone(fst, fst.turn)) break;
+    let ns: PasaStateV2 | null = null;
+    let wasMove = false;
+    if (fst.phase === "roll") {
+      ns = pasaApplyRoll(fst, fst.turn);
+    } else if (fst.phase === "move") {
+      const level = fst.bots[fst.turn] || "normal";
+      const ti = pasaChooseToken(fst, fst.turn, level);
+      if (ti < 0) break;
+      ns = pasaApplyMove(fst, fst.turn, ti);
+      wasMove = true;
+    }
+    if (!ns) break;
+    last = ns;
+    await updatePayloadMsg(msgId, { ...ns, acting: lock });
+    if (ns.done) { finished = ns; break; }
+    if (!isBotTurn) {
+      // insaan-timer: sirf EK poori bari — move ho jaye ya bari aage chali jaye to ruk jao
+      // (extra bari mile to turnAt refresh ho chuka hota hai, wahan bhi rukna hai)
+      if (wasMove) break;
+      if (ns.turn !== p) break;
+    } else {
+      await new Promise((r) => setTimeout(r, 1000)); // log dekhne ke liye bot steps me waqfa
+    }
+  }
+  await updatePayloadMsg(msgId, { ...last, acting: undefined });
+  if (finished) await pasaSyncTourneySlot(finished);
+}
+
+export async function rematchPasa(msgId: string): Promise<Message | null> {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  if (!m) return null;
+  const st = parsePasaV2(m.caption);
+  if (!st || !st.done || !st.players.includes(s.me)) return null;
+  const nm = await createPasa(m.chatId, st.settings, { players: st.players, bots: st.bots, started: true });
+  if (!nm) return null;
+  const nst = parsePasaV2(nm.caption);
+  if (nst) await updatePayloadMsg(nm.id, { ...nst, log: ["🔁 Rematch — naya match shuru!"] });
+  return nm;
+}
+
+/* ───────── G7 — Ludo Tournament (🏆 4 players, 2 semi + final) ───────── */
+export async function createTournament(chatId: string, playerIds: string[]): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !Array.isArray(playerIds) || playerIds.length !== 4) return null;
+  const state: TourneyState = {
+    players: [...playerIds],
+    semis: [
+      { a: playerIds[0], b: playerIds[1], gameId: null, winner: null },
+      { a: playerIds[2], b: playerIds[3], gameId: null, winner: null },
+    ],
+    final: { a: null, b: null, gameId: null, winner: null },
+    champion: null,
+    host: s.me,
+    t: "🏆 Ludo Tournament",
+  };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "tourney" as any, text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "tourney",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Tournament nahi bana");
+  if (!ok) return null;
+  return m;
+}
+export async function startTourneyGame(tourneyMsgId: string, slot: "semi1" | "semi2" | "final") {
+  const s = getState();
+  const tm = s.messages.find((x) => x.id === tourneyMsgId);
+  if (!tm) return;
+  const ts = parseTourney(tm.caption);
+  if (!ts || ts.host !== s.me) return;
+  let a: string | null = null;
+  let b: string | null = null;
+  let existingGameId: string | null = null;
+  if (slot === "semi1") { a = ts.semis[0].a; b = ts.semis[0].b; existingGameId = ts.semis[0].gameId; }
+  else if (slot === "semi2") { a = ts.semis[1].a; b = ts.semis[1].b; existingGameId = ts.semis[1].gameId; }
+  else { a = ts.final.a; b = ts.final.b; existingGameId = ts.final.gameId; }
+  if (!a || !b || existingGameId) return;
+  const game = await createPasa(tm.chatId, { per: 2, timer: false, capture: true, teams: false }, { players: [a, b], started: true, tourney: { msgId: tourneyMsgId, slot } });
+  if (!game) return;
+  const next: TourneyState = { ...ts, semis: ts.semis.map((sm) => ({ ...sm })), final: { ...ts.final } };
+  if (slot === "semi1") next.semis[0] = { ...next.semis[0], gameId: game.id };
+  else if (slot === "semi2") next.semis[1] = { ...next.semis[1], gameId: game.id };
+  else next.final = { ...next.final, gameId: game.id };
+  await updatePayloadMsg(tourneyMsgId, next);
+}
+export async function syncTournament(tourneyMsgId: string) {
+  const tm = getState().messages.find((x) => x.id === tourneyMsgId);
+  if (!tm) return;
+  const ts = parseTourney(tm.caption);
+  if (!ts) return;
+  const pullWinner = (gameId: string | null): string | null => {
+    if (!gameId) return null;
+    const gm = getState().messages.find((x) => x.id === gameId);
+    if (!gm) return null;
+    const gs = parsePasaV2(gm.caption);
+    return gs && gs.done && gs.winner ? gs.winner : null;
+  };
+  let changed = false;
+  const next: TourneyState = { ...ts, semis: ts.semis.map((sm) => ({ ...sm })), final: { ...ts.final } };
+  next.semis = next.semis.map((sm) => {
+    if (sm.winner) return sm;
+    const w = pullWinner(sm.gameId);
+    if (w) { changed = true; return { ...sm, winner: w }; }
+    return sm;
+  });
+  if (next.semis[0].winner && next.semis[1].winner && (next.final.a !== next.semis[0].winner || next.final.b !== next.semis[1].winner)) {
+    next.final = { ...next.final, a: next.semis[0].winner, b: next.semis[1].winner };
+    changed = true;
+  }
+  if (!next.final.winner) {
+    const w = pullWinner(next.final.gameId);
+    if (w) { next.final = { ...next.final, winner: w }; changed = true; }
+  }
+  if (next.final.winner && next.champion !== next.final.winner) {
+    next.champion = next.final.winner;
+    changed = true;
+  }
+  if (changed) await updatePayloadMsg(tourneyMsgId, next);
 }

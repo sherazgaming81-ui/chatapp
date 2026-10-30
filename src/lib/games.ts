@@ -385,3 +385,124 @@ export function parsePasa(caption?: string): PasaState | null {
   } catch { /* ignore */ }
   return null;
 }
+
+/* ───────── 7) Pasa / Ludo v2 — FULL engine (2–4 tokens, blocks, teams, bots, tournament) ─────────
+   Token progress scale: 0 = base (yard), 1..52 = track (global cell = pasaCell(idx, progress)),
+   53..57 = apni home column, 58 = finish. Jeet = saari tokens 58 par. */
+export interface PasaSettings { per: 2 | 4; timer: boolean; capture: boolean; teams: boolean }
+export interface PasaStateV2 {
+  v: 2; players: string[]; tokens: Record<string, number[]>;
+  turn: string; phase: "roll" | "move"; roll: number | null; sixChain: number;
+  settings: PasaSettings; bots: Record<string, "easy" | "normal">;
+  host: string; started: boolean; log: string[]; done: boolean; winner: string | null;
+  leftPlayers: string[]; tourney?: { msgId: string; slot: "semi1" | "semi2" | "final" };
+  turnAt?: number; acting?: { by: string; at: number };
+  lastRoll?: { by: string; v: number } | null; t: string;
+}
+export function parsePasaV2(caption?: string): PasaStateV2 | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && d.v === 2 && Array.isArray(d.players) && d.tokens && typeof d.tokens === "object" && !Array.isArray(d.tokens) && typeof d.turn === "string") return d as PasaStateV2;
+  } catch { /* ignore */ }
+  return null;
+}
+export function pasaBotName(id: string): string | null {
+  const mm = /^__bot_(\d+)$/.exec(id || "");
+  return mm ? `🤖 Bot ${mm[1]}` : null;
+}
+/** 6 aane par chain barhta hai; teesra lagatar 6 = bari zaya (forfeited). */
+export function pasaSixChainAfter(chain: number, roll: number): { chain: number; forfeited: boolean } {
+  if (roll === 6) {
+    const c = (typeof chain === "number" ? chain : 0) + 1;
+    return { chain: c, forfeited: c >= 3 };
+  }
+  return { chain: 0, forfeited: false };
+}
+/** Teams mode me partner (players[(idx+2)%4]) opponent NAHI hota. */
+export function pasaIsOpponent(st: PasaStateV2, me: string, other: string): boolean {
+  if (other === me) return false;
+  if (st.settings && st.settings.teams) {
+    const idx = st.players.indexOf(me);
+    if (idx >= 0 && st.players[(idx + 2) % 4] === other) return false;
+  }
+  return true;
+}
+/** Player khatam: chala gaya (leftPlayers) YA saari tokens 58 par. */
+export function pasaPlayerDone(st: PasaStateV2, playerId: string): boolean {
+  if (Array.isArray(st.leftPlayers) && st.leftPlayers.includes(playerId)) return true;
+  const toks = st.tokens ? st.tokens[playerId] : undefined;
+  if (!Array.isArray(toks) || toks.length === 0) return false;
+  return toks.every((t) => t === 58);
+}
+/**
+ * Legal token indices jo `roll` se chal sakti hain.
+ * Rules: base (0) se sirf 6 par; 58 wali nahi chalti; exact roll lazmi (nt>58 illegal);
+ * opponent ki 2+ tokens wali cell (block) se na guzar sakte ho na land kar sakte ho;
+ * apni block/tokens se guzarna hamesha legal; home column (53..57) hamesha safe.
+ */
+export function pasaLegalMoves(st: PasaStateV2, playerId: string, roll: number): number[] {
+  if (!Number.isInteger(roll) || roll < 1 || roll > 6) return [];
+  const toks = st.tokens ? st.tokens[playerId] : undefined;
+  if (!Array.isArray(toks)) return [];
+  const myIdx = st.players.indexOf(playerId);
+  if (myIdx < 0) return [];
+  // global cell -> playerId -> token count (sirf track wali tokens, progress 1..52)
+  const cellCounts = new Map<number, Map<string, number>>();
+  st.players.forEach((pid, pIdx) => {
+    const pt = st.tokens ? st.tokens[pid] : undefined;
+    if (!Array.isArray(pt)) return;
+    for (const t of pt) {
+      if (typeof t !== "number" || t < 1 || t > 52) continue;
+      const cell = pasaCell(pIdx, t);
+      if (cell === null) continue;
+      let mm = cellCounts.get(cell);
+      if (!mm) { mm = new Map<string, number>(); cellCounts.set(cell, mm); }
+      mm.set(pid, (mm.get(pid) || 0) + 1);
+    }
+  });
+  const oppBlockAt = (cell: number | null): boolean => {
+    if (cell === null) return false;
+    const mm = cellCounts.get(cell);
+    if (!mm) return false;
+    for (const [pid, c] of mm) {
+      if (c >= 2 && pasaIsOpponent(st, playerId, pid)) return true;
+    }
+    return false;
+  };
+  const out: number[] = [];
+  toks.forEach((t, ti) => {
+    if (typeof t !== "number" || t === 58) return;
+    if (t === 0) {
+      if (roll !== 6) return;
+      if (oppBlockAt(pasaCell(myIdx, 1))) return;
+      out.push(ti);
+      return;
+    }
+    if (t >= 1) {
+      const nt = t + roll;
+      if (nt > 58) return;
+      // raste ke har step (track hisse tak) par opponent block check
+      const lastTrackStep = Math.min(nt, 52);
+      for (let step = t + 1; step <= lastTrackStep; step++) {
+        if (oppBlockAt(pasaCell(myIdx, step))) return;
+      }
+      out.push(ti);
+    }
+  });
+  return out;
+}
+
+/* ───────── 8) Ludo Tournament (4 players, 2 semis + final) ───────── */
+export interface TourneyState {
+  players: string[];
+  semis: { a: string; b: string; gameId: string | null; winner: string | null }[];
+  final: { a: string | null; b: string | null; gameId: string | null; winner: string | null };
+  champion: string | null; host: string; t: string;
+}
+export function parseTourney(caption?: string): TourneyState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && Array.isArray(d.players) && Array.isArray(d.semis) && d.semis.length === 2 && d.final && typeof d.final === "object" && !Array.isArray(d.final) && typeof d.host === "string") return d as TourneyState;
+  } catch { /* ignore */ }
+  return null;
+}

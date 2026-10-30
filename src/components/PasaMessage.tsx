@@ -1,14 +1,47 @@
 "use client";
-// Fun — Pasa Race (Ludo style): 2–4 players join, host start, bari bari pasa — 58 tak race
-// Board: asal 15x15 Ludo board (4 rang ke ghar, patri, home columns, center) — reference wali classic mapping
-import { Trophy } from "lucide-react";
+// Fun — Pasa Race (Ludo FULL): 2–4 players (+ bots), 2/4 gotiyan, teams, 10s timer,
+// capture, tournament. Board = asal 15x15 Ludo board, tokens overlay layer me
+// SLIDE hokar chalte hain. Board ki SARI styling src/lib/boardSkin.ts se ati hai —
+// yahan board visuals ke liye koi hardcoded rang nahi.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Trophy, Volume2, VolumeX, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { parsePasa, PASA_COLORS, PASA_SAFE_CELLS, pasaCell } from "@/lib/games";
-import { joinPasa, startPasa, rollPasa } from "@/lib/db";
+import {
+  parsePasa,
+  parsePasaV2,
+  pasaLegalMoves,
+  pasaPlayerDone,
+  pasaBotName,
+  PASA_COLORS,
+  PASA_SAFE_CELLS,
+  pasaCell,
+} from "@/lib/games";
+import {
+  joinPasa,
+  leavePasa,
+  addBotPasa,
+  updatePasaSettings,
+  startPasa,
+  rollPasaDice,
+  movePasaToken,
+  autoPlayPasa,
+  rematchPasa,
+} from "@/lib/db";
 import type { Message } from "@/lib/types";
+import { BOARD_SKIN } from "@/lib/boardSkin";
+import {
+  isPasaMuted,
+  setPasaMuted,
+  playDice,
+  playMove,
+  playCapture,
+  playWin,
+  playTurn,
+} from "@/lib/pasaSound";
+import FxOverlay from "./FxOverlay";
+import LudoLeaderboard from "./LudoLeaderboard";
 
-interface PPlayer { id: string; pos: number; host?: boolean }
-
+/* ───────── board geometry (LAYOUT — skin nahi) ───────── */
 // 52-cell patri: global cell index -> [row, col] (15x15 board, 0-indexed)
 const PATH: [number, number][] = [
   [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
@@ -16,256 +49,914 @@ const PATH: [number, number][] = [
   [8, 13], [8, 12], [8, 11], [8, 10], [8, 9], [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8], [14, 7], [14, 6],
   [13, 6], [12, 6], [11, 6], [10, 6], [9, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0], [7, 0], [6, 0],
 ];
-// [row, col] -> global cell lookup
 const CELL_OF_RC = new Map<string, number>();
 PATH.forEach(([r, c], i) => CELL_OF_RC.set(`${r},${c}`, i));
 
 // har player ki home-stretch: progress 53..57 -> 5 rang-dar cells
 const HOME_CELLS: [number, number][][] = [
-  [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],       // 🔴 red — left arm ki darmiyani row
-  [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],       // 🟢 green — top arm ki darmiyani column
-  [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]],   // 🟡 yellow — right arm ki darmiyani row
-  [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],   // 🔵 blue — bottom arm ki darmiyani column
+  [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
+  [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
+  [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]],
+  [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
 ];
 const HOME_RC = new Map<string, number>();
 HOME_CELLS.forEach((cells, idx) => cells.forEach(([r, c]) => HOME_RC.set(`${r},${c}`, idx)));
 
-const HEX = ["#e63329", "#00a651", "#f5a800", "#1e6fd9"]; // red, green, yellow, blue
 const YARDS: { r: number; c: number }[] = [
   { r: 0, c: 0 },   // red — top-left
   { r: 0, c: 9 },   // green — top-right
   { r: 9, c: 9 },   // yellow — bottom-right
   { r: 9, c: 0 },   // blue — bottom-left
 ];
-
-function TokenDot({ idx, small, pulse }: { idx: number; small?: boolean; pulse?: boolean }) {
-  return (
-    <span
-      className={`inline-block rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.45)] ${pulse ? "animate-pulse" : ""}`}
-      style={{
-        backgroundColor: HEX[idx],
-        width: small ? "72%" : "82%",
-        height: small ? "72%" : "82%",
-      }}
-    />
-  );
+// yard ke andar ke 4 circles ke centers (continuous cell coords, yard origin se offset)
+// inner white box 0.96..5.04 cells par hai; circles us ke 25% / 75% par
+const YARD_OFF = [1.98, 4.02];
+function yardSlotPos(yardIdx: number, slot: number): { row: number; col: number } {
+  const y = YARDS[yardIdx];
+  const dr = YARD_OFF[slot >= 2 ? 1 : 0]; // slots: 0=TL 1=TR 2=BL 3=BR
+  const dc = YARD_OFF[slot % 2 === 1 ? 1 : 0];
+  return { row: y.r + dr, col: y.c + dc };
 }
 
-function LudoBoard({ players, turnId, running }: { players: PPlayer[]; turnId: string | null; running: boolean }) {
-  // kis cell par kaun se players hain
-  const tokensAt = new Map<string, number[]>();
-  const inBase = new Set<number>();
-  const finishedIdx: number[] = [];
-  const put = (r: number, c: number, idx: number) => {
-    const k = `${r},${c}`;
-    const arr = tokensAt.get(k) || [];
-    arr.push(idx);
-    tokensAt.set(k, arr);
-  };
-  players.forEach((p, idx) => {
-    if (p.pos >= 58) finishedIdx.push(idx);
-    else if (p.pos >= 53) { const rc = HOME_CELLS[idx][p.pos - 53]; if (rc) put(rc[0], rc[1], idx); }
-    else if (p.pos >= 1) {
-      const cell = pasaCell(idx, p.pos);
-      const rc = cell !== null ? PATH[cell] : null;
-      if (rc) put(rc[0], rc[1], idx);
-    } else inBase.add(idx);
+// start cells par asal simt ke arrows: red →, green ↓, yellow ←, blue ↑
+const START_ARROWS: Record<number, string> = { 0: "→", 13: "↓", 26: "←", 39: "↑" };
+const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+const SAFE_SET = new Set<number>((PASA_SAFE_CELLS as unknown as number[]) || []);
+// finish tokens center ke andar — player ke kone ki taraf offset
+const FINISH_OFF: [number, number][] = [[-0.78, -0.78], [-0.78, 0.78], [0.78, 0.78], [0.78, -0.78]];
+const FINISH_JITTER: [number, number][] = [[-0.34, -0.34], [0.34, -0.34], [-0.34, 0.34], [0.34, 0.34]];
+// ek cell par kai tokens — 2x2 mini offsets (cell units)
+const STACK_OFF: [number, number][] = [[-0.21, -0.21], [0.21, -0.21], [-0.21, 0.21], [0.21, 0.21]];
+
+/* ───────── contract helpers (engine lane ke functions, defensive) ───────── */
+type St = any;
+function safeLegalMoves(st: St, pid: string, roll: number | null): number[] {
+  if (roll === null || roll === undefined) return [];
+  try {
+    const r: any = (pasaLegalMoves as any)(st, pid, roll);
+    if (Array.isArray(r)) return r.filter((x: any) => typeof x === "number");
+  } catch { /* fallback neeche */ }
+  // fallback: basic legal (0 par 6 chahiye, 58 se agay nahi)
+  try {
+    const toks: number[] = Array.isArray(st?.tokens?.[pid]) ? st.tokens[pid] : [];
+    return toks
+      .map((p: number, i: number) => ({ p, i }))
+      .filter(({ p }) => (p === 0 ? roll === 6 : p + roll <= 58))
+      .map(({ i }) => i);
+  } catch { return []; }
+}
+function safePlayerDone(st: St, pid: string): boolean {
+  try {
+    const r: any = (pasaPlayerDone as any)(st, pid);
+    if (typeof r === "boolean") return r;
+  } catch { /* fallback */ }
+  const toks: number[] = Array.isArray(st?.tokens?.[pid]) ? st.tokens[pid] : [];
+  return toks.length > 0 && toks.every((p: number) => p >= 58);
+}
+function safeBotName(id: string): string | null {
+  try {
+    const r: any = (pasaBotName as any)(id);
+    if (typeof r === "string" && r) return r;
+  } catch { /* ignore */ }
+  if (typeof id === "string" && id.startsWith("__bot")) return "🤖 Bot";
+  return null;
+}
+const callDb = (fn: (...a: any[]) => any, ...args: any[]) => {
+  try { const r = fn(...args); if (r && typeof r.catch === "function") r.catch(() => {}); } catch { /* ignore */ }
+};
+
+/* ───────── LudoBoard — card aur fullscreen modal dono me reuse ───────── */
+interface TokenRender {
+  key: string; pIdx: number; pid: string; ti: number; prog: number;
+  row: number; col: number; stackN: number; stackI: number;
+}
+function LudoBoard({
+  st, interactive, selected, legalMoves, myIdx, dangerSet, destPos, captureFlash, glowIdx, onTokenTap, onBoardTap,
+}: {
+  st: St;
+  interactive: boolean;
+  selected: number | null;
+  legalMoves: number[];
+  myIdx: number;
+  dangerSet: Set<string>;
+  destPos: { row: number; col: number } | null;
+  captureFlash: { row: number; col: number; k: number } | null;
+  glowIdx: number;
+  onTokenTap?: (pIdx: number, ti: number) => void;
+  onBoardTap?: () => void;
+}) {
+  const skin = BOARD_SKIN;
+  const players: string[] = Array.isArray(st?.players) ? st.players : [];
+  const per: number = st?.settings?.per === 4 ? 4 : 2;
+
+  // tokens ki render list (positions continuous cell coords me)
+  const renders: TokenRender[] = [];
+  const groups = new Map<string, TokenRender[]>();
+  players.forEach((pid, pIdx) => {
+    const toks: number[] = Array.isArray(st?.tokens?.[pid]) ? st.tokens[pid] : [];
+    toks.slice(0, per).forEach((prog, ti) => {
+      let row = 0, col = 0, gk = "";
+      if (prog >= 58) {
+        const fo = FINISH_OFF[pIdx] || [0, 0];
+        const fj = FINISH_JITTER[ti] || [0, 0];
+        row = 7.5 + fo[0] + fj[0] * 0.8;
+        col = 7.5 + fo[1] + fj[1] * 0.8;
+        gk = `fin-${pIdx}-${ti}`;
+      } else if (prog >= 53) {
+        const rc = HOME_CELLS[pIdx]?.[prog - 53];
+        if (!rc) return;
+        row = rc[0] + 0.5; col = rc[1] + 0.5; gk = `c-${rc[0]}-${rc[1]}`;
+      } else if (prog >= 1) {
+        let cell: number | null = null;
+        try { cell = pasaCell(pIdx, prog); } catch { cell = null; }
+        const rc = cell !== null && cell !== undefined ? PATH[cell] : null;
+        if (!rc) return;
+        row = rc[0] + 0.5; col = rc[1] + 0.5; gk = `c-${rc[0]}-${rc[1]}`;
+      } else {
+        const pos = yardSlotPos(pIdx, ti);
+        row = pos.row; col = pos.col; gk = `base-${pIdx}-${ti}`;
+      }
+      const tr: TokenRender = { key: `${pid}:${ti}`, pIdx, pid, ti, prog, row, col, stackN: 1, stackI: 0 };
+      renders.push(tr);
+      const arr = groups.get(gk) || [];
+      arr.push(tr);
+      groups.set(gk, arr);
+    });
   });
-  const turnIdx = turnId ? players.findIndex((p) => p.id === turnId) : -1;
+  groups.forEach((arr) => arr.forEach((tr, i) => { tr.stackN = arr.length; tr.stackI = i; }));
+  // kaunsi track cells occupied hain (start arrow chhupane ke liye)
+  const occupiedCells = new Set<string>();
+  renders.forEach((tr) => {
+    if (tr.prog >= 1 && tr.prog <= 57) occupiedCells.add(`${Math.floor(tr.row)},${Math.floor(tr.col)}`);
+  });
 
   const cellBg = (r: number, c: number): string => {
-    // yards (6x6 kone)
-    if (r < 6 && c < 6) return HEX[0];
-    if (r < 6 && c > 8) return HEX[1];
-    if (r > 8 && c > 8) return HEX[2];
-    if (r > 8 && c < 6) return HEX[3];
-    // center overlay se dhaka hai
-    if (r >= 6 && r <= 8 && c >= 6 && c <= 8) return "#ffffff";
-    // home-stretch cells
+    if (r < 6 && c < 6) return skin.playerColors[0];
+    if (r < 6 && c > 8) return skin.playerColors[1];
+    if (r > 8 && c > 8) return skin.playerColors[2];
+    if (r > 8 && c < 6) return skin.playerColors[3];
+    if (r >= 6 && r <= 8 && c >= 6 && c <= 8) return skin.cellBg;
     const h = HOME_RC.get(`${r},${c}`);
-    if (h !== undefined) return HEX[h];
-    // start cells (har player ka pehla cell usi ke rang ka)
+    if (h !== undefined) return skin.playerColors[h];
     const cell = CELL_OF_RC.get(`${r},${c}`);
-    if (cell !== undefined && cell % 13 === 0) return HEX[cell / 13];
-    return "#ffffff";
+    if (cell !== undefined && cell % 13 === 0) return skin.playerColors[cell / 13];
+    return skin.cellBg;
   };
 
-  return (
-    <div className="relative mx-auto mt-2.5 w-full max-w-[336px] select-none">
-      <div className="grid overflow-hidden rounded-md border-2 border-black/50" style={{ gridTemplateColumns: "repeat(15, minmax(0,1fr))" }}>
-        {Array.from({ length: 225 }).map((_, i) => {
-          const r = Math.floor(i / 15), c = i % 15;
-          const k = `${r},${c}`;
-          const cell = CELL_OF_RC.get(k);
-          const isSafe = cell !== undefined && (PASA_SAFE_CELLS as number[]).includes(cell);
-          const toks = tokensAt.get(k) || [];
-          return (
-            <div key={i} className="relative flex aspect-square items-center justify-center border-[0.5px] border-black/25" style={{ backgroundColor: cellBg(r, c) }}>
-              {isSafe && toks.length === 0 && <span className="text-[9px] leading-none text-black/45">★</span>}
-              {toks.length > 0 && (
-                <span className={`flex flex-wrap items-center justify-center ${toks.length > 1 ? "h-full w-full p-[1px]" : "h-full w-full"}`}>
-                  {toks.map((idx) => (
-                    <span key={idx} className={`flex items-center justify-center ${toks.length > 1 ? "h-1/2 w-1/2" : "h-full w-full"}`}>
-                      <TokenDot idx={idx} small={toks.length > 1} pulse={running && idx === turnIdx} />
-                    </span>
-                  ))}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+  const glowShadow = glowIdx >= 0
+    ? `0 0 0 3px ${skin.playerColors[glowIdx]}, 0 0 22px 4px ${skin.playerColors[glowIdx]}`
+    : undefined;
 
-      {/* yards ke andar safed box + 4 circles (classic look) */}
-      {YARDS.map((y, idx) => (
-        <div key={idx} className="absolute" style={{ left: `${(y.c / 15) * 100}%`, top: `${(y.r / 15) * 100}%`, width: "40%", height: "40%" }}>
-          <div className="absolute rounded-[18%] bg-white" style={{ left: "16%", top: "16%", width: "68%", height: "68%" }}>
-            <div className="grid h-full w-full grid-cols-2 place-items-center p-[8%]">
-              {[0, 1, 2, 3].map((slot) => {
-                // token center ke sab se qareeb wale circle me: red=bottom-right(3), green=bottom-left(2), yellow=top-left(0), blue=top-right(1)
-                const tokenSlot = [3, 2, 0, 1][idx];
-                return (
-                  <span key={slot} className="flex aspect-square w-[72%] items-center justify-center rounded-full border-[2.5px] bg-white" style={{ borderColor: HEX[idx] }}>
-                    {inBase.has(idx) && slot === tokenSlot && <TokenDot idx={idx} pulse={running && idx === turnIdx} />}
+  return (
+    <div
+      onClick={onBoardTap}
+      className="relative mx-auto w-full select-none"
+      style={{
+        border: skin.frame.border,
+        background: skin.frame.background,
+        padding: skin.frame.padding,
+        borderRadius: skin.frame.borderRadius,
+        boxShadow: glowShadow ? `${skin.frame.shadow}, ${glowShadow}` : skin.frame.shadow,
+        cursor: onBoardTap ? "zoom-in" : undefined,
+      }}
+    >
+      <div
+        className="relative w-full overflow-hidden"
+        style={{ border: skin.boardBorder, borderRadius: 6, background: skin.cellBg }}
+      >
+        {/* 15x15 cells */}
+        <div className="grid" style={{ gridTemplateColumns: "repeat(15, minmax(0,1fr))" }}>
+          {Array.from({ length: 225 }).map((_, i) => {
+            const r = Math.floor(i / 15), c = i % 15;
+            const cell = CELL_OF_RC.get(`${r},${c}`);
+            const isSafe = cell !== undefined && SAFE_SET.has(cell);
+            const isStart = cell !== undefined && cell % 13 === 0;
+            const showArrow = isStart && !occupiedCells.has(`${r},${c}`);
+            return (
+              <div
+                key={i}
+                className="relative flex aspect-square items-center justify-center"
+                style={{ backgroundColor: cellBg(r, c), boxShadow: `inset 0 0 0 0.5px ${skin.cellBorder}` }}
+              >
+                {isSafe && (
+                  <span style={{ color: skin.safeMarkColor, fontSize: "clamp(9px, 2.6vw, 15px)", lineHeight: 1 }}>★</span>
+                )}
+                {showArrow && (
+                  <span style={{ color: skin.arrowColor, fontSize: "clamp(8px, 2.2vw, 13px)", lineHeight: 1, fontWeight: 800 }}>
+                    {START_ARROWS[cell as number]}
                   </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* overlay layer */}
+        <div className="pointer-events-none absolute inset-0">
+          {/* yards ke safed box + circles */}
+          {YARDS.map((y, idx) => (
+            <div key={`yard-${idx}`}>
+              <div
+                className="absolute"
+                style={{
+                  left: `${((y.c + 0.96) / 15) * 100}%`,
+                  top: `${((y.r + 0.96) / 15) * 100}%`,
+                  width: `${(4.08 / 15) * 100}%`,
+                  height: `${(4.08 / 15) * 100}%`,
+                  background: skin.yardInnerBg,
+                  borderRadius: "16%",
+                }}
+              />
+              {[0, 1, 2, 3].map((slot) => {
+                const pos = yardSlotPos(idx, slot);
+                return (
+                  <div
+                    key={slot}
+                    className="absolute rounded-full"
+                    style={{
+                      left: `${(pos.col / 15) * 100}%`,
+                      top: `${(pos.row / 15) * 100}%`,
+                      width: `${(1.55 / 15) * 100}%`,
+                      aspectRatio: "1",
+                      transform: "translate(-50%,-50%)",
+                      border: `2.5px solid ${skin.playerColors[idx]}`,
+                      background: skin.yardInnerBg,
+                    }}
+                  />
                 );
               })}
             </div>
-          </div>
-        </div>
-      ))}
+          ))}
 
-      {/* center — 4 triangles (upar green, right yellow, neeche blue, left red) */}
-      <div
-        className="absolute flex items-center justify-center"
-        style={{
-          left: "40%", top: "40%", width: "20%", height: "20%",
-          background: "conic-gradient(from 45deg, #f5a800 0deg 90deg, #1e6fd9 90deg 180deg, #e63329 180deg 270deg, #00a651 270deg 360deg)",
-        }}
-      >
-        {finishedIdx.length > 0 && (
-          <span className="flex gap-0.5 rounded-full bg-white/85 p-0.5">
-            {finishedIdx.map((idx) => (
-              <span key={idx} className="flex h-3.5 w-3.5 items-center justify-center"><TokenDot idx={idx} /></span>
-            ))}
-          </span>
-        )}
+          {/* center — 4 triangles (left red, top green, right yellow, bottom blue) */}
+          <div
+            className="absolute"
+            style={{
+              left: "40%", top: "40%", width: "20%", height: "20%",
+              background: `conic-gradient(from 45deg, ${skin.centerColors[2]} 0deg 90deg, ${skin.centerColors[3]} 90deg 180deg, ${skin.centerColors[0]} 180deg 270deg, ${skin.centerColors[1]} 270deg 360deg)`,
+              boxShadow: `inset 0 0 0 1px ${skin.cellBorder}`,
+            }}
+          />
+
+          {/* destination halo */}
+          {destPos && (
+            <div
+              className="absolute animate-pulse rounded-full"
+              style={{
+                left: `${(destPos.col / 15) * 100}%`,
+                top: `${(destPos.row / 15) * 100}%`,
+                width: `${(1 / 15) * 100}%`,
+                aspectRatio: "1",
+                transform: "translate(-50%,-50%)",
+                border: `3px solid ${skin.haloColor}`,
+                boxShadow: `0 0 0 2px rgba(255,255,255,0.7), 0 0 14px ${skin.haloColor}`,
+                zIndex: 5,
+              }}
+            />
+          )}
+
+          {/* capture flash */}
+          {captureFlash && (
+            <div
+              key={captureFlash.k}
+              className="pasa-flash absolute"
+              style={{
+                left: `${(captureFlash.col / 15) * 100}%`,
+                top: `${(captureFlash.row / 15) * 100}%`,
+                fontSize: 30,
+                zIndex: 30,
+              }}
+            >
+              💥
+            </div>
+          )}
+
+          {/* TOKENS — slide transition ke sath */}
+          {renders.map((tr) => {
+            const stacked = tr.stackN > 1;
+            const off = stacked ? STACK_OFF[tr.stackI % 4] : [0, 0];
+            const row = tr.row + (off[0] as number);
+            const col = tr.col + (off[1] as number);
+            const sizeFrac = stacked ? 0.55 : 0.78;
+            const isLegal = interactive && tr.pIdx === myIdx && legalMoves.includes(tr.ti);
+            const isSel = selected !== null && tr.pIdx === myIdx && tr.ti === selected;
+            const danger = dangerSet.has(`${tr.pid}:${tr.ti}`);
+            return (
+              <div
+                key={tr.key}
+                onClick={interactive ? (e) => { e.stopPropagation(); onTokenTap?.(tr.pIdx, tr.ti); } : undefined}
+                className={`absolute rounded-full ${isLegal ? "animate-pulse" : ""}`}
+                style={{
+                  left: `${(col / 15) * 100}%`,
+                  top: `${(row / 15) * 100}%`,
+                  width: `${(sizeFrac / 15) * 100}%`,
+                  aspectRatio: "1",
+                  transform: `translate(-50%,-50%)${isSel ? " scale(1.22)" : ""}`,
+                  transition: "left .45s ease, top .45s ease, transform .18s ease",
+                  background: skin.playerColors[tr.pIdx],
+                  border: `2px solid ${skin.token.borderColor}`,
+                  boxShadow: isSel
+                    ? `0 0 0 3px ${skin.haloColor}, ${skin.token.shadow}`
+                    : isLegal
+                      ? `0 0 0 3px ${skin.haloColor}, 0 0 12px ${skin.haloColor}, ${skin.token.shadow}`
+                      : skin.token.shadow,
+                  zIndex: isSel ? 22 : isLegal ? 21 : 20,
+                  cursor: interactive ? "pointer" : undefined,
+                  pointerEvents: interactive ? "auto" : "none",
+                }}
+              >
+                <span
+                  className="absolute rounded-full"
+                  style={{
+                    left: "50%", top: "50%", width: "42%", height: "42%",
+                    transform: "translate(-50%,-50%)",
+                    background: skin.token.innerDot,
+                  }}
+                />
+                {/* #22 number badge */}
+                <span
+                  className="absolute flex items-center justify-center rounded-full font-extrabold"
+                  style={{
+                    right: -3, top: -3, minWidth: 11, height: 11, padding: "0 2px",
+                    background: "#ffffff", color: "#2f3035", fontSize: 8, lineHeight: 1,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {tr.ti + 1}
+                </span>
+                {danger && (
+                  <span className="absolute" style={{ right: -5, bottom: -5, fontSize: 10, lineHeight: 1 }}>⚠️</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
+/* ───────── main card ───────── */
 export default function PasaMessage({ m }: { m: Message }) {
-  const st: any = parsePasa(m.caption);
   const members = useStore((s) => s.members);
   const me = useStore((s) => s.me);
+  const allMessages = useStore((s) => s.messages);
 
-  if (!st) return <p className="text-sm italic text-[#80848e]">Game load nahi hua</p>;
+  // parse: pehle v2, warna v1 fallback
+  let st: St = null;
+  try { st = (parsePasaV2 as any)(m.caption); } catch { st = null; }
+  let v1: any = null;
+  if (!st) { try { v1 = parsePasa(m.caption); } catch { v1 = null; } }
+  const isV2 = !!st && (st.v === 2 || st.tokens);
 
-  const nameOf = (id: string | null | undefined) => members.find((x) => x.id === id)?.name || "Member";
-  const idOf = (v: any): string | null =>
-    typeof v === "string" ? v : v && typeof v === "object" ? (v.by || v.id || v.winner || null) : null;
+  /* hooks — hamesha chalte hain (early return se pehle) */
+  const [selected, setSelected] = useState<number | null>(null);
+  const [muted, setMutedState] = useState<boolean>(() => isPasaMuted());
+  const [showRules, setShowRules] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [lbOpen, setLbOpen] = useState(false);
+  const [showFx, setShowFx] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const [captureFlash, setCaptureFlash] = useState<{ row: number; col: number; k: number } | null>(null);
+  const [diceShown, setDiceShown] = useState<number>(1);
+  const [diceRolling, setDiceRolling] = useState(false);
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
 
-  // players normalize: string[] + pos record/array, ya { id, pos }[]
-  const posOfRaw = (id: string, idx: number, p: any): number => {
-    if (p && typeof p === "object" && typeof (p.pos ?? p.position) === "number") return p.pos ?? p.position;
-    const rec: any = st.pos && typeof st.pos === "object" ? st.pos : st.positions && typeof st.positions === "object" ? st.positions : null;
-    if (Array.isArray(rec) && typeof rec[idx] === "number") return rec[idx];
-    if (rec && typeof rec[id] === "number") return rec[id];
-    return 0;
+  const prevLogLenRef = useRef<number>(-1);
+  const prevTokensRef = useRef<string | null>(null);
+  const prevTurnRef = useRef<string | null>(null);
+  const prevRollKeyRef = useRef<string | null>(null);
+  const fxDoneRef = useRef<boolean>(false);
+  const autoGuardRef = useRef<string>("");
+  const refMsgRef = useRef<string>("");
+
+  const players: string[] = isV2 && Array.isArray(st.players) ? st.players : [];
+  const turnId: string | null = isV2
+    ? (typeof st.turn === "number" ? players[st.turn] || null : typeof st.turn === "string" ? st.turn : null)
+    : null;
+  const turnIdx = turnId ? players.indexOf(turnId) : -1;
+  const myIdx = players.indexOf(me);
+  const isMyTurn = !!st && st.started && !st.done && turnId === me;
+  const rollVal: number | null = isV2 ? (typeof st.roll === "number" ? st.roll : st.lastRoll?.v ?? null) : null;
+  const legalMoves = useMemo<number[]>(
+    () => (isV2 && isMyTurn && st.phase === "move" ? safeLegalMoves(st, me, st.roll) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isV2, isMyTurn, st?.phase, st?.roll, st?.tokens, me]
+  );
+
+  const nameOf = (id: string | null | undefined): string => {
+    if (!id) return "Member";
+    return members.find((x) => x.id === id)?.name || safeBotName(id) || "Member";
   };
-  const players: PPlayer[] = Array.isArray(st.players)
-    ? st.players.map((p: any, idx: number) => {
-        const id = typeof p === "string" ? p : (p?.id || p?.by || "");
-        return { id, pos: posOfRaw(id, idx, p), host: !!(p && typeof p === "object" && p.host) };
-      }).filter((p: PPlayer) => !!p.id)
-    : [];
 
-  const hostId: string | null = typeof st.host === "string" ? st.host : players.find((p) => p.host)?.id || null;
-  const isHost = (p: PPlayer) => p.host || (hostId !== null && p.id === hostId);
-  const joined = players.some((p) => p.id === me);
-  const iAmHost = hostId !== null ? me === hostId : players[0]?.id === me;
+  /* champion 👑 — is chat ki sab se recent done v2 game ka winner */
+  const championId = useMemo<string | null>(() => {
+    let best: { at: number; winner: string } | null = null;
+    try {
+      for (const mm of allMessages) {
+        if (mm.chatId !== m.chatId || mm.type !== "pasa") continue;
+        let g: any = null;
+        try { g = (parsePasaV2 as any)(mm.caption); } catch { g = null; }
+        if (g && g.done && typeof g.winner === "string") {
+          if (!best || mm.at > best.at) best = { at: mm.at, winner: g.winner };
+        }
+      }
+    } catch { /* ignore */ }
+    return best ? best.winner : null;
+  }, [allMessages, m.chatId]);
 
-  const turnId: string | null = typeof st.turn === "number" ? players[st.turn]?.id || null : idOf(st.turn) || (typeof st.turn === "string" ? st.turn : null);
-  const winnerId = idOf(st.winner);
+  /* khatra ⚠️ — track par ghair-safe token, opponent 1..6 peeche */
+  const { dangerTokens, dangerPlayers } = useMemo(() => {
+    const dt = new Set<string>();
+    const dp = new Set<string>();
+    if (isV2 && st.started && !st.done) {
+      try {
+        const teams: boolean = !!st.settings?.teams;
+        const partnerOf = (idx: number) => (idx + 2) % 4;
+        players.forEach((pid, idx) => {
+          const toks: number[] = Array.isArray(st.tokens?.[pid]) ? st.tokens[pid] : [];
+          toks.forEach((prog, ti) => {
+            if (prog < 1 || prog > 52) return;
+            const g = pasaCell(idx, prog);
+            if (g === null || g === undefined || SAFE_SET.has(g)) return;
+            players.forEach((opid, oidx) => {
+              if (oidx === idx) return;
+              if (teams && players.length === 4 && partnerOf(idx) === oidx) return;
+              const otoks: number[] = Array.isArray(st.tokens?.[opid]) ? st.tokens[opid] : [];
+              otoks.forEach((oprog) => {
+                if (oprog < 1 || oprog > 52) return;
+                const go = pasaCell(oidx, oprog);
+                if (go === null || go === undefined) return;
+                const dist = (g - go + 52) % 52;
+                if (dist >= 1 && dist <= 6) { dt.add(`${pid}:${ti}`); dp.add(pid); }
+              });
+            });
+          });
+        });
+      } catch { /* ignore */ }
+    }
+    return { dangerTokens: dt, dangerPlayers: dp };
+  }, [isV2, st, players]);
 
-  const lr: any = st.lastRoll && typeof st.lastRoll === "object" ? st.lastRoll : null;
-  const lrById = lr ? idOf(lr) : null;
-  const lrVal = lr ? (lr.v ?? lr.roll ?? lr.value ?? lr.n) : null;
+  /* destination halo — selected token kahan jayega */
+  const destPos = useMemo<{ row: number; col: number } | null>(() => {
+    if (!isV2 || selected === null || !legalMoves.includes(selected) || typeof st.roll !== "number") return null;
+    try {
+      const prog: number = st.tokens?.[me]?.[selected] ?? 0;
+      const dp2 = prog === 0 ? 1 : prog + st.roll;
+      if (dp2 > 58) return null;
+      if (dp2 === 58) return { row: 7.5, col: 7.5 };
+      if (dp2 >= 53) { const rc = HOME_CELLS[myIdx]?.[dp2 - 53]; return rc ? { row: rc[0] + 0.5, col: rc[1] + 0.5 } : null; }
+      const cell = pasaCell(myIdx, dp2);
+      const rc = cell !== null && cell !== undefined ? PATH[cell] : null;
+      return rc ? { row: rc[0] + 0.5, col: rc[1] + 0.5 } : null;
+    } catch { return null; }
+  }, [isV2, selected, legalMoves, st, me, myIdx]);
 
-  const logLines: string[] = Array.isArray(st.log) ? st.log.filter((x: unknown) => typeof x === "string").slice(-4) : [];
+  /* selection reset — bari / phase / roll badle to */
+  useEffect(() => { setSelected(null); }, [turnId, st?.phase, st?.roll, m.id]);
+
+  /* sounds + vibrate + capture effect — state diffing */
+  useEffect(() => {
+    if (!isV2) return;
+    // naye message par refs reset
+    if (refMsgRef.current !== m.id) {
+      refMsgRef.current = m.id;
+      prevLogLenRef.current = Array.isArray(st.log) ? st.log.length : 0;
+      try { prevTokensRef.current = JSON.stringify(st.tokens || {}); } catch { prevTokensRef.current = null; }
+      prevTurnRef.current = turnId;
+      prevRollKeyRef.current = st.lastRoll ? `${st.lastRoll.by}:${st.lastRoll.v}` : null;
+      fxDoneRef.current = !!st.done;
+      return;
+    }
+    // naya roll → dice sound
+    const rollKey = st.lastRoll ? `${st.lastRoll.by}:${st.lastRoll.v}` : null;
+    if (rollKey && rollKey !== prevRollKeyRef.current) playDice();
+    if (rollKey) prevRollKeyRef.current = rollKey;
+
+    // tokens diff → move sound / meri goti mari gayi?
+    let myCaptured = false;
+    let capPos: { row: number; col: number } | null = null;
+    try {
+      const prev = prevTokensRef.current ? JSON.parse(prevTokensRef.current) : null;
+      const nowT = st.tokens || {};
+      if (prev) {
+        let anyMove = false;
+        players.forEach((pid, pIdx) => {
+          const before: number[] = Array.isArray(prev[pid]) ? prev[pid] : [];
+          const after: number[] = Array.isArray(nowT[pid]) ? nowT[pid] : [];
+          after.forEach((p: number, ti: number) => { if (before[ti] !== undefined && before[ti] !== p) anyMove = true; });
+          if (pid === me) {
+            after.forEach((p: number, ti: number) => {
+              if (typeof before[ti] === "number" && before[ti] > 0 && p === 0) myCaptured = true;
+            });
+          }
+        });
+        if (anyMove) playMove();
+        if (myCaptured) {
+          // capture cell: jo token is update me chala aur track par hai
+          players.forEach((pid, pIdx) => {
+            if (pid === me) return;
+            const before: number[] = Array.isArray(prev[pid]) ? prev[pid] : [];
+            const after: number[] = Array.isArray(nowT[pid]) ? nowT[pid] : [];
+            after.forEach((p: number, ti: number) => {
+              if (!capPos && before[ti] !== p && p >= 1 && p <= 52) {
+                const cell = pasaCell(pIdx, p);
+                const rc = cell !== null && cell !== undefined ? PATH[cell] : null;
+                if (rc) capPos = { row: rc[0] + 0.5, col: rc[1] + 0.5 };
+              }
+            });
+          });
+        }
+      }
+      prevTokensRef.current = JSON.stringify(nowT);
+    } catch { /* ignore */ }
+
+    // nayi log entries → capture?
+    const logArr: string[] = Array.isArray(st.log) ? st.log : [];
+    if (prevLogLenRef.current >= 0 && logArr.length > prevLogLenRef.current) {
+      const fresh = logArr.slice(prevLogLenRef.current);
+      if (fresh.some((x: string) => typeof x === "string" && x.includes("💥"))) {
+        playCapture();
+        setShaking(true);
+        setCaptureFlash({ row: (capPos as any)?.row ?? 7.5, col: (capPos as any)?.col ?? 7.5, k: Date.now() });
+        setTimeout(() => setShaking(false), 450);
+        setTimeout(() => setCaptureFlash(null), 850);
+        if (myCaptured) { try { navigator.vibrate?.([60, 40, 60]); } catch { /* ignore */ } }
+      }
+    }
+    prevLogLenRef.current = logArr.length;
+
+    // meri bari aye → ding + vibrate
+    if (turnId && turnId !== prevTurnRef.current && turnId === me && st.started && !st.done) {
+      playTurn();
+      try { navigator.vibrate?.(40); } catch { /* ignore */ }
+    }
+    if (turnId) prevTurnRef.current = turnId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isV2, st, m.id]);
+
+  /* jeet effect — per game sirf ek dafa */
+  useEffect(() => {
+    if (!isV2 || !st.done || fxDoneRef.current) return;
+    fxDoneRef.current = true;
+    playWin();
+    setShowFx(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isV2, st?.done, m.id]);
+
+  /* dice animation — naya roll aye to faces tez badlo (~600ms) */
+  useEffect(() => {
+    const v: number | null = st?.lastRoll?.v ?? (typeof st?.roll === "number" ? st.roll : null);
+    const by: string | null = st?.lastRoll?.by ?? turnId;
+    if (!isV2 || v === null || v === undefined) return;
+    const key = `${m.id}:${by}:${v}:${Array.isArray(st.log) ? st.log.length : 0}`;
+    if ((diceAnimRef as any).current === key) return;
+    (diceAnimRef as any).current = key;
+    setDiceRolling(true);
+    const iv = setInterval(() => setDiceShown(1 + Math.floor(Math.random() * 6)), 70);
+    const to = setTimeout(() => { clearInterval(iv); setDiceShown(v); setDiceRolling(false); }, 600);
+    return () => { clearInterval(iv); clearTimeout(to); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isV2, st?.lastRoll?.v, st?.lastRoll?.by, st?.roll]);
+  const diceAnimRef = useRef<string>("");
+
+  /* timer tick */
+  const timerOn = !!(isV2 && st.settings?.timer && st.started && !st.done && typeof st.turnAt === "number");
+  useEffect(() => {
+    if (!timerOn) return;
+    const iv = setInterval(() => setNowTick(Date.now()), 250);
+    return () => clearInterval(iv);
+  }, [timerOn, st?.turnAt]);
+  const remainS = timerOn ? Math.max(0, 10 - (nowTick - (st.turnAt as number)) / 1000) : null;
+
+  /* timer khatam + meri bari → auto play (ek dafa per turn) */
+  useEffect(() => {
+    if (!timerOn || remainS === null || remainS > 0) return;
+    if (turnId !== me) return;
+    const guard = `${m.id}:${st.turnAt}`;
+    if (autoGuardRef.current === guard) return;
+    autoGuardRef.current = guard;
+    callDb(autoPlayPasa as any, m.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerOn, remainS, turnId, me, m.id, st?.turnAt]);
+
+  /* bot lifecycle — host client bot ki bari chalaye */
+  useEffect(() => {
+    if (!isV2 || !st.started || st.done || !turnId) return;
+    const isBotTurn = !!(st.bots && st.bots[turnId]);
+    if (!isBotTurn || me !== st.host) return;
+    const to = setTimeout(() => callDb(autoPlayPasa as any, m.id), 700);
+    return () => clearTimeout(to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isV2, st, turnId, me, m.id]);
+
+  /* ───────── fallbacks ───────── */
+  if (!isV2) {
+    if (v1) {
+      return (
+        <div className="mt-1.5 w-full max-w-sm rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
+          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#5865f2]">🎲 Pasa Race — Ludo</p>
+          <p className="mt-2 rounded-lg bg-[#f5a623]/10 px-3 py-2.5 text-center text-sm font-semibold text-[#5c5e66]">
+            🎲 Ye purani Ludo game hai — naya system aa gaya hai, naya match banao
+          </p>
+        </div>
+      );
+    }
+    return <p className="text-sm italic text-[#80848e]">Game load nahi hua</p>;
+  }
+
+  /* ───────── v2 derived ───────── */
+  const settings = st.settings || { per: 2, timer: false, capture: true, teams: false };
+  const per: number = settings.per === 4 ? 4 : 2;
+  const leftSet = new Set<string>(Array.isArray(st.leftPlayers) ? st.leftPlayers : []);
+  const iAmHost = me === st.host;
+  const joined = players.includes(me);
+  const winnerId: string | null = typeof st.winner === "string" ? st.winner : null;
+  const logLines: string[] = Array.isArray(st.log) ? st.log.filter((x: unknown) => typeof x === "string").slice(-6) : [];
+  const diceValue: number | null = diceRolling ? diceShown : (typeof st.roll === "number" ? st.roll : st.lastRoll?.v ?? null);
+  const hostName = nameOf(st.host);
+
+  const onTokenTap = (pIdx: number, ti: number) => {
+    if (!isMyTurn || st.phase !== "move") return;
+    if (players[pIdx] !== me) return;
+    if (!legalMoves.includes(ti)) return;
+    if (selected === ti) { callDb(movePasaToken as any, m.id, ti); setSelected(null); return; }
+    setSelected(ti);
+  };
+  const toggleMute = () => {
+    const next = !muted;
+    setPasaMuted(next);
+    setMutedState(next);
+  };
+  // engine contract: updatePasaSettings(msgId, patch: Partial<PasaSettings>) — flat patch
+  const patchSettings = (patch: Partial<typeof settings>) =>
+    callDb(updatePasaSettings as any, m.id, patch);
+
+  const boardEl = (interactiveBoard: boolean, withTap: boolean) => (
+    <div className={shaking && interactiveBoard ? "pasa-shake" : undefined}>
+      <LudoBoard
+        st={st}
+        interactive={interactiveBoard && isMyTurn && st.phase === "move"}
+        selected={selected}
+        legalMoves={legalMoves}
+        myIdx={myIdx}
+        dangerSet={dangerTokens}
+        destPos={destPos}
+        captureFlash={captureFlash}
+        glowIdx={st.started && !st.done ? turnIdx : -1}
+        onTokenTap={onTokenTap}
+        onBoardTap={withTap ? () => setBoardOpen(true) : undefined}
+      />
+    </div>
+  );
+
+  const toggleBtn = (on: boolean, label: string, onClick: () => void, disabled = false) => (
+    <button
+      key={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] font-extrabold transition active:scale-[0.97] disabled:opacity-50 ${on ? "bg-[#5865f2] text-white" : "border border-black/10 bg-white text-[#5c5e66]"}`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="mt-1.5 w-full max-w-sm rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
+      <style>{`@keyframes pasa-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}.pasa-shake{animation:pasa-shake .4s ease}@keyframes pasa-flash{0%{opacity:1;transform:translate(-50%,-50%) scale(1.5)}100%{opacity:0;transform:translate(-50%,-50%) scale(.7)}}.pasa-flash{animation:pasa-flash .8s ease forwards}`}</style>
+
+      {showFx && <FxOverlay kind="confetti" emoji="🏆" onDone={() => setShowFx(false)} />}
+      {lbOpen && <LudoLeaderboard open={lbOpen} onClose={() => setLbOpen(false)} />}
+
+      {/* header */}
       <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#5865f2]">
         🎲 Pasa Race — Ludo
+        <button onClick={toggleMute} className="ml-1 rounded-full p-1 text-[#80848e] transition hover:bg-black/5" title={muted ? "Awaz on karo" : "Awaz band karo"}>
+          {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+        </button>
         <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-extrabold normal-case tracking-normal ${st.done ? "bg-black/[0.06] text-[#80848e]" : st.started ? "bg-[#23a55a]/15 text-[#178a4c]" : "bg-[#f5a623]/15 text-[#9a6a00]"}`}>
           {st.started ? (st.done ? "Khatam" : "🟢 Chal raha hai") : "Players ka intezar"}
         </span>
       </p>
+      {st.tourney && (
+        <p className="-mt-1 mb-2 inline-block rounded-full bg-[#f5a623]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#9a6a00]">🏆 Tournament match</p>
+      )}
 
-      {/* players */}
+      {/* players + chips */}
       <div className="space-y-1">
-        {players.map((p, idx) => (
-          <p key={p.id} className={`flex items-center gap-1.5 text-[13px] ${turnId === p.id && st.started && !st.done ? "font-extrabold text-[#2f3035]" : "font-semibold text-[#5c5e66]"}`}>
-            <span>{PASA_COLORS[idx] || "🔵"}</span>
-            <span className="min-w-0 flex-1 truncate">
-              {nameOf(p.id)}{isHost(p) ? " (host)" : ""}
-            </span>
-            <span className="shrink-0 text-xs tabular-nums">
-              {p.pos >= 58 ? "🏁 Finish" : p.pos >= 1 ? `🏃 ${p.pos}/58` : "🏠 Base"}
-            </span>
-          </p>
-        ))}
+        {players.map((pid, idx) => {
+          const toks: number[] = Array.isArray(st.tokens?.[pid]) ? st.tokens[pid] : [];
+          const bahar = toks.filter((p: number) => p >= 1 && p < 58).length;
+          const ghar = toks.filter((p: number) => p >= 58).length;
+          const isTurn = st.started && !st.done && turnId === pid;
+          const left = leftSet.has(pid);
+          const isBot = !!(st.bots && st.bots[pid]);
+          return (
+            <div
+              key={pid}
+              className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[13px] ${isTurn ? "bg-[#5865f2]/10 font-extrabold text-[#2f3035]" : "font-semibold text-[#5c5e66]"} ${left ? "opacity-50" : ""}`}
+            >
+              <span>{PASA_COLORS[idx] || "🔵"}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {nameOf(pid)}
+                {championId === pid ? " 👑" : ""}
+                {pid === st.host ? <span className="ml-1 rounded bg-black/[0.06] px-1 py-px text-[9px] font-extrabold uppercase text-[#80848e]">host</span> : null}
+                {isBot ? <span className="ml-1 text-[10px] text-[#80848e]">({st.bots[pid] === "easy" ? "asan" : "normal"})</span> : null}
+                {dangerPlayers.has(pid) && st.started && !st.done ? <span title="Khatra hai!"> ⚠️</span> : null}
+              </span>
+              {left ? (
+                <span className="shrink-0 text-[11px] italic text-[#80848e]">chala gaya</span>
+              ) : (
+                <span className="shrink-0 text-[11px] tabular-nums text-[#80848e]">
+                  bahar {bahar} · ghar {ghar}{safePlayerDone(st, pid) ? " 🏁" : ""}
+                </span>
+              )}
+            </div>
+          );
+        })}
         {players.length === 0 && <p className="text-sm italic text-[#80848e]">Abhi koi player nahi — pehle join karo!</p>}
       </div>
 
-      {/* asal Ludo board */}
-      <LudoBoard players={players} turnId={turnId} running={!!st.started && !st.done} />
+      {/* settings summary */}
+      <p className="mt-1.5 text-center text-[11px] font-semibold text-[#80848e]">
+        {per} gotiyan · ⏱ timer {settings.timer ? "on" : "off"} · 💥 marna {settings.capture ? "on" : "off"}{settings.teams ? " · 👥 teams" : ""}
+      </p>
 
+      {/* board */}
+      <div className="mt-2">{boardEl(true, true)}</div>
+      <p className="mt-1 text-center text-[10px] text-[#a0a3ab]">Board par tap karo — bara dekhne ke liye ⤢</p>
+
+      {/* bari + dice */}
       {st.started && !st.done && turnId && (
-        <p className={`mt-2.5 text-center text-sm ${turnId === me ? "rounded-lg bg-[#5865f2]/10 px-2 py-1.5 font-extrabold text-[#5865f2]" : "font-semibold text-[#5c5e66]"}`}>
-          🎯 {nameOf(turnId)} ki bari hai{turnId === me ? " — tumhari!" : ""}
+        <p className={`mt-2 text-center text-sm ${isMyTurn ? "rounded-lg bg-[#5865f2]/10 px-2 py-1.5 font-extrabold text-[#5865f2]" : "font-semibold text-[#5c5e66]"}`}>
+          🎯 {nameOf(turnId)} ki bari hai{isMyTurn ? " — tumhari!" : ""}
         </p>
       )}
-
-      {lr && lrById && lrVal !== null && lrVal !== undefined && (
-        <p className="mt-1.5 text-center text-xs font-semibold text-[#5c5e66]">
-          🎲 {nameOf(lrById)} ko {lrVal} aaya
-        </p>
-      )}
-
-      {logLines.length > 0 && (
-        <div className="mt-2 space-y-0.5">
-          {logLines.map((line, i) => (
-            <p key={i} className="truncate text-[11px] text-[#80848e]">{line}</p>
-          ))}
+      {st.started && (
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <span className={`text-5xl leading-none ${diceRolling ? "animate-bounce" : ""}`} style={{ minWidth: 52, textAlign: "center" }}>
+            {diceValue ? DICE_FACES[diceValue - 1] : "🎲"}
+          </span>
+          <div className="text-left">
+            {st.lastRoll?.by ? (
+              <p className="text-xs font-semibold text-[#5c5e66]">🎲 {nameOf(st.lastRoll.by)} ko {st.lastRoll.v} aaya</p>
+            ) : (
+              <p className="text-xs font-semibold text-[#80848e]">Abhi pasa nahi phainka gaya</p>
+            )}
+            {timerOn && remainS !== null && (
+              <div className="mt-1">
+                <p className={`text-[11px] font-extrabold ${remainS <= 3 ? "text-[#ed4245]" : "text-[#5c5e66]"}`}>⏱ {Math.ceil(remainS)}s</p>
+                <div className="mt-0.5 h-1.5 w-24 overflow-hidden rounded-full bg-black/10">
+                  <div className={`h-full rounded-full ${remainS <= 3 ? "bg-[#ed4245]" : "bg-[#5865f2]"}`} style={{ width: `${(remainS / 10) * 100}%`, transition: "width .25s linear" }} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* actions */}
+      {st.started && !st.done && isMyTurn && st.phase === "roll" && (
+        <button onClick={() => callDb(rollPasaDice as any, m.id)} className="btn btn-blurple mt-3 w-full py-3 text-[15px]">🎲 Pasa phenko</button>
+      )}
+      {st.started && !st.done && isMyTurn && st.phase === "move" && (
+        selected === null ? (
+          <p className="mt-3 text-center text-sm font-extrabold text-[#5865f2]">Goti select karo 👆</p>
+        ) : (
+          <button onClick={() => { callDb(movePasaToken as any, m.id, selected); setSelected(null); }} className="mt-3 w-full rounded-lg bg-[#23a55a] px-3 py-2.5 text-sm font-extrabold text-white transition active:scale-[0.98]">
+            ▶ Chalao (goti {selected + 1})
+          </button>
+        )
+      )}
+
+      {/* lobby */}
       {!st.started && (
-        <div className="mt-3 space-y-1.5">
+        <div className="mt-3 space-y-2">
           {!joined && players.length < 4 && (
-            <button onClick={() => joinPasa(m.id)} className="btn btn-blurple w-full py-2.5 text-sm">➕ Join karo</button>
+            <button onClick={() => callDb(joinPasa as any, m.id)} className="btn btn-blurple w-full py-2.5 text-sm">➕ Join karo</button>
           )}
-          {iAmHost && players.length >= 2 && (
-            <button onClick={() => startPasa(m.id)} className="w-full rounded-lg bg-[#23a55a] px-3 py-2.5 text-sm font-extrabold text-white transition active:scale-[0.98]">▶️ Game shuru karo</button>
+          {joined && !iAmHost && (
+            <button onClick={() => callDb(leavePasa as any, m.id)} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-bold text-[#5c5e66] transition active:scale-[0.98]">🚪 Leave karo</button>
           )}
-          {players.length < 2 && (
-            <p className="text-center text-xs text-[#80848e]">Kam se kam 2 players chahiye</p>
+          {iAmHost && players.length < 4 && (
+            <div className="flex gap-1.5">
+              <button onClick={() => callDb(addBotPasa as any, m.id, "easy")} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">+ 🤖 Bot · Asan</button>
+              <button onClick={() => callDb(addBotPasa as any, m.id, "normal")} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">+ 🤖 Bot · Normal</button>
+            </div>
+          )}
+          {iAmHost && (
+            <div className="space-y-1.5 rounded-lg bg-black/[0.03] p-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">Gotiyan</span>
+                {toggleBtn(per === 2, "2 goti", () => patchSettings({ per: 2 }))}
+                {toggleBtn(per === 4, "4 goti", () => patchSettings({ per: 4 }))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">⏱ Timer</span>
+                {toggleBtn(!!settings.timer, "On (10s)", () => patchSettings({ timer: true }))}
+                {toggleBtn(!settings.timer, "Off", () => patchSettings({ timer: false }))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">💥 Marna</span>
+                {toggleBtn(!!settings.capture, "On", () => patchSettings({ capture: true }))}
+                {toggleBtn(!settings.capture, "Off", () => patchSettings({ capture: false }))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">👥 Teams</span>
+                {toggleBtn(!!settings.teams, "On (2v2)", () => patchSettings({ teams: true }))}
+                {toggleBtn(!settings.teams, "Off", () => patchSettings({ teams: false }))}
+              </div>
+              <p className="text-[10px] text-[#a0a3ab]">Note: gotiyan badalne se tokens reset honge. Settings sirf host ({hostName}) badal sakta hai.</p>
+            </div>
+          )}
+          {iAmHost && (
+            settings.teams && players.length < 4 ? (
+              <p className="text-center text-xs font-semibold text-[#9a6a00]">👥 Teams ke liye 4 players lazmi hain ({players.length}/4)</p>
+            ) : players.length >= 2 ? (
+              <button onClick={() => callDb(startPasa as any, m.id)} className="w-full rounded-lg bg-[#23a55a] px-3 py-2.5 text-sm font-extrabold text-white transition active:scale-[0.98]">▶️ Game shuru karo</button>
+            ) : (
+              <p className="text-center text-xs text-[#80848e]">Kam se kam 2 players chahiye</p>
+            )
           )}
         </div>
       )}
 
-      {st.started && !st.done && turnId === me && (
-        <button onClick={() => rollPasa(m.id)} className="btn btn-blurple mt-3 w-full py-3 text-[15px]">🎲 Pasa phenko</button>
+      {/* in-game leave */}
+      {st.started && !st.done && joined && (
+        <button onClick={() => callDb(leavePasa as any, m.id)} className="mt-2 w-full rounded-lg px-3 py-1.5 text-[11px] font-bold text-[#80848e] transition hover:bg-black/[0.04] active:scale-[0.98]">🚪 Game chhoro</button>
       )}
 
+      {/* winner */}
       {st.done && winnerId && (
         <div className="mt-3 rounded-lg bg-[#f5a623]/10 px-3 py-2.5 text-center">
           <p className="flex items-center justify-center gap-1.5 text-sm font-extrabold text-[#2f3035]">
-            <Trophy size={15} className="text-[#f5a623]" /> {nameOf(winnerId)} jeet gaya!
+            <Trophy size={15} className="text-[#f5a623]" /> {nameOf(winnerId)} 👑 jeet gaya!
           </p>
+          {settings.teams && <p className="mt-0.5 text-xs font-semibold text-[#5c5e66]">👥 Unki team jeet gayi!</p>}
+          <button onClick={() => callDb(rematchPasa as any, m.id)} className="mt-2 w-full rounded-lg bg-[#5865f2] px-3 py-2 text-sm font-extrabold text-white transition active:scale-[0.98]">🔁 Rematch</button>
+        </div>
+      )}
+
+      {/* log — commentary strips */}
+      {logLines.length > 0 && (
+        <div className="mt-2.5 space-y-1">
+          {logLines.map((line, i) => {
+            const last = i === logLines.length - 1;
+            return (
+              <p key={i} className={`rounded-md px-2 py-1 text-[11px] leading-snug ${last ? "bg-[#5865f2]/10 font-bold text-[#2f3035]" : "bg-black/[0.04] font-medium text-[#5c5e66]"}`}>{line}</p>
+            );
+          })}
+        </div>
+      )}
+
+      {/* footer buttons */}
+      <div className="mt-3 flex gap-1.5">
+        <button onClick={() => setLbOpen(true)} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">🏆 Leaderboard</button>
+        <button onClick={() => setShowRules(true)} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">📜 Rules</button>
+      </div>
+
+      {/* fullscreen board modal — read-only */}
+      {boardOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4" onClick={() => setBoardOpen(false)}>
+          <div className="w-full max-w-[min(92vw,560px)]" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-extrabold text-white">🎲 Ludo Board</p>
+              <button onClick={() => setBoardOpen(false)} className="rounded-full bg-white/15 p-1.5 text-white transition hover:bg-white/25" aria-label="Band karo">
+                <X size={18} />
+              </button>
+            </div>
+            {boardEl(false, false)}
+          </div>
+        </div>
+      )}
+
+      {/* rules modal */}
+      {showRules && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowRules(false)}>
+          <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-extrabold text-[#2f3035]">📜 Ludo Rules</p>
+              <button onClick={() => setShowRules(false)} className="rounded-full p-1 text-[#80848e] transition hover:bg-black/5" aria-label="Band karo">
+                <X size={17} />
+              </button>
+            </div>
+            <ul className="list-disc space-y-1.5 pl-5 text-[13px] leading-snug text-[#3a3b42]">
+              <li>Har player ke paas {per} gotiyan hoti hain (host lobby me 2 ya 4 chun sakta hai).</li>
+              <li>Goti ghar (base) se bahar nikalne ke liye <b>6</b> ana lazmi hai.</li>
+              <li>Pasa phenko, phir jo goti chalani hai use tap karke select karo aur <b>▶ Chalao</b> dabao (ya goti ko dobara tap karo).</li>
+              <li><b>Extra bari</b> milti hai: 6 aane par, kisi ko marne par, ya goti ke <b>pora finish (58)</b> hone par. Sirf home patri me ghusne par extra bari <b>nahi</b> milti.</li>
+              <li>Lagatar <b>teen 6</b> aayen to teesra 6 zaya ho jata hai — bari agle player ko chali jati hai.</li>
+              <li><b>Block rule:</b> ek hi cell par tumhari 2 gotiyan hon to block ban jata hai — opponent us cell ko par nahi kar sakta na maar sakta hai.</li>
+              <li><b>Safe ⭐</b> wale cells par koi kisi ko nahi maar sakta.</li>
+              <li>Finish ke liye <b>exact number</b> chahiye — zyada aye to goti nahi chalegi.</li>
+              <li>Jis ki <b>saari gotiyan ghar (58)</b> pohonch jayen, wahi jeet-ta hai.</li>
+              <li>Timer on ho to har bari ke liye sirf <b>10 second</b> milte hain — waqt khatam ho to auto chal chal jati hai.</li>
+              <li><b>Teams (2v2):</b> aamne-saamne wale players ek team hote hain — partner ko nahi mara jata, aur ek ki saari gotiyan ghar jayen to team jeet-ti hai.</li>
+              <li>⚠️ nishan wali goti khatre me hai — koi opponent us se 1–6 qadam peeche hai!</li>
+            </ul>
+            <button onClick={() => setShowRules(false)} className="btn btn-blurple mt-3 w-full py-2 text-sm">Samajh gaya 👍</button>
+          </div>
         </div>
       )}
     </div>
