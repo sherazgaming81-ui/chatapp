@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices, Trophy } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices, Trophy, BrickWall } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, createPasa, createTournament } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, createPasa, createTournament, sendBrick } from "@/lib/db";
 import { pickTruthDare } from "@/lib/fun";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -432,6 +432,7 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<Smile size={19} />} color="#f5a623" bg="#f5a623/10" label="Emoji Paheli 🧩" desc="Emoji se Urdu lafz guess karo" onClick={() => { setAttachOpen(false); sendEmojiPaheli(chatId); }} />
             <AttachItem icon={<BadgeCheck size={19} />} color="#23a55a" bg="#23a55a/10" label="Sach Ya Jhoot ✅" desc="Sach hai ya jhoot, batao" onClick={() => { setAttachOpen(false); sendSachJhoot(chatId); }} />
             <AttachItem icon={<Target size={19} />} color="#ed4245" bg="#ed4245/10" label="Number Guess 🎯" desc="1-100 chhupa number guess karo" onClick={() => { setAttachOpen(false); sendNumGuess(chatId); }} />
+            <AttachItem icon={<BrickWall size={19} />} color="#f5a623" bg="#f5a623/10" label="Brick Breaker 🧱" desc="Eentein toro, score banao — akelay khelo" onClick={() => { setAttachOpen(false); sendBrick(chatId); }} />
             <AttachItem icon={<Scissors size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Kainchi Pathar ✂️" desc="Dost ko challenge karo" onClick={() => { setAttachOpen(false); setKainchiOpen(true); }} />
             <AttachItem icon={<Dices size={19} />} color="#00b0f4" bg="#00b0f4/10" label="Ludo 🎲" desc="Asal Ludo — gotiyan select karke chalao, 2-4 players" onClick={() => { setAttachOpen(false); createPasa(chatId, { per: 4, timer: true, capture: true, teams: false, tor: true }); }} />
             <AttachItem icon={<Trophy size={19} />} color="#f5a623" bg="#f5a623/10" label="🏆 Ludo Tournament" desc="4 players — semi-final aur final" onClick={() => { setAttachOpen(false); setTourneyOpen(true); }} />

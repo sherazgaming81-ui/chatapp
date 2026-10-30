@@ -51,7 +51,7 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "truthdare" | "gumnam" | "super" | "status" | "hisaab" | "emojipaheli" | "sachjhoot" | "numguess" | "kainchi" | "pasa" | "tourney";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "truthdare" | "gumnam" | "super" | "status" | "hisaab" | "emojipaheli" | "sachjhoot" | "numguess" | "kainchi" | "pasa" | "tourney" | "brick";
 
 /* Mega-2 — WhatsApp-style status/story (messages table me type="status" rows, alag slice) */
 export interface StatusItem {
