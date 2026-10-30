@@ -1309,7 +1309,7 @@ export function startRealtime() {
 export { uid };
 
 // ───────── Phase 7 — Games & Fun ─────────
-import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer, genHisaab, parseHisaab, EMOJI_BANK, isEmojiAnswer, SACH_BANK, sachCorrectUsers, parseSachJhoot, parsePasa, pasaCell, PASA_SAFE_CELLS, PASA_FINISH, kainchiResult, parsePasaV2, pasaBotName, pasaSixChainAfter, pasaLegalMoves, pasaPlayerDone, pasaIsOpponent, parseTourney, type PasaSettings, type PasaStateV2, type TourneyState } from "./games";
+import { pickQuizQuestions, parseQuiz, quizAnswered, quizScores, parseTTT, tttWinner, dailyRiddle, parseRiddle, isRiddleAnswer, normAnswer, genHisaab, parseHisaab, EMOJI_BANK, isEmojiAnswer, SACH_BANK, sachCorrectUsers, parseSachJhoot, parsePasa, pasaCell, PASA_SAFE_CELLS, PASA_FINISH, kainchiResult, parsePasaV2, pasaBotName, pasaSixChainAfter, pasaLegalMoves, pasaPlayerDone, pasaIsOpponent, pasaPaused, PASA_PAUSE_MS, pasaChooseToken, parseTourney, type PasaSettings, type PasaStateV2, type TourneyState } from "./games";
 
 /** I1 — Deen Quiz shuru karo (5 sawal, har sawal 15 sec) */
 export async function sendQuiz(chatId: string): Promise<Message | null> {
@@ -2006,18 +2006,21 @@ function pasaInitKills(players: string[]): Record<string, number> {
   for (const p of players) kills[p] = 0;
   return kills;
 }
-/** Bari agle active player ko: leftPlayers wala skip, pasaPlayerDone (saari 58) wala skip. */
+/** Bari agle active player ko: leftPlayers wala skip, pasaPlayerDone (saari 58) wala skip.
+    Har bari mukammal hone par 4s ka waqfa (pauseUntil) — timer bhi waqfe ke baad
+    se ginta hai (turnAt = pauseUntil), taake countdown waqfe me zaya na ho. */
 function pasaAdvanceTurn(st: PasaStateV2): PasaStateV2 {
   const n = st.players.length;
   if (n === 0) return st;
+  const pauseUntil = Date.now() + PASA_PAUSE_MS;
   const from = st.players.indexOf(st.turn);
   for (let k = 1; k <= n; k++) {
     const cand = st.players[(from + k) % n];
     if (!pasaPlayerDone(st, cand)) {
-      return { ...st, turn: cand, phase: "roll", roll: null, sixChain: 0, turnAt: Date.now() };
+      return { ...st, turn: cand, phase: "roll", roll: null, sixChain: 0, turnAt: pauseUntil, pauseUntil };
     }
   }
-  return { ...st, phase: "roll", roll: null, sixChain: 0, turnAt: Date.now() };
+  return { ...st, phase: "roll", roll: null, sixChain: 0, turnAt: pauseUntil, pauseUntil };
 }
 /** Tourney game khatam hone par tourney message ka slot update karo. */
 async function pasaSyncTourneySlot(st: PasaStateV2) {
@@ -2184,6 +2187,7 @@ export async function startPasa(msgId: string) {
 /** Internal: dice roll apply karo (phase "roll" par). Illegal ho to null. Turn advance andar hi hota hai jab move na ho / teesra 6 ho. */
 function pasaApplyRoll(st: PasaStateV2, playerId: string): PasaStateV2 | null {
   if (!st.started || st.done || st.turn !== playerId || st.phase !== "roll") return null;
+  if (pasaPaused(st)) return null; // pichli bari ka 4s waqfa abhi chal raha hai — roll band
   if (pasaPlayerDone(st, playerId)) return null;
   const v = 1 + Math.floor(Math.random() * 6);
   const sc = pasaSixChainAfter(st.sixChain, v);
@@ -2263,9 +2267,11 @@ function pasaApplyMove(st: PasaStateV2, playerId: string, tokenIdx: number): Pas
   const extra = roll === 6 || captured || finishedToken;
   if (extra) {
     const why = roll === 6 ? "6 aaya" : captured ? "goti maari" : "goti ghar pohchi";
-    // extra bari = NAYI bari: turnAt refresh; sixChain sirf tab barqarar jab wajah 6 ho
+    // extra bari = NAYI bari: pehle 4s waqfa (sab ko move/number dikhe), phir naya roll;
+    // turnAt bhi waqfe ke baad se — sixChain sirf tab barqarar jab wajah 6 ho
+    const pauseUntil = Date.now() + PASA_PAUSE_MS;
     next = {
-      ...next, turnAt: Date.now(),
+      ...next, turnAt: pauseUntil, pauseUntil,
       sixChain: roll === 6 ? st.sixChain : 0,
       log: pasaLog(next, [...entries, `🔁 ${name} ko ek aur bari! (${why})`]),
     };
@@ -2280,6 +2286,7 @@ export async function rollPasaDice(msgId: string) {
   if (!m) return;
   const st = parsePasaV2(m.caption);
   if (!st || !st.started || st.done) return;
+  if (pasaPaused(st)) return; // pichli bari ka waqfa chal raha hai — abhi roll nahi hoga
   if (st.turn !== s.me || st.phase !== "roll") return;
   if (st.bots[s.me]) return; // bot apni bari khud nahi (host autoPlay chalata hai)
   const next = pasaApplyRoll(st, s.me);
@@ -2301,46 +2308,13 @@ export async function movePasaToken(msgId: string, tokenIdx: number) {
   if (next.done) await pasaSyncTourneySlot(next);
 }
 
-/** Auto-play ke liye token choose: easy = random; normal/human = capture > finish > base se bahar > sab se aage wali goti. */
-function pasaChooseToken(st: PasaStateV2, playerId: string, level: "easy" | "normal"): number {
-  if (st.roll === null) return -1;
-  const roll = st.roll;
-  const legal = pasaLegalMoves(st, playerId, roll);
-  if (legal.length === 0) return -1;
-  if (level === "easy") return legal[Math.floor(Math.random() * legal.length)];
-  const myIdx = st.players.indexOf(playerId);
-  const toks = st.tokens[playerId] || [];
-  const scoreOf = (ti: number): number => {
-    const t = toks[ti];
-    const nt = t === 0 ? 1 : t + roll;
-    if (nt >= 1 && nt <= 52 && st.settings.capture) {
-      const cell = pasaCell(myIdx, nt);
-      if (cell !== null && !PASA_SAFE_CELLS.includes(cell)) {
-        for (const oppId of st.players) {
-          if (!pasaIsOpponent(st, playerId, oppId)) continue;
-          const oppIdx = st.players.indexOf(oppId);
-          for (const op of st.tokens[oppId] || []) {
-            if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) return 400; // capture
-          }
-        }
-      }
-    }
-    if (nt === 58) return 300; // finish
-    if (t === 0) return 200; // base se bahar
-    return 100 + nt; // sab se zyada progress
-  };
-  let best = legal[0];
-  let bestScore = -1;
-  for (const ti of legal) {
-    const sc = scoreOf(ti);
-    if (sc > bestScore) { bestScore = sc; best = ti; }
-  }
-  return best;
-}
-
 /**
- * Bot ki bari (sirf host chalata hai) ya timer-expired insaan ki bari (sirf wohi player,
- * 10s ke baad) auto chalao. acting lock: taaza lock (4s) kisi aur ke paas ho to ruk jao.
+ * Bot ki bari (sirf host chalata hai) ya timer-expired insaan ki bari auto chalao.
+ * Insaan ki bari 10s (turnAt ke baad — turnAt waqfe ke baad se ginta hai) par har
+ * haal me automatic hoti hai: khud player ya host foran chalata hai, un ke offline
+ * hone par koi bhi online viewer ~2s grace ke baad lock lekar chala deta hai —
+ * game kisi ek ke app par nahi rukta. acting lock: taaza lock (4s) kisi aur ke
+ * paas ho to ruk jao (double execution nahi hota).
  */
 export async function autoPlayPasa(msgId: string) {
   const s = getState();
@@ -2350,20 +2324,26 @@ export async function autoPlayPasa(msgId: string) {
   if (!st || !st.started || st.done) return;
   let p = st.turn;
   if (pasaPlayerDone(st, p)) return;
+  if (pasaPaused(st)) return; // waqfe ke doran koi auto-play nahi (turnAt waqfe ke baad set hota hai)
   if (st.acting && Date.now() - st.acting.at < 4000 && st.acting.by !== s.me) return;
   const isBotTurn = !!st.bots[p];
+  let timerAuto = false;
   if (isBotTurn) {
     if (s.me !== st.host) return; // bots sirf host chalata hai
   } else {
-    // insaan ki bari: sirf timer on + 10s guzarne par + sirf khud us player ka client
+    // insaan ki bari: timer on + 10s guzar jaye to bari automatic — khud player ya
+    // host foran; koi bhi aur online viewer ~2s grace ke baad (lock double rokta hai)
     if (!st.settings.timer || !st.turnAt) return;
-    if (Date.now() - st.turnAt <= 10000) return;
-    if (s.me !== p) return;
+    const expiry = st.turnAt + 10000;
+    if (Date.now() <= expiry) return;
+    if (s.me !== p && s.me !== st.host && Date.now() <= expiry + 2000) return;
+    timerAuto = true;
   }
   const lock = { by: s.me, at: Date.now() };
   let last: PasaStateV2 = { ...st, acting: lock };
   await updatePayloadMsg(msgId, last);
   let finished: PasaStateV2 | null = null;
+  let acted = false;
   for (let step = 0; step < 12; step++) {
     const fm = getState().messages.find((x) => x.id === msgId);
     const fst = fm ? parsePasaV2(fm.caption) : null;
@@ -2386,17 +2366,24 @@ export async function autoPlayPasa(msgId: string) {
       wasMove = true;
     }
     if (!ns) break;
+    acted = true;
     last = ns;
     await updatePayloadMsg(msgId, { ...ns, acting: lock });
     if (ns.done) { finished = ns; break; }
     if (!isBotTurn) {
       // insaan-timer: sirf EK poori bari — move ho jaye ya bari aage chali jaye to ruk jao
-      // (extra bari mile to turnAt refresh ho chuka hota hai, wahan bhi rukna hai)
+      // (extra bari mile to wahan bhi rukna hai — waqfe ke baad player khud khelega)
       if (wasMove) break;
       if (ns.turn !== p) break;
+      // roll ho gaya, move baqi hai: chhota waqfa taake sab dekh saken kya number aaya,
+      // phir SMART move (pasaChooseToken "normal": marna > finish > bahar > aage wali)
+      if (ns.phase === "move") await new Promise((r) => setTimeout(r, 900));
     } else {
       await new Promise((r) => setTimeout(r, 1000)); // log dekhne ke liye bot steps me waqfa
     }
+  }
+  if (timerAuto && acted) {
+    last = { ...last, log: pasaLog(last, [`⏰ ${pasaNameOf(p)} ki bari time par automatic ho gayi`]) };
   }
   await updatePayloadMsg(msgId, { ...last, acting: undefined });
   if (finished) await pasaSyncTourneySlot(finished);

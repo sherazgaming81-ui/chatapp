@@ -399,6 +399,9 @@ export interface PasaStateV2 {
   host: string; started: boolean; log: string[]; done: boolean; winner: string | null;
   leftPlayers: string[]; tourney?: { msgId: string; slot: "semi1" | "semi2" | "final" };
   turnAt?: number; acting?: { by: string; at: number };
+  /** Har bari mukammal hone ke baad is waqt (ms) tak koi roll nahi — taake sab ko
+      pichli bari ka number saaf dikhe. Purani games me missing = koi pause nahi. */
+  pauseUntil?: number;
   lastRoll?: { by: string; v: number } | null; t: string;
 }
 export function parsePasaV2(caption?: string): PasaStateV2 | null {
@@ -407,6 +410,12 @@ export function parsePasaV2(caption?: string): PasaStateV2 | null {
     if (d && d.v === 2 && Array.isArray(d.players) && d.tokens && typeof d.tokens === "object" && !Array.isArray(d.tokens) && typeof d.turn === "string") return d as PasaStateV2;
   } catch { /* ignore */ }
   return null;
+}
+/** Har bari ke baad ka lazmi waqfa — 4 second (user ki pacing hidayat: 3–5s). */
+export const PASA_PAUSE_MS = 4000;
+/** Abhi pichli bari ka waqfa chal raha hai? (pauseUntil future me hai) */
+export function pasaPaused(st: { pauseUntil?: number }, now: number = Date.now()): boolean {
+  return typeof st.pauseUntil === "number" && st.pauseUntil > now;
 }
 export function pasaBotName(id: string): string | null {
   const mm = /^__bot_(\d+)$/.exec(id || "");
@@ -512,6 +521,47 @@ export function pasaLegalMoves(st: PasaStateV2, playerId: string, roll: number):
     }
   });
   return out;
+}
+
+/**
+ * Auto-play (bot / timer-expired insaan) ke liye token choose — st.roll use hota hai.
+ * easy = random legal move; normal = halat ke hisaab se sab se achhi chal:
+ * marna (capture) > goti finish karna > base se bahar nikalna > sab se aage wali goti.
+ */
+export function pasaChooseToken(st: PasaStateV2, playerId: string, level: "easy" | "normal"): number {
+  if (st.roll === null) return -1;
+  const roll = st.roll;
+  const legal = pasaLegalMoves(st, playerId, roll);
+  if (legal.length === 0) return -1;
+  if (level === "easy") return legal[Math.floor(Math.random() * legal.length)];
+  const myIdx = st.players.indexOf(playerId);
+  const toks = st.tokens[playerId] || [];
+  const scoreOf = (ti: number): number => {
+    const t = toks[ti];
+    const nt = t === 0 ? 1 : t + roll;
+    if (nt >= 1 && nt <= 52 && st.settings.capture) {
+      const cell = pasaCell(myIdx, nt);
+      if (cell !== null && !PASA_SAFE_CELLS.includes(cell)) {
+        for (const oppId of st.players) {
+          if (!pasaIsOpponent(st, playerId, oppId)) continue;
+          const oppIdx = st.players.indexOf(oppId);
+          for (const op of st.tokens[oppId] || []) {
+            if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) return 400; // capture
+          }
+        }
+      }
+    }
+    if (nt === 58) return 300; // finish
+    if (t === 0) return 200; // base se bahar
+    return 100 + nt; // sab se zyada progress
+  };
+  let best = legal[0];
+  let bestScore = -1;
+  for (const ti of legal) {
+    const sc = scoreOf(ti);
+    if (sc > bestScore) { bestScore = sc; best = ti; }
+  }
+  return best;
 }
 
 /* ───────── 8) Ludo Tournament (4 players, 2 semis + final) ───────── */

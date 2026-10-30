@@ -12,7 +12,7 @@ const out = mkdtempSync(join(tmpdir(), "pasa-test-"));
 execFileSync("npx", ["tsc", "src/lib/games.ts", "--outDir", out, "--module", "commonjs", "--target", "es2020", "--moduleResolution", "node", "--skipLibCheck", "--noEmitOnError", "false"], { cwd: root, stdio: "pipe" });
 const require = createRequire(import.meta.url);
 const G = require(join(out, "games.js"));
-const { pasaLegalMoves, pasaSixChainAfter, pasaPlayerDone, pasaBotName, pasaCell, pasaTorActive, pasaHasKill } = G;
+const { pasaLegalMoves, pasaSixChainAfter, pasaPlayerDone, pasaBotName, pasaCell, pasaTorActive, pasaHasKill, pasaPaused, PASA_PAUSE_MS, pasaChooseToken } = G;
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -109,6 +109,41 @@ ok("pasaPlayerDone: left player", pasaPlayerDone({ ...mkState({ A: [0, 0, 0, 0],
 eq("pasaPlayerDone: beech game me false", pasaPlayerDone(mkState({ A: [10, 0, 0, 0], B: F, C: F, D: F }), "A"), false);
 eq("pasaBotName", pasaBotName("__bot_2"), "🤖 Bot 2");
 eq("pasaBotName insaan par null", pasaBotName("user123"), null);
+
+console.log("— pause (har bari ke baad 4s waqfa) —");
+eq("PASA_PAUSE_MS = 4000", PASA_PAUSE_MS, 4000);
+eq("pauseUntil missing (purani game) — pause nahi", pasaPaused({}, 5000), false);
+eq("pauseUntil future me — paused", pasaPaused({ pauseUntil: 6000 }, 5000), true);
+eq("pauseUntil guzar gaya — pause khatam", pasaPaused({ pauseUntil: 4000 }, 5000), false);
+eq("pauseUntil bilkul barabar — pause khatam (strict >)", pasaPaused({ pauseUntil: 5000 }, 5000), false);
+
+console.log("— auto-play smart move (pasaChooseToken 'normal') —");
+// capture > base-exit: roll 6 (base-exit bhi legal) — A ki token1 (20) cell 25 par B ki goti marti hai
+let cst = mkState({ A: [0, 20, 58, 58], B: [13, 58, 58, 58], C: F, D: F });
+cst.roll = 6;
+eq("capture base-exit se pehle chuna", pasaChooseToken(cst, "A", "normal"), 1);
+// finish > base-exit: roll 6 se token1 (52) finish, token0 base se bahar — dono legal
+cst = mkState({ A: [0, 52, 58, 58], B: F, C: F, D: F });
+cst.roll = 6;
+eq("finish base-exit se pehle chuna", pasaChooseToken(cst, "A", "normal"), 1);
+// base-exit > aam aage wali chal (roll 6 taake exit legal ho)
+cst = mkState({ A: [0, 10, 58, 58], B: F, C: F, D: F });
+cst.roll = 6;
+eq("base-exit aam chal se pehle chuna", pasaChooseToken(cst, "A", "normal"), 0);
+// sab se aage wali goti
+cst = mkState({ A: [10, 30, 58, 58], B: F, C: F, D: F });
+cst.roll = 2;
+eq("aage wali goti chuni", pasaChooseToken(cst, "A", "normal"), 1);
+// easy: hamesha legal token hi aaye
+cst = mkState({ A: [10, 30, 58, 58], B: F, C: F, D: F });
+cst.roll = 2;
+ok("easy mode legal token deta hai", pasaLegalMoves(cst, "A", 2).includes(pasaChooseToken(cst, "A", "easy")));
+// koi legal move nahi / roll nahi → -1
+cst = mkState({ A: F, B: F, C: F, D: F });
+cst.roll = 3;
+eq("saari finish hon to -1", pasaChooseToken(cst, "A", "normal"), -1);
+cst = mkState({ A: [10, 30, 58, 58], B: F, C: F, D: F });
+eq("roll null ho to -1", pasaChooseToken(cst, "A", "normal"), -1);
 
 console.log(`\nResult: ${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);
