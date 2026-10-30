@@ -74,7 +74,7 @@ function toMessage(r: any): Message {
   // store hota hai — DB me `caption` column hai hi nahi, wahan bhejne se insert 400
   // ho jata tha (poll waghera isi liye fail thay). Yahan text se caption wapas banao
   // aur display text alag rakho taake previews me raw JSON na dikhe.
-  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "truthdare", "gumnam", "super", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney", "brick"].includes(msg.type) && msg.text.startsWith("{")) {
+  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "truthdare", "gumnam", "super", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney", "brick", "starfall"].includes(msg.type) && msg.text.startsWith("{")) {
     try {
       const d = JSON.parse(msg.text);
       msg.caption = msg.text;
@@ -1921,6 +1921,40 @@ export async function submitBrickScore(msgId: string, score: number, countPlay: 
     plays: (typeof prev.plays === "number" ? prev.plays : 0) + (countPlay ? 1 : 0),
   };
   if (entry.best === prev.best && entry.plays === (prev.plays || 0) && entry.name === prev.name) return;
+  await updatePayloadMsg(msgId, { ...st, scores: { ...st.scores, [s.me]: entry } });
+}
+
+/* ───────── G10 — Starfall (🚀 single-player space shooter, payload me best scores + best wave) ───────── */
+export async function sendStarfall(chatId: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId) return null;
+  const state = { v: 1, scores: {} as Record<string, { name: string; best: number; wave: number; plays: number }>, t: "🚀 Starfall" };
+  const cap = JSON.stringify(state);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "starfall", text: state.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "starfall",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** Apni run ka score jama karo — best score sirf barhe ga, best wave max rahe gi; plays sirf game-over par +1 */
+export async function submitStarfallScore(msgId: string, score: number, wave: number, countPlay: boolean) {
+  const s = getState();
+  if (!s.me || typeof score !== "number" || !Number.isFinite(score) || score < 0) return;
+  const msg = s.messages.find((x) => x.id === msgId && x.type === "starfall");
+  if (!msg) return;
+  const st: any = parsePayload(msg);
+  if (!st || st.v !== 1 || !st.scores || typeof st.scores !== "object" || Array.isArray(st.scores)) return;
+  const me = s.members.find((x) => x.id === s.me);
+  const prev = st.scores[s.me] && typeof st.scores[s.me] === "object" ? st.scores[s.me] : { name: "", best: 0, wave: 0, plays: 0 };
+  const entry = {
+    name: me?.name || prev.name || "Member",
+    best: Math.max(typeof prev.best === "number" ? prev.best : 0, Math.floor(score)),
+    wave: Math.max(typeof prev.wave === "number" ? prev.wave : 0, typeof wave === "number" && Number.isFinite(wave) ? Math.floor(wave) : 0),
+    plays: (typeof prev.plays === "number" ? prev.plays : 0) + (countPlay ? 1 : 0),
+  };
+  if (entry.best === prev.best && entry.wave === (prev.wave || 0) && entry.plays === (prev.plays || 0) && entry.name === prev.name) return;
   await updatePayloadMsg(msgId, { ...st, scores: { ...st.scores, [s.me]: entry } });
 }
 

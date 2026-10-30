@@ -609,3 +609,36 @@ export function parseBrick(caption?: string): BrickState | null {
   } catch { /* ignore */ }
   return null;
 }
+
+/* ───────── 10) Starfall — Galaxy Defender (single-player space shooter — har viewer apni local run) ───────── */
+export interface StarfallScoreEntry {
+  name: string;
+  best: number;
+  wave: number;
+  plays: number;
+}
+export interface StarfallState {
+  v: 1;
+  scores: Record<string, StarfallScoreEntry>;
+  t?: string;
+}
+export function parseStarfall(caption?: string): StarfallState | null {
+  try {
+    const d = JSON.parse(caption || "");
+    if (d && d.v === 1 && d.scores && typeof d.scores === "object" && !Array.isArray(d.scores)) {
+      const scores: Record<string, StarfallScoreEntry> = {};
+      for (const [id, e] of Object.entries(d.scores as Record<string, any>)) {
+        if (e && typeof e === "object") {
+          scores[id] = {
+            name: typeof e.name === "string" ? e.name : "Member",
+            best: typeof e.best === "number" && Number.isFinite(e.best) ? Math.max(0, Math.floor(e.best)) : 0,
+            wave: typeof e.wave === "number" && Number.isFinite(e.wave) ? Math.max(0, Math.floor(e.wave)) : 0,
+            plays: typeof e.plays === "number" && Number.isFinite(e.plays) ? Math.max(0, Math.floor(e.plays)) : 0,
+          };
+        }
+      }
+      return { v: 1, scores, t: typeof d.t === "string" ? d.t : "🚀 Starfall" };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
