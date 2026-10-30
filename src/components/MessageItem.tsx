@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download, Plus } from "lucide-react";
+import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download, Plus, Sparkles } from "lucide-react";
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { deleteMessage, hardDeleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
@@ -10,6 +10,11 @@ import QuizMessage from "@/components/QuizMessage";
 import TicTacToeMessage from "@/components/TicTacToeMessage";
 import RiddleMessage from "@/components/RiddleMessage";
 import StickerMessage from "@/components/StickerMessage";
+import SpinWheelMessage from "@/components/SpinWheelMessage";
+import SilsilaMessage from "@/components/SilsilaMessage";
+import TruthDareMessage from "@/components/TruthDareMessage";
+import GumnamMessage from "@/components/GumnamMessage";
+import { SuperReactionModal, SuperPill } from "@/components/SuperReaction";
 import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
 import { fmtSize } from "@/lib/db";
 import type { Member, Message } from "@/lib/types";
@@ -186,6 +191,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const onTouchEndLP = () => {
     if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
   };
+  const [superOpen, setSuperOpen] = useState(false); // ⭐ Super Reaction modal (owner-only)
   const [reactOpen, setReactOpen] = useState(false);
   const [fullReactOpen, setFullReactOpen] = useState(false); // full emoji picker (reactions ke liye)
   const [confirmDel, setConfirmDel] = useState(false);
@@ -221,6 +227,10 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   const replySrc = m.replyTo ? messages.find((x) => x.id === m.replyTo) : null;
   const replyMember = replySrc ? getState().members.find((x) => x.id === replySrc.from) : null;
   const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
+  const iAmOwner = getState().members.find((x) => x.id === meId)?.role === "owner";
+  // 🕵️ GUMNAM ANONYMITY — sender ka naam/avatar sirf sender khud aur owner ko dikhe
+  const hideSender = m.type === "gumnam" && !mine && !iAmOwner;
+  const replyAnon = !!replySrc && replySrc.type === "gumnam" && replySrc.from !== meId && !iAmOwner;
   const pinnedIds = useStore((s) => s.pins[m.chatId] || EMPTY_ARR);
   const starred = useStore((s) => s.starred.includes(m.id));
   const isPinned = pinnedIds.includes(m.id);
@@ -293,8 +303,8 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
     );
   }
 
-  const name = member?.name || "Member";
-  const color = member ? nameColor(member) : "#5c5e66";
+  const name = hideSender ? "Gumnam Dost" : member?.name || "Member";
+  const color = hideSender ? "#5c5e66" : member ? nameColor(member) : "#5c5e66";
   const timeLabel = `${fmtDayLabel(m.at)} ${fmtTime(m.at)}`;
   return (
     <div
@@ -341,6 +351,9 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
         <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
+        {iAmOwner && (
+          <button title="Super Reaction ⭐" onClick={() => setSuperOpen(true)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#f5a623]"><Sparkles size={16} /></button>
+        )}
         {(mine || staff) && (
           <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Info size={16} /></button>
         )}
@@ -407,6 +420,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         </>
       )}
       {infoOpen && <SeenByModal m={m} onClose={() => patchUI({ infoMsg: null })} />}
+      {superOpen && <SuperReactionModal m={m} onClose={() => setSuperOpen(false)} />}
 
       {m.type === "announcement" ? (
         <div className="card my-2 border-[#5865f2]/30 bg-gradient-to-r from-[#5865f2]/[0.07] to-[#9b7bff]/[0.07] p-3.5">
@@ -423,7 +437,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
             )}
             {replySrc && (
               <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 ${mine ? "bg-black/15" : "bg-black/[0.05]"}`}>
-                <p className="text-xs font-bold" style={{ color: mine ? "#111b21" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyMember?.name || "Member"}</p>
+                <p className="text-xs font-bold" style={{ color: mine ? "#111b21" : replyAnon ? "#5c5e66" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyAnon ? "Gumnam Dost" : replyMember?.name || "Member"}</p>
                 <p className={`truncate text-xs italic ${mine ? "text-[#111b21]/70" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
               </div>
             )}
@@ -445,7 +459,7 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
         <div className="flex gap-4">
           <span className="w-10 shrink-0 select-none pt-1 text-right text-[10px] tabular-nums text-[#80848e] opacity-0 group-hover:opacity-100">{fmtTime(m.at)}{mine && <> <Ticks m={m} /></>}</span>
           <div className="min-w-0 flex-1">
-            {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
+            {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} anon={replyAnon} />}
             <MsgBody m={m} query={query} mine={mine} />
             <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
@@ -453,15 +467,19 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
       ) : (
         <div className="flex gap-4">
           <div className="shrink-0 pt-0.5">
-            <Avatar m={{ id: member?.id || m.from, name, avatar: member?.avatar, online: !!member?.online }} size={40} />
+            {hideSender ? (
+              <Avatar m={{ id: "gumnam-anon", name: "Gumnam", avatar: undefined, online: false }} size={40} />
+            ) : (
+              <Avatar m={{ id: member?.id || m.from, name, avatar: member?.avatar, online: !!member?.online }} size={40} role={member?.role} />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-[15px] font-bold" style={{ color }}>{name}</span>
-              {member && <Badge role={member.role} />}
+              {member && !hideSender && <Badge role={member.role} />}
               <span className="text-[11px] font-medium text-[#80848e]">{fmtDayLabel(m.at)} {fmtTime(m.at)}{m.edited ? " · edited" : ""}{mine && <> <Ticks m={m} /></>}</span>
             </p>
-            {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} />}
+            {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} anon={replyAnon} />}
             <MsgBody m={m} query={query} mine={mine} />
             <Reactions m={m} meId={meId} onReact={fireBurst} />
           </div>
@@ -471,11 +489,11 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   );
 }
 
-function ReplyLine({ replySrc, replyMember }: { replySrc: Message; replyMember?: Member | null }) {
+function ReplyLine({ replySrc, replyMember, anon = false }: { replySrc: Message; replyMember?: Member | null; anon?: boolean }) {
   return (
     <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
       <Reply size={13} className="shrink-0" />
-      <span className="font-semibold" style={{ color: replyMember ? nameColor(replyMember) : undefined }}>{replyMember?.name || "Member"}</span>
+      <span className="font-semibold" style={{ color: anon ? "#5c5e66" : replyMember ? nameColor(replyMember) : undefined }}>{anon ? "Gumnam Dost" : replyMember?.name || "Member"}</span>
       <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "file" ? `📁 ${replySrc.fileName || "File"}` : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "gif" ? "🎞️ GIF" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
     </div>
   );
@@ -530,6 +548,11 @@ function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; 
   if (m.type === "riddle") return <RiddleMessage m={m} />;
   if (m.type === "sticker") return <StickerMessage m={m} />;
   if (m.type === "gif") return <GifMessage m={m} />;
+  if (m.type === "spin") return <SpinWheelMessage m={m} />;
+  if (m.type === "silsila") return <SilsilaMessage m={m} />;
+  if (m.type === "truthdare") return <TruthDareMessage m={m} />;
+  if (m.type === "gumnam") return <GumnamMessage m={m} />;
+  if (m.type === "super") return <SuperPill m={m} />;
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
   if (m.type === "file") return <FileCard m={m} />;
@@ -664,7 +687,7 @@ function ReactionListModal({ m, meId, focusEmoji, onClose }: { m: Message; meId:
                   const mb = members.find((x) => x.id === id);
                   return (
                     <div key={id} className="flex items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-black/[0.03]">
-                      {mb ? <Avatar m={mb} size={28} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-xs"><User size={14} /></span>}
+                      {mb ? <Avatar m={mb} size={28} role={mb.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-xs"><User size={14} /></span>}
                       <span className="text-sm font-semibold text-[#2f3035]">{nameOf(id)}</span>
                       {id === meId && <span className="text-[11px] text-[#80848e]">(aap)</span>}
                     </div>
@@ -698,7 +721,7 @@ function SeenByModal({ m, onClose }: { m: Message; onClose: () => void }) {
             if (!mb) return null;
             return (
               <div key={id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-black/[0.03]">
-                <Avatar m={mb} size={32} />
+                <Avatar m={mb} size={32} role={mb.role} />
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#2f3035]">{mb.name}</span>
                 <span className="text-xs font-bold text-[#5865f2]">✓ Dekh liya</span>
               </div>

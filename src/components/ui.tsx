@@ -15,7 +15,7 @@ export function nameColor(m: Member): string {
   return `hsl(${hueFor(m.id)} 60% 38%)`;
 }
 
-export function Avatar({ m, size = 40, showDot = false, meId }: { m: Pick<Member, "id" | "name" | "avatar" | "online" | "privacy">; size?: number; showDot?: boolean; meId?: string }) {
+export function Avatar({ m, size = 40, showDot = false, meId, role }: { m: Pick<Member, "id" | "name" | "avatar" | "online" | "privacy">; size?: number; showDot?: boolean; meId?: string; role?: Member["role"] }) {
   const initial = (m.name || "?").trim()[0]?.toUpperCase() || "?";
   // E1 privacy — photo/online audience respect karo
   let avatar = m.avatar;
@@ -24,8 +24,14 @@ export function Avatar({ m, size = 40, showDot = false, meId }: { m: Pick<Member
     if (m.privacy.photo === "nobody") avatar = undefined;
     if (m.privacy.online === "nobody") online = false;
   }
-  return (
-    <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+  // Mega-2 (UI-9) — Profile Frame: owner = sunehra ring + 👑, admin = blurple ring + 🛡️
+  const frame = role === "owner"
+    ? { ring: "linear-gradient(135deg,#f5c542,#f59e0b,#fde68a,#d97706)", badge: "👑", label: "Owner" }
+    : role === "admin"
+      ? { ring: "linear-gradient(135deg,#5865f2,#9b7bff,#5865f2)", badge: "🛡️", label: "Admin" }
+      : null;
+  const inner = (
+    <>
       <span
         className="grid h-full w-full place-items-center overflow-hidden rounded-full font-bold text-white soft-shadow"
         style={{
@@ -37,10 +43,39 @@ export function Avatar({ m, size = 40, showDot = false, meId }: { m: Pick<Member
       </span>
       {showDot && (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-white ${online ? "online-dot" : ""}`}
+          className={`absolute -bottom-0.5 -right-0.5 z-[2] rounded-full border-[3px] border-white ${online ? "online-dot" : ""}`}
           style={{ width: size * 0.34, height: size * 0.34, background: online ? "#23a55a" : "#80848e" }}
         />
       )}
+      {frame && size >= 24 && (
+        <span
+          className="absolute -bottom-1 -left-1 z-[2] grid place-items-center rounded-full bg-white shadow ring-1 ring-black/10"
+          style={{ width: size * 0.42, height: size * 0.42, fontSize: size * 0.24 }}
+          title={frame.label}
+        >
+          {frame.badge}
+        </span>
+      )}
+    </>
+  );
+  if (!frame) {
+    return (
+      <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+        {inner}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="relative inline-block shrink-0 rounded-full"
+      style={{ width: size + 5, height: size + 5, padding: 2.5, background: frame.ring }}
+      title={frame.label}
+    >
+      <span className="relative block rounded-full bg-white" style={{ width: size, height: size, padding: 1.5 }}>
+        <span className="relative block" style={{ width: size - 3, height: size - 3 }}>
+          {inner}
+        </span>
+      </span>
     </span>
   );
 }

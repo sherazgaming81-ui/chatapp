@@ -2,7 +2,7 @@
 // ChatsApp Supabase adapter — real backend, no mocks.
 // Query patterns verified against the live project.
 import { supabase, MAIN_GROUP_ID, setMainGroupId, OWNER_EMAIL } from "./supabase";
-import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role } from "./types";
+import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role, StatusItem } from "./types";
 import { unlockBadge } from "./achievements";
 
 const sb = () => supabase();
@@ -74,12 +74,18 @@ function toMessage(r: any): Message {
   // store hota hai — DB me `caption` column hai hi nahi, wahan bhejne se insert 400
   // ho jata tha (poll waghera isi liye fail thay). Yahan text se caption wapas banao
   // aur display text alag rakho taake previews me raw JSON na dikhe.
-  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle"].includes(msg.type) && msg.text.startsWith("{")) {
+  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle", "spin", "silsila", "truthdare", "gumnam", "super"].includes(msg.type) && msg.text.startsWith("{")) {
     try {
       const d = JSON.parse(msg.text);
       msg.caption = msg.text;
-      msg.text = (d && (d.t || d.q)) || "";
+      // gumnam: asal text body me hai (display ke liye wahi text hai)
+      msg.text = msg.type === "gumnam" ? (d && d.body) || "" : (d && (d.t || d.q)) || "";
     } catch { /* ignore */ }
+  }
+  // Mega-2 (UI-11) — photo ke sath caption: caption `text` column me ata hai
+  if (msg.type === "image" && msg.text) {
+    msg.caption = msg.text;
+    msg.text = "";
   }
   return msg;
 }
@@ -310,6 +316,8 @@ export async function load(userId: string, email: string): Promise<boolean> {
     hiddenForMe: getHiddenForMe(),
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
+  // Mega-2 — statuses alag query se (messages list me shamil nahi hote)
+  loadStatuses().catch(() => {});
   return true;
 }
 
@@ -459,7 +467,7 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
   return m;
 }
 
-export async function sendMedia(chatId: string, file: File, kind: "image" | "voice", dur?: number): Promise<Message | null> {
+export async function sendMedia(chatId: string, file: File, kind: "image" | "voice", dur?: number, cap?: string): Promise<Message | null> {
   const s = getState();
   if (!chatId) return null;
   // store as data URL (simple, works with media_url text column)
@@ -469,10 +477,13 @@ export async function sendMedia(chatId: string, file: File, kind: "image" | "voi
     r.onerror = rej;
     r.readAsDataURL(file);
   });
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: kind, text: "", at: Date.now(), reactions: {}, src: dataUrl, dur };
+  // Mega-2 (UI-11) — photo caption `text` column me jata hai (caption column nahi hai);
+  // toMessage use wapas caption bana deta hai. Voice par caption nahi.
+  const caption = kind === "image" ? (cap || "").trim() : "";
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: kind, text: "", at: Date.now(), reactions: {}, src: dataUrl, dur, caption: caption || undefined };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: kind,
-    text: "", media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
+    text: caption, media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
   }, "Media nahi gaya");
   if (!ok) return null;
   checkMessageBadges();
@@ -1038,6 +1049,8 @@ export function startRealtime() {
   // NO chat_id filter — DMs must arrive too
   ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (p: any) => {
     const s = getState();
+    // Mega-2 — status rows chat list/messages me nahi, alag slice me jati hain
+    if (p.new.chat_id === STATUS_CHAT_ID) { upsertStatusFromRow(p.new); return; }
     if (p.new.sender_id === s.me) return;
     if (s.messages.some((x) => x.id === p.new.id)) return;
     const sender = s.members.find((x) => x.id === p.new.sender_id);
@@ -1077,6 +1090,8 @@ export function startRealtime() {
     }
   });
   ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p: any) => {
+    // Mega-2 — status viewers (read_by) updates alag slice me
+    if (p.new.chat_id === STATUS_CHAT_ID) { upsertStatusFromRow(p.new); return; }
     const m = toMessage(p.new);
     const st = getState();
     const prev = st.messages.find((x) => x.id === m.id);
@@ -1100,7 +1115,7 @@ export function startRealtime() {
   ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p: any) => {
     const id = p.old?.id;
     if (!id) return;
-    update((st) => ({ messages: st.messages.filter((x) => x.id !== id) }));
+    update((st) => ({ messages: st.messages.filter((x) => x.id !== id), statuses: st.statuses.filter((x) => x.id !== id) }));
   });
 
   // ───────── AUDIT #3: groups & DMs realtime — naya group/DM foran sab par ─────────
@@ -1493,6 +1508,233 @@ export async function sendGif(chatId: string, gifUrl: string, gifTitle?: string,
     id: m.id, chat_id: chatId, sender_id: m.from, type: "gif",
     text: "", media_url: gifUrl, reply_to: null, created_at: m.at, read_by: [],
   }, "GIF nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+
+/* ═══════════════ MEGA-2 — Status / Fun games / Super Reaction ═══════════════
+   Saare naye payloads poll/games wale pattern par: JSON state `text` column me,
+   toMessage use wapas `caption` me restore karta hai (caption column DB me nahi). */
+
+// payload state update helper (quiz advance wala pattern)
+async function updatePayloadMsg(msgId: string, payloadObj: any) {
+  const caption = JSON.stringify(payloadObj);
+  update({ messages: getState().messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
+  try { await sb().from("messages").update({ text: caption }).eq("id", msgId); } catch { /* ignore */ }
+}
+function parsePayload(m?: Message | null): any | null {
+  if (!m?.caption) return null;
+  try { return JSON.parse(m.caption); } catch { return null; }
+}
+
+/* ───────── A — Status/Stories (WhatsApp wala system) ─────────
+   Storage: messages table me type="status" rows, chat_id = STATUS_CHAT_ID.
+   Nayi table NAHI — is liye deploy bina SQL ke ho jata hai. 24h expiry client par
+   check hoti hai; viewers `read_by` column me (messages wala hi pattern). */
+export const STATUS_CHAT_ID = "__status__";
+export const STATUS_TTL = 24 * 3600e3;
+
+export function rowToStatus(r: any): StatusItem | null {
+  try {
+    const at = r?.created_at || 0;
+    if (!at || Date.now() - at > STATUS_TTL) return null;
+    let body = "", bg: string | undefined;
+    try {
+      const d = JSON.parse(r.text || "");
+      body = d.body || "";
+      bg = d.bg || undefined;
+    } catch { body = r.text || ""; }
+    return {
+      id: r.id, from: r.sender_id, body, bg,
+      src: r.media_url || undefined,
+      at,
+      readBy: Array.isArray(r.read_by) ? r.read_by.filter((x: any) => typeof x === "string") : [],
+    };
+  } catch { return null; }
+}
+
+export function upsertStatusFromRow(r: any) {
+  if (!r?.id) return;
+  const it = rowToStatus(r);
+  update((st) => {
+    const rest = st.statuses.filter((x) => x.id !== r.id);
+    return { statuses: it ? [...rest, it].sort((a, b) => a.at - b.at) : rest };
+  });
+}
+
+export async function loadStatuses() {
+  try {
+    const since = Date.now() - STATUS_TTL;
+    const { data } = await sb().from("messages").select("*")
+      .eq("chat_id", STATUS_CHAT_ID).eq("type", "status")
+      .gt("created_at", since).order("created_at", { ascending: true }).limit(300);
+    const items = (data || []).map(rowToStatus).filter(Boolean) as StatusItem[];
+    update({ statuses: items });
+  } catch { /* statuses best-effort hain */ }
+}
+
+/** Status lagao — photo (src = data URL) ya text (body + bg color) */
+export async function postStatus(body: string, opts?: { bg?: string; src?: string }): Promise<boolean> {
+  const s = getState();
+  if (!s.me) return false;
+  const item: StatusItem = {
+    id: uid("st"), from: s.me, body: (body || "").trim(),
+    bg: opts?.bg, src: opts?.src, at: Date.now(), readBy: [],
+  };
+  if (!item.body && !item.src) return false;
+  update((st) => ({ statuses: [...st.statuses, item] }));
+  try {
+    const { error } = await sb().from("messages").insert({
+      id: item.id, chat_id: STATUS_CHAT_ID, sender_id: s.me, type: "status",
+      text: JSON.stringify({ body: item.body, bg: item.bg || "" }),
+      media_url: item.src || "", reply_to: null, created_at: item.at, read_by: [],
+    });
+    if (error) throw error;
+    return true;
+  } catch {
+    update((st) => ({ statuses: st.statuses.filter((x) => x.id !== item.id) }));
+    toast("Status nahi gaya", "Dobara try karo");
+    return false;
+  }
+}
+
+/** Status dekha — viewers list (read_by) me apna naam joro */
+export async function markStatusSeen(id: string) {
+  const s = getState();
+  const it = s.statuses.find((x) => x.id === id);
+  if (!it || !s.me || it.from === s.me || it.readBy.includes(s.me)) return;
+  const readBy = [...it.readBy, s.me];
+  update((st) => ({ statuses: st.statuses.map((x) => (x.id === id ? { ...x, readBy } : x)) }));
+  try { await sb().from("messages").update({ read_by: readBy }).eq("id", id); } catch { /* ignore */ }
+}
+
+/** Apna status delete karo (hard delete — sab ke liye) */
+export async function deleteStatus(id: string) {
+  update((st) => ({ statuses: st.statuses.filter((x) => x.id !== id) }));
+  try { await sb().from("messages").delete().eq("id", id); } catch { /* ignore */ }
+}
+
+/* ───────── B2 — Spin Wheel ───────── */
+export async function sendSpinWheel(chatId: string, options: string[]): Promise<Message | null> {
+  const s = getState();
+  const opts = options.map((o) => o.trim()).filter(Boolean).slice(0, 8);
+  if (!chatId || opts.length < 2) return null;
+  const payload = { options: opts, result: null as number | null, spunBy: null as string | null, t: "🎡 Spin Wheel" };
+  const cap = JSON.stringify(payload);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "spin", text: payload.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "spin",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Wheel nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+export async function spinWheelNow(msgId: string) {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  const st = parsePayload(m);
+  if (!m || !st || st.result !== null || !Array.isArray(st.options) || st.options.length < 2) return;
+  const result = Math.floor(Math.random() * st.options.length);
+  await updatePayloadMsg(msgId, { ...st, result, spunBy: s.me });
+}
+
+/* ───────── B3 — Lafz Silsila (word chain, score ke sath) ───────── */
+export async function sendSilsila(chatId: string, firstWord: string): Promise<Message | null> {
+  const s = getState();
+  const w = firstWord.trim().toLowerCase();
+  if (!chatId) return null;
+  if (w.length < 3) { toast("Lafz chhota hai", "Kam se kam 3 harf ka lafz do"); return null; }
+  const payload = {
+    words: [{ w, by: s.me }],
+    scores: { [s.me]: 1 } as Record<string, number>,
+    lastBy: s.me, done: false, winner: null as string | null,
+    t: "🔤 Lafz Silsila",
+  };
+  const cap = JSON.stringify(payload);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "silsila", text: payload.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "silsila",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Game nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+/** Agla lafz khelo. "ok" = chal gaya · "ended" = ghalat lafz, game khatam · "blocked" = baari nahi · "invalid" */
+export async function silsilaPlay(msgId: string, rawWord: string): Promise<"ok" | "ended" | "blocked" | "invalid"> {
+  const s = getState();
+  const m = s.messages.find((x) => x.id === msgId);
+  const st = parsePayload(m);
+  if (!m || !st || st.done || !Array.isArray(st.words) || st.words.length === 0) return "invalid";
+  if (st.lastBy === s.me) { toast("Aapki baari nahi", "Pehle koi aur lafz bole"); return "blocked"; }
+  const w = rawWord.trim().toLowerCase();
+  const last = String(st.words[st.words.length - 1]?.w || "").toLowerCase();
+  const need = last.replace(/[^a-z]/g, "").slice(-1);
+  const first = w.replace(/[^a-z]/g, "").charAt(0);
+  const used = st.words.some((x: any) => String(x.w || "").toLowerCase() === w);
+  if (w.length < 3 || used || !need || first !== need) {
+    // ghalat lafz — silsila yahin khatam, score ruk gaya; sab se zyada score wala winner
+    const scores = (st.scores || {}) as Record<string, number>;
+    const winner = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    await updatePayloadMsg(msgId, { ...st, done: true, winner, endedBy: s.me });
+    return "ended";
+  }
+  const scores = { ...((st.scores || {}) as Record<string, number>) };
+  scores[s.me] = (scores[s.me] || 0) + 1;
+  await updatePayloadMsg(msgId, { ...st, words: [...st.words, { w, by: s.me }], scores, lastBy: s.me });
+  return "ok";
+}
+
+/* ───────── B4 — Truth or Dare ───────── */
+export async function sendTruthDare(chatId: string, mode: "truth" | "dare", prompt: string): Promise<Message | null> {
+  const s = getState();
+  if (!chatId || !prompt.trim()) return null;
+  const payload = { mode, q: prompt.trim(), t: "🎲 Truth or Dare" };
+  const cap = JSON.stringify(payload);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "truthdare", text: payload.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "truthdare",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Truth/Dare nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+export async function rerollTruthDare(msgId: string, mode: "truth" | "dare", prompt: string) {
+  const m = getState().messages.find((x) => x.id === msgId);
+  const st = parsePayload(m);
+  if (!st || !prompt.trim()) return;
+  await updatePayloadMsg(msgId, { ...st, mode, q: prompt.trim() });
+}
+
+/* ───────── B6 — Gumnam Paigham (sender chhupa, sirf owner ko asal pata) ───────── */
+export async function sendGumnam(chatId: string, body: string): Promise<Message | null> {
+  const s = getState();
+  const b = body.trim();
+  if (!chatId || !b) return null;
+  const payload = { body: b, t: "🕵️ Gumnam Paigham" };
+  const cap = JSON.stringify(payload);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "gumnam", text: b, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "gumnam",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Paigham nahi gaya");
+  if (!ok) return null;
+  return m;
+}
+
+/* ───────── B5 — Super Reaction (SIRF owner, full-screen effect) ───────── */
+export type SuperFxKind = "hearts" | "confetti" | "stars";
+export async function sendSuperReaction(chatId: string, emoji: string, kind: SuperFxKind, targetId?: string): Promise<Message | null> {
+  const s = getState();
+  const me = s.members.find((x) => x.id === s.me);
+  if (!chatId) return null;
+  if (me?.role !== "owner") { toast("Sirf owner ⭐", "Super Reaction sirf owner bhej sakta hai"); return null; }
+  const payload = { emoji, kind, target: targetId || null, t: "⭐ Super Reaction" };
+  const cap = JSON.stringify(payload);
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "super", text: payload.t, at: Date.now(), reactions: {}, caption: cap };
+  const ok = await insertMessageRow(m, {
+    id: m.id, chat_id: chatId, sender_id: m.from, type: "super",
+    text: cap, media_url: "", reply_to: null, created_at: m.at, read_by: [],
+  }, "Super Reaction nahi gaya");
   if (!ok) return null;
   return m;
 }

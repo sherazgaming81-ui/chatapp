@@ -33,6 +33,7 @@ let state: State = {
   loading: true,
   members: [],
   messages: [],
+  statuses: [],
   chats: [],
   pins: {},
   unread: {},

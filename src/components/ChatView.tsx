@@ -7,6 +7,8 @@ import { Avatar, fmtDayHeader } from "@/components/ui";
 import MessageItem from "@/components/MessageItem";
 import Composer from "@/components/Composer";
 import MobileDrawers from "@/components/MobileDrawers";
+import FxOverlay from "@/components/FxOverlay";
+import { detectTextFx } from "@/lib/fun";
 
 const EMPTY_ARR: string[] = [];
 
@@ -91,6 +93,14 @@ export default function ChatView() {
   const sc = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
 
+  /* UI-7 — scroll-bottom button: stick=false ke baad aaye naye (dusron ke) messages ki ginti */
+  const [newCount, setNewCount] = useState(0);
+  const seenOthersRef = useRef(0);
+
+  /* Fun-1/Fun-5 — chat effects + super reaction playback */
+  const [fx, setFx] = useState<{ kind: "confetti" | "hearts" | "stars"; emoji: string } | null>(null);
+  const firedFxRef = useRef<Set<string>>(new Set());
+
   /* 19 — lazy load purane messages (upar scroll par) */
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -104,6 +114,8 @@ export default function ChatView() {
       prevChatRef.current = activeChatId;
       setSkel(true);
       setHasMore(true);
+      setNewCount(0); // UI-7 — chat badalne par naye-messages count reset
+      seenOthersRef.current = 0;
       patchUI({ selectedMsgs: [] }); // chat badlo to selection saaf
       const t = setTimeout(() => setSkel(false), 550);
       return () => clearTimeout(t);
@@ -141,6 +153,42 @@ export default function ChatView() {
     () => messages.filter((m) => m.chatId === activeChatId && !hiddenForMe.includes(m.id)),
     [messages, activeChatId, hiddenForMe]
   );
+
+  /* UI-7 — dusron ke messages ki ginti stick ke hisab se track karo */
+  const othersCount = useMemo(() => msgs.filter((m) => m.from !== meId).length, [msgs, meId]);
+  useEffect(() => {
+    if (stick) {
+      seenOthersRef.current = othersCount;
+      setNewCount(0);
+    } else {
+      const diff = othersCount - seenOthersRef.current;
+      setNewCount(diff > 0 ? diff : 0);
+    }
+  }, [othersCount, stick]);
+
+  /* Fun-1/Fun-5 — aakhri message par effect chalao (sirf taaza <9s, har id ek hi baar; apne msg par bhi) */
+  useEffect(() => {
+    if (msgs.length === 0) return;
+    const m = msgs[msgs.length - 1];
+    if (!m || m.deleted) return;
+    if (firedFxRef.current.has(m.id)) return;
+    if (Date.now() - m.at > 9000) return;
+    if (m.type === "super") {
+      try {
+        const parsed = m.caption ? JSON.parse(m.caption) : null;
+        if (parsed && parsed.kind && parsed.emoji) {
+          firedFxRef.current.add(m.id);
+          setFx({ kind: parsed.kind, emoji: parsed.emoji });
+        }
+      } catch { /* caption JSON nahi — ignore */ }
+    } else if (m.type === "text") {
+      const detected = detectTextFx(m.text || "");
+      if (detected) {
+        firedFxRef.current.add(m.id);
+        setFx(detected);
+      }
+    }
+  }, [msgs]);
 
   // A9 — unread divider: lastRead per chat in localStorage
   const [lastReadId, setLastReadId] = useState<string | null>(null);
@@ -221,6 +269,8 @@ export default function ChatView() {
       .map((m) => m.id);
   }, [msgs, q]);
   useEffect(() => { setQIdx(0); }, [q, activeChatId]);
+  // search khula ho aur chat badle to query reset (purani chat ke matches na rahen)
+  useEffect(() => { setQ(""); }, [activeChatId]);
   const jumpMatch = (dir: number) => {
     if (matchIds.length === 0) return;
     const n = (qIdx + dir + matchIds.length) % matchIds.length;
@@ -264,7 +314,7 @@ export default function ChatView() {
         </button>
         {isDM ? (
           <>
-            {dmOther ? <Avatar m={dmOther} size={28} showDot /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#5865f2] text-sm font-bold text-white">@</span>}
+            {dmOther ? <Avatar m={dmOther} size={28} showDot role={dmOther.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#5865f2] text-sm font-bold text-white">@</span>}
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{dmOther?.name || activeChat?.name}</h1>
             </div>
@@ -416,16 +466,40 @@ export default function ChatView() {
           ))
         )}
         {typer && (
-          <div className="flex items-center gap-3 px-4 pt-2 sm:hidden">
-            <Avatar m={typer} size={28} />
+          <div className="flex items-center gap-3 px-4 pt-2">
+            <Avatar m={typer} size={28} role={typer.role} />
+            <span className="text-xs font-semibold text-[#80848e]">{typer.name} likh raha hai…</span>
             <span className="flex gap-1 rounded-xl bg-black/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
           </div>
         )}
       </div>
+      {/* UI-7 — neeche jao button (upar scroll kiya ho aur naye messages aaye hon) */}
+      {!stick && (
+        <button
+          onClick={() => {
+            const el = sc.current;
+            if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+            setStick(true);
+            setNewCount(0);
+            seenOthersRef.current = othersCount;
+          }}
+          className="absolute bottom-3 right-3 z-20 grid h-10 w-10 place-items-center rounded-full bg-white text-[#2f3035] soft-shadow transition hover:bg-black/[0.03] active:scale-95"
+          aria-label="Neeche jao"
+          title="Neeche jao"
+        >
+          <ChevronDown size={20} />
+          {newCount > 0 && (
+            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#ed4245] px-1 text-[10px] font-bold text-white ring-2 ring-white">
+              {newCount}
+            </span>
+          )}
+        </button>
+      )}
       </div>
 
       {activeChatId && <Composer chatId={activeChatId} />}
       <MobileDrawers />
+      {fx && <FxOverlay kind={fx.kind} emoji={fx.emoji} onDone={() => setFx(null)} />}
     </div>
   );
 }

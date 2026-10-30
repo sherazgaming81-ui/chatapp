@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Moon, Settings } from "lucide-react";
+import { MessageCircle, Moon, CircleDot, User } from "lucide-react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
 import VersionBanner from "@/components/VersionBanner";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
@@ -22,6 +22,7 @@ import OwnerPanel from "@/components/OwnerPanel";
 import DeenPage from "@/components/DeenPage";
 import { GlobalAzaanAlert } from "@/components/DeenExtras";
 import StarredView from "@/components/StarredView";
+import StatusView from "@/components/StatusView";
 import MediaViewer from "@/components/MediaViewer";
 import GroupInfo from "@/components/GroupInfo";
 import GlobalSearch from "@/components/GlobalSearch";
@@ -48,6 +49,21 @@ export default function App() {
       document.title = totalUnread > 0 ? `(${totalUnread}) ChatsApp` : "ChatsApp";
     } catch { /* ignore */ }
   }, [totalUnread]);
+
+  /* UI-12 — PWA app icon badge (Badging API; supported na ho to khamoshi se skip) */
+  useEffect(() => {
+    try {
+      const nav = navigator as any;
+      if (typeof nav.setAppBadge === "function") {
+        if (totalUnread > 0) nav.setAppBadge(totalUnread);
+        else if (typeof nav.clearAppBadge === "function") nav.clearAppBadge();
+      }
+    } catch { /* ignore */ }
+  }, [totalUnread]);
+
+  /* UI-13 — unseen status hai to bottom bar ke Status icon par green dot */
+  const statuses = useStore((s) => s.statuses);
+  const hasUnseenStatus = statuses.some((st) => st.from !== meId && !(st.readBy || []).includes(meId));
 
   // Phase 6 — onboarding state
   const [welcomeSeen, setWelcomeSeen] = useState(() => {
@@ -224,7 +240,8 @@ export default function App() {
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
   const showDeen = tab === "deen";
-  const main = starredOpen ? <StarredView /> : showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
+  const showStatus = tab === "status";
+  const main = starredOpen ? <StarredView /> : showStatus ? <StatusView /> : showDeen ? <DeenPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
   const compactCls = prefs.compact ? "compact" : "";
 
   return (
@@ -247,26 +264,36 @@ export default function App() {
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
-        {!showDeen && <Sidebar />}
+        {!showDeen && !showStatus && <Sidebar />}
         <div className="flex min-w-0 flex-1 flex-col">{main}</div>
-        {!showDeen && <MemberList />}
+        {!showDeen && !showStatus && <MemberList />}
       </div>
       {/* mobile: single column + drawers (handled inside ChatView/Sidebar) */}
       <div className="flex min-w-0 flex-1 flex-col md:hidden">
-        {!showDeen && (
+        {!showDeen && !showStatus && (
           <button onClick={() => patchUI({ tab: "deen" })} className="mx-3 mb-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#23a55a]/15 to-[#23a55a]/5 px-4 py-2.5 text-sm font-bold text-[#1a7a55]">
             <span className="text-lg">🕌</span> Deen — namaz, tasbeeh, qibla
           </button>
         )}
         {main}
         {/* 12 — mobile bottom navigation */}
-        <nav className="mobile-nav grid shrink-0 grid-cols-3" aria-label="Navigation">
+        <nav className="mobile-nav grid shrink-0 grid-cols-4" aria-label="Navigation">
           <button
             onClick={() => patchUI({ tab: "chat" })}
-            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" && !showDeen ? "text-[#5865f2]" : "text-[#80848e]"}`}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#5865f2]" : "text-[#80848e]"}`}
           >
             <MessageCircle size={21} />
             Chats
+          </button>
+          <button
+            onClick={() => patchUI({ tab: "status" })}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showStatus ? "text-[#5865f2]" : "text-[#80848e]"}`}
+          >
+            <span className="relative">
+              <CircleDot size={21} />
+              {hasUnseenStatus && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#23a55a] ring-2 ring-white" />}
+            </span>
+            Status
           </button>
           <button
             onClick={() => patchUI({ tab: "deen" })}
@@ -279,8 +306,8 @@ export default function App() {
             onClick={() => patchUI({ settingsOpen: true })}
             className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#80848e] transition active:text-[#5865f2]"
           >
-            <Settings size={21} />
-            Settings
+            <User size={21} />
+            Profile
           </button>
         </nav>
       </div>

@@ -1,9 +1,10 @@
 "use client";
-import { Hash, Volume2, VolumeX, ChevronDown, Settings, Mic, LogOut, Star, Plus, Pin } from "lucide-react";
+import { Hash, Volume2, VolumeX, ChevronDown, Settings, Mic, LogOut, Star, Plus, Pin, CircleDot } from "lucide-react";
 import { useState } from "react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, Badge, fmtTime } from "@/components/ui";
-import { signOut } from "@/lib/db";
+import { signOut, STATUS_TTL } from "@/lib/db";
+import { statusRingBg } from "@/components/StatusView";
 import { isStaff } from "@/lib/types";
 import { isChatMuted, isChatPinned, sortChats } from "@/lib/prefs";
 import ProfileSettings from "@/components/ProfileSettings";
@@ -11,6 +12,7 @@ import UnreadBadge from "@/components/UnreadBadge";
 
 export default function Sidebar() {
   const chats = useStore((s) => s.chats);
+  const statuses = useStore((s) => s.statuses);
   const messages = useStore((s) => s.messages);
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me);
@@ -34,6 +36,9 @@ export default function Sidebar() {
         <div className="flex shrink-0 items-center">
           <button onClick={() => patchUI({ starredOpen: true })} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5 hover:text-[#f5a623]" title="Starred messages">
             <Star size={17} />
+          </button>
+          <button onClick={() => patchUI({ tab: "status" })} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5 hover:text-[#23a55a]" title="Status">
+            <CircleDot size={17} />
           </button>
           <ChevronDown size={18} className="text-[#80848e]" />
         </div>
@@ -81,17 +86,26 @@ export default function Sidebar() {
               const other = members.find((m) => m.id === dm.otherId);
               const lm = lastMsg(dm.id);
               const active = activeChatId === dm.id;
+              const userStatuses = statuses.filter((s) => s.from === (other?.id || dm.otherId) && Date.now() - s.at < STATUS_TTL);
               return (
                 <button
                   key={dm.id}
                   onClick={() => pick(dm.id)}
                   className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${active ? "bg-[#5865f2] soft-shadow" : "hover:bg-black/5"}`}
                 >
-                  <Avatar
-                    m={{ id: other?.id || dm.id, name: other?.name || dm.name, avatar: other?.avatar || dm.photo, online: !!other?.online }}
-                    size={32}
-                    showDot
-                  />
+                  <span
+                    onClick={(e) => { e.stopPropagation(); patchUI({ tab: "status" }); }}
+                    className="shrink-0 cursor-pointer rounded-full p-[2.5px]"
+                    style={{ background: statusRingBg(userStatuses, meId) }}
+                    title="Status"
+                  >
+                    <Avatar
+                      m={{ id: other?.id || dm.id, name: other?.name || dm.name, avatar: other?.avatar || dm.photo, online: !!other?.online }}
+                      size={32}
+                      showDot
+                      role={other?.role}
+                    />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#2f3035]"}`}>{other?.name || dm.name}</span>
                     {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#80848e]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
@@ -109,7 +123,7 @@ export default function Sidebar() {
       <div className="relative shrink-0 rounded-b-2xl border-t border-black/10 bg-black/[0.04] px-2.5 py-2.5">
         <div className="flex items-center gap-2.5">
           <button onClick={() => setMenu((v) => !v)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 text-left hover:bg-black/5">
-            {me && <Avatar m={me} size={36} showDot />}
+            {me && <Avatar m={me} size={36} showDot role={me.role} />}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-bold text-[#2f3035]">{me?.name || "…"}{me && <Badge role={me.role} />}</span>
               <span className="block truncate text-xs text-[#80848e]">{me?.online ? "Online" : "Offline"}</span>

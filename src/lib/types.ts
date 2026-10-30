@@ -51,7 +51,18 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "silsila" | "truthdare" | "gumnam" | "super" | "status";
+
+/* Mega-2 — WhatsApp-style status/story (messages table me type="status" rows, alag slice) */
+export interface StatusItem {
+  id: string;
+  from: string;
+  body: string; // text status ka text ya photo ka caption
+  bg?: string; // text status ka background color
+  src?: string; // photo status (media_url data URL)
+  at: number; // ms epoch — 24h baad expire
+  readBy: string[]; // viewers
+}
 
 export interface Message {
   id: string;
@@ -84,7 +95,7 @@ export interface ChatMeta {
 }
 
 export interface UIState {
-  tab: "chat" | "owner" | "deen";
+  tab: "chat" | "owner" | "deen" | "status";
   activeChatId: string | null;
   toasts: { id: string; title: string; body: string }[];
   typing: { id: string; chatId: string }[]; // AUDIT FIX: per-chat typing (pehle kisi bhi chat ki typing sab jagah dikhti thi)
@@ -113,6 +124,7 @@ export interface State {
   loading: boolean; // initial data load
   members: Member[];
   messages: Message[];
+  statuses: StatusItem[]; // Mega-2 — active (24h ke andar wale) statuses
   chats: ChatMeta[];
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
   unread: Record<string, number>; // chatId -> unread count (WhatsApp-style badges)

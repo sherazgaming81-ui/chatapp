@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, Link2, HelpCircle, EyeOff } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendSilsila, sendTruthDare, sendGumnam } from "@/lib/db";
+import { pickTruthDare } from "@/lib/fun";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -29,6 +30,22 @@ function findMemberByName(members: { id: string; name: string }[], raw: string) 
   return members.find((m) => m.name.toLowerCase() === q) || members.find((m) => m.name.toLowerCase().includes(q)) || null;
 }
 
+// UI-11 — image process: Standard = max 1280 + JPEG 0.82 (tez) · HD = max 2560 + JPEG 0.92 (saaf)
+export async function processImage(f: File, quality: "standard" | "hd"): Promise<File> {
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const max = quality === "hd" ? 2560 : 1280;
+  const sc = Math.min(1, max / Math.max(img.width, img.height));
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(img.width * sc);
+  cv.height = Math.round(img.height * sc);
+  cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height);
+  URL.revokeObjectURL(url);
+  const blob: Blob = await new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", quality === "hd" ? 0.92 : 0.82));
+  return new File([blob], "photo.jpg", { type: "image/jpeg" });
+}
+
 export default function Composer({ chatId }: { chatId: string }) {
   const replyTo = useStore((s) => s.ui.replyTo);
   const editingMsg = useStore((s) => s.ui.editingMsg);
@@ -41,6 +58,11 @@ export default function Composer({ chatId }: { chatId: string }) {
   const [emojiOpen, setEmojiOpen] = useState(false); // B8 emoji picker
   const [pollOpen, setPollOpen] = useState(false); // B5 poll creator
   const [contactOpen, setContactOpen] = useState(false); // B7 contact share
+  const [spinOpen, setSpinOpen] = useState(false); // Fun — Spin Wheel
+  const [silsilaOpen, setSilsilaOpen] = useState(false); // Fun — Lafz Silsila
+  const [truthDareOpen, setTruthDareOpen] = useState(false); // Fun — Truth or Dare
+  const [gumnamOpen, setGumnamOpen] = useState(false); // Fun — Gumnam Paigham
+  const [photoFile, setPhotoFile] = useState<File | null>(null); // UI-11 — photo send options (caption + quality)
   const [locBusy, setLocBusy] = useState(false); // B6 location
   const mr = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -230,21 +252,13 @@ export default function Composer({ chatId }: { chatId: string }) {
     } catch { /* user cancelled */ }
   };
 
+  // Paste (Ctrl+V) ke liye: Standard quality, baghair caption, foran bhejo — modal NAHI khulta.
+  // Gallery se photo select ho to PhotoSendModal khulta hai (neeche file input dekho).
   const pickImage = async (f: File | undefined) => {
     if (!f || muted) return;
     if (!f.type.startsWith("image/")) return;
-    const img = new Image();
-    const url = URL.createObjectURL(f);
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-    const max = 1280;
-    const sc = Math.min(1, max / Math.max(img.width, img.height));
-    const cv = document.createElement("canvas");
-    cv.width = Math.round(img.width * sc);
-    cv.height = Math.round(img.height * sc);
-    cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height);
-    URL.revokeObjectURL(url);
-    const blob: Blob = await new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.82));
-    sendMedia(chatId, new File([blob], "photo.jpg", { type: "image/jpeg" }), "image");
+    const processed = await processImage(f, "standard");
+    sendMedia(chatId, processed, "image");
   };
 
   // Har file type: PDF, DOC, MP4, MP3, ZIP, APK...
@@ -339,7 +353,7 @@ export default function Composer({ chatId }: { chatId: string }) {
           <button onClick={() => { setAttachOpen((v) => !v); setEmojiOpen(false); }} className={`rounded-md p-2.5 hover:bg-black/5 ${attachOpen ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`} title="Attach">
             <Plus size={20} className={`transition-transform ${attachOpen ? "rotate-45" : ""}`} />
           </button>
-          <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
+          <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f && !muted && f.type.startsWith("image/")) setPhotoFile(f); }} />
           <input ref={doc} hidden type="file" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           <textarea
             ref={ta}
@@ -409,6 +423,10 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
+            <AttachItem icon={<RotateCw size={19} />} color="#5865f2" bg="#5865f2/10" label="Spin Wheel 🎡" desc="Wheel ghumao, kismat azmao" onClick={() => { setAttachOpen(false); setSpinOpen(true); }} />
+            <AttachItem icon={<Link2 size={19} />} color="#23a55a" bg="#23a55a/10" label="Lafz Silsila 🔤" desc="Lafzon ki chain game" onClick={() => { setAttachOpen(false); setSilsilaOpen(true); }} />
+            <AttachItem icon={<HelpCircle size={19} />} color="#ed4245" bg="#ed4245/10" label="Truth or Dare 🎲" desc="Sawal ya challenge chuno" onClick={() => { setAttachOpen(false); setTruthDareOpen(true); }} />
+            <AttachItem icon={<EyeOff size={19} />} color="#5c5e66" bg="#5c5e66/10" label="Gumnam Paigham 🕵️" desc="Naam chhupa kar bhejo" onClick={() => { setAttachOpen(false); setGumnamOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
           </div>
@@ -430,6 +448,11 @@ export default function Composer({ chatId }: { chatId: string }) {
       )}
       {pollOpen && <PollModal chatId={chatId} onClose={() => setPollOpen(false)} />}
       {contactOpen && <ContactModal chatId={chatId} pickDevice={pickDeviceContact} onClose={() => setContactOpen(false)} />}
+      {spinOpen && <SpinModal chatId={chatId} onClose={() => setSpinOpen(false)} />}
+      {silsilaOpen && <SilsilaModal chatId={chatId} onClose={() => setSilsilaOpen(false)} />}
+      {truthDareOpen && <TruthDareModal chatId={chatId} onClose={() => setTruthDareOpen(false)} />}
+      {gumnamOpen && <GumnamModal chatId={chatId} onClose={() => setGumnamOpen(false)} />}
+      {photoFile && <PhotoSendModal chatId={chatId} file={photoFile} onClose={() => setPhotoFile(null)} />}
     </div>
   );
 }
@@ -529,6 +552,191 @@ function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDev
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Number (optional)" inputMode="tel" maxLength={20}
           className="field mt-2 w-full px-3.5 py-2.5 text-[15px]" dir="ltr" />
         <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Contact bhejo</button>
+      </div>
+    </>
+  );
+}
+
+// Fun — Spin Wheel creator modal (PollModal pattern)
+function SpinModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const [opts, setOpts] = useState(["", ""]);
+  const busy = useRef(false);
+  const send = async () => {
+    if (busy.current) return;
+    const clean = opts.map((o) => o.trim()).filter(Boolean).slice(0, 8);
+    if (clean.length < 2) { toast("Kam se kam 2 options likho", ""); return; }
+    busy.current = true;
+    await sendSpinWheel(chatId, clean);
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><RotateCw size={19} className="text-[#5865f2]" /> Spin Wheel 🎡</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Options (2–8)</p>
+        <div className="space-y-1.5">
+          {opts.map((o, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input value={o} onChange={(e) => setOpts(opts.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} maxLength={40}
+                className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
+              {opts.length > 2 && (
+                <button onClick={() => setOpts(opts.filter((_, j) => j !== i))} className="shrink-0 rounded-lg p-2.5 text-[#ed4245] hover:bg-[#ed4245]/10" aria-label="Hatao">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {opts.length < 8 && (
+          <button onClick={() => setOpts([...opts, ""])} className="mt-2 flex items-center gap-1 text-sm font-bold text-[#5865f2] hover:underline"><Plus size={15} /> Option add karo</button>
+        )}
+        <button onClick={send} className="btn btn-blurple mt-5 w-full py-3 text-[15px]">Wheel bhejo</button>
+      </div>
+    </>
+  );
+}
+
+// Fun — Lafz Silsila starter modal
+function SilsilaModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const [word, setWord] = useState("");
+  const busy = useRef(false);
+  const send = async () => {
+    if (busy.current) return;
+    if (word.trim().length < 3) { toast("Lafz chhota hai", "Kam se kam 3 harf ka lafz do"); return; }
+    busy.current = true;
+    const r = await sendSilsila(chatId, word);
+    busy.current = false;
+    if (r) onClose(); // null = ghalti — modal khula rahe taake theek kar sake
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Link2 size={19} className="text-[#23a55a]" /> Lafz Silsila 🔤</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Pehla lafz…" maxLength={30}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
+          className="field mt-4 w-full px-3.5 py-2.5 text-[15px]" />
+        <p className="mt-2 text-xs leading-relaxed text-[#80848e]">
+          Har agla lafz pichle lafz ke aakhri harf se shuru hoga. Ghalat lafz = game khatam, sab se zyada score wala winner!
+        </p>
+        <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Game shuru karo</button>
+      </div>
+    </>
+  );
+}
+
+// Fun — Truth or Dare picker modal
+function TruthDareModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const busy = useRef(false);
+  const pick = async (mode: "truth" | "dare") => {
+    if (busy.current) return;
+    busy.current = true;
+    await sendTruthDare(chatId, mode, pickTruthDare(mode));
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><HelpCircle size={19} className="text-[#ed4245]" /> Truth or Dare 🎲</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <p className="mt-1 text-sm text-[#80848e]">Kaunsa bhejna hai? Sawal/challenge khud chun kar ayega.</p>
+        <div className="mt-4 space-y-2">
+          <button onClick={() => pick("truth")} className="w-full rounded-xl border border-[#5865f2]/40 bg-[#5865f2]/[0.07] px-4 py-3.5 text-left transition hover:bg-[#5865f2]/[0.12] active:scale-[0.99]">
+            <span className="block text-[15px] font-extrabold text-[#5865f2]">🤔 Truth</span>
+            <span className="block text-xs text-[#80848e]">Ek sawal — sach sach jawab dena hoga</span>
+          </button>
+          <button onClick={() => pick("dare")} className="w-full rounded-xl border border-[#ed4245]/40 bg-[#ed4245]/[0.06] px-4 py-3.5 text-left transition hover:bg-[#ed4245]/[0.11] active:scale-[0.99]">
+            <span className="block text-[15px] font-extrabold text-[#ed4245]">🔥 Dare</span>
+            <span className="block text-xs text-[#80848e]">Ek challenge — karke dikhana hoga</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Fun — Gumnam Paigham modal (naam chhupa, sirf owner ko asal sender pata)
+function GumnamModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+  const [body, setBody] = useState("");
+  const busy = useRef(false);
+  const send = async () => {
+    if (busy.current) return;
+    if (!body.trim()) { toast("Paigham likho", ""); return; }
+    busy.current = true;
+    await sendGumnam(chatId, body);
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><EyeOff size={19} className="text-[#5c5e66]" /> Gumnam Paigham 🕵️</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Jo kehna hai, be-jhijhak likho…" maxLength={1000} rows={4}
+          className="field mt-4 w-full resize-none px-3.5 py-2.5 text-[15px]" />
+        <p className="mt-2 rounded-lg bg-black/[0.04] px-3 py-2 text-xs leading-relaxed text-[#5c5e66]">
+          🕵️ Aapka naam kisi ko nahi dikhega — sirf owner ko pata chalega ke paigham kis ne bheja.
+        </p>
+        <button onClick={send} className="btn btn-blurple mt-4 flex w-full items-center justify-center gap-1.5 py-3 text-[15px]"><Send size={16} /> Gumnam bhejo</button>
+      </div>
+    </>
+  );
+}
+
+// UI-11 — Photo send options: preview + caption + Standard/HD quality
+function PhotoSendModal({ chatId, file, onClose }: { chatId: string; file: File; onClose: () => void }) {
+  const [caption, setCaption] = useState("");
+  const [quality, setQuality] = useState<"standard" | "hd">("standard");
+  const [busy, setBusy] = useState(false);
+  const [preview] = useState(() => URL.createObjectURL(file));
+  useEffect(() => () => URL.revokeObjectURL(preview), [preview]);
+  const send = async () => {
+    if (busy) return;
+    setBusy(true);
+    const processed = await processImage(file, quality);
+    await sendMedia(chatId, processed, "image", undefined, caption.trim() || undefined);
+    onClose();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><ImagePlus size={19} className="text-[#5865f2]" /> Photo bhejo</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+        </div>
+        <img src={preview} alt="" className="mt-4 max-h-56 w-full rounded-xl border border-black/10 object-cover" draggable={false} />
+        <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption likho…" maxLength={300}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
+          className="field mt-3 w-full px-3.5 py-2.5 text-[15px]" />
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Quality</p>
+        <div className="flex gap-1.5">
+          <button onClick={() => setQuality("standard")}
+            className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "standard" ? "border-[#5865f2] bg-[#5865f2]/10" : "border-black/10 hover:border-black/25"}`}>
+            <span className={`block text-sm font-bold ${quality === "standard" ? "text-[#5865f2]" : "text-[#2f3035]"}`}>Standard</span>
+            <span className="block text-xs text-[#80848e]">Tez, halki file</span>
+          </button>
+          <button onClick={() => setQuality("hd")}
+            className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "hd" ? "border-[#5865f2] bg-[#5865f2]/10" : "border-black/10 hover:border-black/25"}`}>
+            <span className={`block text-sm font-bold ${quality === "hd" ? "text-[#5865f2]" : "text-[#2f3035]"}`}>HD</span>
+            <span className="block text-xs text-[#80848e]">Saaf, bari file</span>
+          </button>
+        </div>
+        <button onClick={send} disabled={busy} className="btn btn-blurple mt-5 flex w-full items-center justify-center gap-1.5 py-3 text-[15px] disabled:opacity-60">
+          <Send size={16} /> {busy ? "Bhej rahe hain…" : "Bhejo"}
+        </button>
       </div>
     </>
   );
