@@ -12,6 +12,8 @@ import {
   pasaLegalMoves,
   pasaPlayerDone,
   pasaBotName,
+  pasaTorActive,
+  pasaHasKill,
   PASA_COLORS,
   PASA_SAFE_CELLS,
   pasaCell,
@@ -129,7 +131,7 @@ interface TokenRender {
   row: number; col: number; stackN: number; stackI: number;
 }
 function LudoBoard({
-  st, interactive, selected, legalMoves, myIdx, dangerSet, destPos, captureFlash, glowIdx, onTokenTap, onBoardTap,
+  st, interactive, selected, legalMoves, myIdx, dangerSet, destPos, pathDots, captureFlash, glowIdx, onTokenTap, onDestTap,
 }: {
   st: St;
   interactive: boolean;
@@ -138,14 +140,17 @@ function LudoBoard({
   myIdx: number;
   dangerSet: Set<string>;
   destPos: { row: number; col: number } | null;
+  /** selected goti ke raste ke darmiyani cells (dots) — manzil wala cell shamil nahi */
+  pathDots: { row: number; col: number }[];
   captureFlash: { row: number; col: number; k: number } | null;
   glowIdx: number;
   onTokenTap?: (pIdx: number, ti: number) => void;
-  onBoardTap?: () => void;
+  /** destination cell tap = move confirm (sirf jab koi goti selected ho) */
+  onDestTap?: () => void;
 }) {
   const skin = BOARD_SKIN;
   const players: string[] = Array.isArray(st?.players) ? st.players : [];
-  const per: number = st?.settings?.per === 4 ? 4 : 2;
+  const per: number = st?.settings?.per === 1 ? 1 : st?.settings?.per === 4 ? 4 : 2;
 
   // tokens ki render list (positions continuous cell coords me)
   // finished (58) tokens overlay me nahi — center ke finish stacks me jate hain (Manus style)
@@ -210,7 +215,6 @@ function LudoBoard({
 
   return (
     <div
-      onClick={onBoardTap}
       className="relative mx-auto w-full select-none"
       style={{
         border: skin.frame.border,
@@ -218,7 +222,6 @@ function LudoBoard({
         padding: skin.frame.padding,
         borderRadius: skin.frame.borderRadius,
         boxShadow: glowShadow ? `${skin.frame.shadow}, ${glowShadow}` : skin.frame.shadow,
-        cursor: onBoardTap ? "zoom-in" : undefined,
       }}
     >
       <div
@@ -357,6 +360,44 @@ function LudoBoard({
             />
           )}
 
+          {/* selected goti ke raste ke dots — aage ka rasta board par hi dikhta hai */}
+          {pathDots.map((d, i) => (
+            <div
+              key={`pd-${i}`}
+              className="pointer-events-none absolute"
+              style={{
+                left: `${(d.col / 15) * 100}%`,
+                top: `${(d.row / 15) * 100}%`,
+                width: `${(0.3 / 15) * 100}%`,
+                aspectRatio: "1",
+                transform: "translate(-50%,-50%)",
+                borderRadius: "50%",
+                background: skin.playerColors[myIdx] || skin.haloColor,
+                border: "1.5px solid #FFFFFF",
+                opacity: 0.55,
+                zIndex: 8,
+              }}
+            />
+          ))}
+
+          {/* destination cell TAP = move confirm (poora cell hit area, pointer-events-auto) */}
+          {destPos && onDestTap && (
+            <div
+              role="button"
+              aria-label="Manzil — yahan chalao"
+              onClick={(e) => { e.stopPropagation(); onDestTap(); }}
+              className="pointer-events-auto absolute cursor-pointer"
+              style={{
+                left: `${(destPos.col / 15) * 100}%`,
+                top: `${(destPos.row / 15) * 100}%`,
+                width: `${((destPos.row === 7.5 && destPos.col === 7.5 ? 2.4 : 1.05) / 15) * 100}%`,
+                aspectRatio: "1",
+                transform: "translate(-50%,-50%)",
+                zIndex: 15,
+              }}
+            />
+          )}
+
           {/* capture flash — Manus capture-pop burst */}
           {captureFlash && (
             <div
@@ -372,43 +413,58 @@ function LudoBoard({
             </div>
           )}
 
-          {/* TOKENS — Manus SVG pawns, slide transition ke sath */}
+          {/* TOKENS — Manus SVG pawns, slide transition ke sath.
+              Hitbox poora cell hai aur interactive gotiyon par pointer-events-auto
+              lazmi hai — overlay layer pointer-events-none hai, is ke baghair
+              goti ke taps kabhi fire nahi hote (purana bug). */}
           {renders.map((tr) => {
             const stacked = tr.stackN > 1;
             const off = stacked ? STACK_OFF[tr.stackI % 4] : [0, 0];
             const row = tr.row + (off[0] as number);
             const col = tr.col + (off[1] as number);
-            const sizeFrac = stacked ? 0.5 : 0.72;
+            const hitFrac = stacked ? 0.68 : 1.04; // tap area (cell units) — kam az kam poora cell
+            const visFrac = stacked ? 0.52 : 0.74; // visual pawn size (cell units)
             const isLegal = interactive && tr.pIdx === myIdx && legalMoves.includes(tr.ti);
             const isSel = selected !== null && tr.pIdx === myIdx && tr.ti === selected;
+            const tappable = isLegal || isSel;
             const isCurrent = glowIdx >= 0 && tr.pIdx === glowIdx;
             const danger = dangerSet.has(`${tr.pid}:${tr.ti}`);
             return (
               <div
                 key={tr.key}
-                onClick={interactive ? (e) => { e.stopPropagation(); onTokenTap?.(tr.pIdx, tr.ti); } : undefined}
-                className="absolute"
+                onClick={tappable ? (e) => { e.stopPropagation(); onTokenTap?.(tr.pIdx, tr.ti); } : undefined}
+                className={`absolute ${tappable ? "pointer-events-auto cursor-pointer" : "pointer-events-none"}`}
                 style={{
                   left: `${(col / 15) * 100}%`,
                   top: `${(row / 15) * 100}%`,
-                  width: `${(sizeFrac / 15) * 100}%`,
-                  aspectRatio: "52 / 68",
-                  transform: `translate(-50%,-56%)${isSel ? " scale(1.17)" : ""}`,
-                  transition: "left .45s ease, top .45s ease, transform .18s ease",
-                  filter: isSel ? "drop-shadow(0 5px 5px rgba(75,43,27,0.46))" : undefined,
-                  zIndex: isSel ? 22 : isLegal ? 21 : 20,
-                  cursor: interactive ? "pointer" : undefined,
-                  pointerEvents: interactive ? "auto" : "none",
+                  width: `${(hitFrac / 15) * 100}%`,
+                  aspectRatio: "1",
+                  transform: "translate(-50%,-50%)",
+                  transition: "left .45s ease, top .45s ease",
+                  zIndex: isSel ? 24 : isLegal ? 23 : 20,
                 }}
               >
                 <div
-                  className={isLegal ? "ludo-pawn-bob" : isCurrent ? "ludo-pawn-current" : undefined}
-                  style={{ width: "100%", height: "100%", "--token-color": skin.playerColors[tr.pIdx] } as any}
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: "50%",
+                    top: "50%",
+                    width: `${(visFrac / hitFrac) * 100}%`,
+                    aspectRatio: "52 / 68",
+                    transform: `translate(-50%,-56%)${isSel ? " scale(1.16)" : ""}`,
+                    transition: "transform .18s ease",
+                    filter: isSel ? "drop-shadow(0 5px 5px rgba(75,43,27,0.46))" : undefined,
+                  }}
                 >
-                  <PawnToken playerIdx={tr.pIdx} number={tr.ti + 1} />
+                  <div
+                    className={isLegal ? "ludo-pawn-bob" : isCurrent ? "ludo-pawn-current" : undefined}
+                    style={{ width: "100%", height: "100%", "--token-color": skin.playerColors[tr.pIdx] } as any}
+                  >
+                    <PawnToken playerIdx={tr.pIdx} number={tr.ti + 1} />
+                  </div>
                 </div>
                 {danger && (
-                  <span className="absolute" style={{ right: -5, top: -4, fontSize: 10, lineHeight: 1, zIndex: 2 }}>⚠️</span>
+                  <span className="pointer-events-none absolute" style={{ right: -2, top: -3, fontSize: 10, lineHeight: 1, zIndex: 2 }}>⚠️</span>
                 )}
               </div>
             );
@@ -439,6 +495,7 @@ export default function PasaMessage({ m }: { m: Message }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isPasaMuted());
   const [showRules, setShowRules] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [boardOpen, setBoardOpen] = useState(false);
   const [lbOpen, setLbOpen] = useState(false);
   const [showFx, setShowFx] = useState(false);
@@ -538,6 +595,36 @@ export default function PasaMessage({ m }: { m: Message }) {
       return rc ? { row: rc[0] + 0.5, col: rc[1] + 0.5 } : null;
     } catch { return null; }
   }, [isV2, selected, legalMoves, st, me, myIdx]);
+
+  /* progress -> board center coords (dest/path dots ke liye; LudoBoard ki mapping jesa) */
+  const rcForProgress = (pIdx: number, prog: number): { row: number; col: number } | null => {
+    if (prog >= 58) return { row: 7.5, col: 7.5 };
+    if (prog >= 53) { const rc = HOME_CELLS[pIdx]?.[prog - 53]; return rc ? { row: rc[0] + 0.5, col: rc[1] + 0.5 } : null; }
+    if (prog >= 1) {
+      let cell: number | null = null;
+      try { cell = pasaCell(pIdx, prog); } catch { cell = null; }
+      const rc = cell !== null && cell !== undefined ? PATH[cell] : null;
+      return rc ? { row: rc[0] + 0.5, col: rc[1] + 0.5 } : null;
+    }
+    return yardSlotPos(pIdx, 0);
+  };
+
+  /* selected goti ke raste ke dots (manzil se pehle wale steps) */
+  const pathDots = useMemo<{ row: number; col: number }[]>(() => {
+    if (!isV2 || selected === null || !legalMoves.includes(selected) || typeof st.roll !== "number") return [];
+    try {
+      const from: number = st.tokens?.[me]?.[selected] ?? 0;
+      if (from === 0) return []; // base se nikalna — raste ke dots nahi, sirf halo
+      const dest = from + st.roll;
+      const dots: { row: number; col: number }[] = [];
+      for (let p = from + 1; p < dest; p++) {
+        const rc = rcForProgress(myIdx, p);
+        if (rc) dots.push(rc);
+      }
+      return dots;
+    } catch { return []; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isV2, selected, legalMoves, st?.roll, st?.tokens, me, myIdx]);
 
   /* selection reset — bari / phase / roll badle to */
   useEffect(() => { setSelected(null); }, [turnId, st?.phase, st?.roll, m.id]);
@@ -693,20 +780,21 @@ export default function PasaMessage({ m }: { m: Message }) {
   }
 
   /* ───────── v2 derived ───────── */
-  const settings = st.settings || { per: 2, timer: false, capture: true, teams: false };
-  const per: number = settings.per === 4 ? 4 : 2;
+  const settings = st.settings || { per: 2, timer: false, capture: true, teams: false, tor: false };
+  const per: number = settings.per === 1 ? 1 : settings.per === 4 ? 4 : 2;
+  const torOn: boolean = (() => { try { return pasaTorActive(st); } catch { return false; } })();
+  const killOf = (pid: string): number => {
+    try { return pasaHasKill(st, pid) ? Math.max(1, st.kills?.[pid] || 0) : (st.kills?.[pid] || 0); } catch { return 0; }
+  };
   const leftSet = new Set<string>(Array.isArray(st.leftPlayers) ? st.leftPlayers : []);
   const iAmHost = me === st.host;
   const joined = players.includes(me);
   const winnerId: string | null = typeof st.winner === "string" ? st.winner : null;
-  const logLines: string[] = Array.isArray(st.log) ? st.log.filter((x: unknown) => typeof x === "string").slice(-6) : [];
+  const allLogLines: string[] = Array.isArray(st.log) ? st.log.filter((x: unknown) => typeof x === "string") : [];
+  const lastLog: string | null = allLogLines.length > 0 ? allLogLines[allLogLines.length - 1] : null;
   const diceValue: number | null = diceRolling ? diceShown : (typeof st.roll === "number" ? st.roll : st.lastRoll?.v ?? null);
-  // dice ka rang: jis ne aakhri roll kiya us ka, warna jis ki bari hai us ka
-  const diceIdx = (() => {
-    const bi = typeof st.lastRoll?.by === "string" ? players.indexOf(st.lastRoll.by) : -1;
-    return bi >= 0 ? bi : turnIdx >= 0 ? turnIdx : 0;
-  })();
   const hostName = nameOf(st.host);
+  const skin = BOARD_SKIN;
 
   const onTokenTap = (pIdx: number, ti: number) => {
     if (!isMyTurn || st.phase !== "move") return;
@@ -715,30 +803,166 @@ export default function PasaMessage({ m }: { m: Message }) {
     if (selected === ti) { callDb(movePasaToken as any, m.id, ti); setSelected(null); return; }
     setSelected(ti);
   };
+  /** destination cell tap = selected goti chalao (board par hi confirm) */
+  const onDestTap = () => {
+    if (!isMyTurn || st.phase !== "move" || selected === null) return;
+    if (!legalMoves.includes(selected)) return;
+    callDb(movePasaToken as any, m.id, selected);
+    setSelected(null);
+  };
   const toggleMute = () => {
     const next = !muted;
     setPasaMuted(next);
     setMutedState(next);
   };
+  const onLeaveGame = () => {
+    try { if (!window.confirm("Game chhorna hai? Tum is match se bahir ho jaoge.")) return; } catch { /* ignore */ }
+    callDb(leavePasa as any, m.id);
+  };
   // engine contract: updatePasaSettings(msgId, patch: Partial<PasaSettings>) — flat patch
   const patchSettings = (patch: Partial<typeof settings>) =>
     callDb(updatePasaSettings as any, m.id, patch);
 
-  const boardEl = (interactiveBoard: boolean, withTap: boolean) => (
-    <div className={shaking && interactiveBoard ? "ludo-board-shake" : undefined}>
-      <LudoBoard
-        st={st}
-        interactive={interactiveBoard && isMyTurn && st.phase === "move"}
-        selected={selected}
-        legalMoves={legalMoves}
-        myIdx={myIdx}
-        dangerSet={dangerTokens}
-        destPos={destPos}
-        captureFlash={captureFlash}
-        glowIdx={st.started && !st.done ? turnIdx : -1}
-        onTokenTap={onTokenTap}
-        onBoardTap={withTap ? () => setBoardOpen(true) : undefined}
-      />
+  // dice dock: bari wale player ke yard wale kone par (Ludo King style)
+  const DICE_DOCK: React.CSSProperties[] = [
+    { top: 0, left: 0, transform: "translate(-14%,-14%)" },     // red — top-left
+    { top: 0, right: 0, transform: "translate(14%,-14%)" },     // green — top-right
+    { bottom: 0, right: 0, transform: "translate(14%,14%)" },   // yellow — bottom-right
+    { bottom: 0, left: 0, transform: "translate(-14%,14%)" },   // blue — bottom-left
+  ];
+  // name chips: har yard ke bahari kone ke pas (dice wale kone se thora hat kar)
+  const CHIP_POS: React.CSSProperties[] = [
+    { top: 40, left: 56 },
+    { top: 40, right: 56 },
+    { bottom: 8, right: 56 },
+    { bottom: 8, left: 56 },
+  ];
+  const iconBtnCls = "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-[12px] leading-none text-white shadow transition hover:bg-black/60 active:scale-95";
+
+  /** Board + us ke SAARE overlays (turn pill, chips, dice, toast, icons, winner).
+      Card aur fullscreen modal dono yahi use karte hain — dono jagah taps chalte hain. */
+  const boardBlock = (inModal: boolean) => (
+    <div className="relative">
+      <div className={shaking ? "ludo-board-shake" : undefined}>
+        <LudoBoard
+          st={st}
+          interactive={isMyTurn && st.phase === "move"}
+          selected={selected}
+          legalMoves={legalMoves}
+          myIdx={myIdx}
+          dangerSet={dangerTokens}
+          destPos={destPos}
+          pathDots={pathDots}
+          captureFlash={captureFlash}
+          glowIdx={st.started && !st.done ? turnIdx : -1}
+          onTokenTap={onTokenTap}
+          onDestTap={selected !== null ? onDestTap : undefined}
+        />
+      </div>
+
+      {/* har yard ke kone par name chip — alag player list nahi */}
+      {players.map((pid, idx) => {
+        if (idx > 3) return null;
+        const toks: number[] = Array.isArray(st.tokens?.[pid]) ? st.tokens[pid] : [];
+        const bahar = toks.filter((p: number) => p >= 1 && p < 58).length;
+        const ghar = toks.filter((p: number) => p >= 58).length;
+        const isTurn = st.started && !st.done && turnId === pid;
+        const locked = torOn && st.started && !st.done && killOf(pid) === 0 && !safePlayerDone(st, pid);
+        return (
+          <div
+            key={`chip-${pid}`}
+            className="pointer-events-none absolute z-40"
+            style={CHIP_POS[idx]}
+          >
+            <span
+              className={`flex max-w-[118px] items-center gap-1 rounded-full bg-white/90 py-0.5 pl-1.5 pr-2 text-[9px] font-extrabold text-[#2f3035] shadow ${isTurn ? "ring-2" : "ring-1 ring-black/10"}`}
+              style={isTurn ? ({ ["--tw-ring-color" as any]: skin.playerColors[idx] } as any) : undefined}
+              title={locked ? "Tor: pehle ek goti maro — phir hi ghar ja sakte ho" : undefined}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: skin.playerColors[idx] }} />
+              <span className="truncate">{nameOf(pid)}{championId === pid ? " 👑" : ""}</span>
+              <span className="shrink-0 font-bold text-[#80848e]">🏃{bahar} 🏁{ghar}</span>
+              {locked && <span className="shrink-0" title="Pehle goti maro">🔒</span>}
+              {dangerPlayers.has(pid) && st.started && !st.done && <span className="shrink-0">⚠️</span>}
+              {leftSet.has(pid) && <span className="shrink-0">🚪</span>}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* turn pill — board ke upar center */}
+      {st.started && !st.done && turnId && (
+        <div className="pointer-events-none absolute left-1/2 top-1 z-40 -translate-x-1/2">
+          <span
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11px] font-extrabold text-white shadow backdrop-blur-[1px]"
+          >
+            <span className="h-2 w-2 rounded-full" style={{ background: skin.playerColors[turnIdx] || "#fff" }} />
+            {nameOf(turnId)} ki bari{isMyTurn ? " — tumhari! 👆" : ""}
+            {timerOn && remainS !== null && <span className={remainS <= 3 ? "text-[#ff9d9d]" : "text-white/85"}>⏱ {Math.ceil(remainS)}s</span>}
+          </span>
+        </div>
+      )}
+
+      {/* move-phase hint — meri bari, goti select karni hai */}
+      {isMyTurn && st.phase === "move" && selected === null && (
+        <div className="pointer-events-none absolute left-1/2 top-9 z-40 -translate-x-1/2">
+          <span className="whitespace-nowrap rounded-full bg-[#5865f2]/85 px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow">Goti tap karo 👆</span>
+        </div>
+      )}
+
+      {/* dice — BOARD par, bari wale ke yard ke kone par docked; tap = roll */}
+      {st.started && !st.done && turnIdx >= 0 && (
+        <div className="absolute z-40" style={DICE_DOCK[turnIdx]}>
+          <PasaDice
+            variant="board"
+            playerIdx={turnIdx}
+            value={diceValue}
+            rolling={diceRolling}
+            disabled={!isMyTurn || st.phase !== "roll"}
+            remainingSeconds={timerOn ? remainS : null}
+            onRoll={() => callDb(rollPasaDice as any, m.id)}
+          />
+        </div>
+      )}
+
+      {/* aakhri event — board ke neeche kinare par toast line (poora log 📜 me) */}
+      {st.started && lastLog && (
+        <div
+          key={`${allLogLines.length}:${lastLog}`}
+          className="ludo-toast pointer-events-none absolute bottom-10 left-1/2 z-40 w-max max-w-[64%]"
+          style={{ transform: "translateX(-50%)" }}
+        >
+          <p className="truncate rounded-full bg-black/55 px-2.5 py-1 text-center text-[10px] font-semibold text-white backdrop-blur-[1px]">{lastLog}</p>
+        </div>
+      )}
+
+      {/* winner overlay — board ke center par */}
+      {st.done && winnerId && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+          <div className="rounded-2xl border border-[#f5a623]/50 bg-white/95 px-4 py-3 text-center shadow-xl">
+            <p className="flex items-center justify-center gap-1.5 text-[15px] font-extrabold text-[#2f3035]">
+              <Trophy size={16} className="text-[#f5a623]" /> {nameOf(winnerId)} 👑
+            </p>
+            <p className="mt-0.5 text-xs font-bold text-[#5c5e66]">{settings.teams ? "Unki team jeet gayi! 🎉" : "Ludo jeet gaya! 🎉"}</p>
+          </div>
+        </div>
+      )}
+
+      {/* icon buttons — board ke dayen kinare par chhoti si patti */}
+      <div className="absolute right-1 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-1">
+        <button type="button" className={iconBtnCls} onClick={toggleMute} title={muted ? "Awaz on karo" : "Awaz band karo"} aria-label={muted ? "Awaz on karo" : "Awaz band karo"}>
+          {muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+        </button>
+        <button type="button" className={iconBtnCls} onClick={() => setShowLog(true)} title="Poora log dekho" aria-label="Game log">📜</button>
+        <button type="button" className={iconBtnCls} onClick={() => setShowRules(true)} title="Rules" aria-label="Rules">📖</button>
+        <button type="button" className={iconBtnCls} onClick={() => setLbOpen(true)} title="Leaderboard" aria-label="Leaderboard">🏆</button>
+        {!inModal && (
+          <button type="button" className={iconBtnCls} onClick={() => setBoardOpen(true)} title="Bara board" aria-label="Bara board">🔍</button>
+        )}
+        {st.started && !st.done && joined && (
+          <button type="button" className={iconBtnCls} onClick={onLeaveGame} title="Game chhoro" aria-label="Game chhoro">🚪</button>
+        )}
+      </div>
     </div>
   );
 
@@ -758,12 +982,9 @@ export default function PasaMessage({ m }: { m: Message }) {
       {showFx && <FxOverlay kind="confetti" emoji="🏆" onDone={() => setShowFx(false)} />}
       {lbOpen && <LudoLeaderboard open={lbOpen} onClose={() => setLbOpen(false)} />}
 
-      {/* header */}
+      {/* slim header — baqi sab kuch board par hai */}
       <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#5865f2]">
         🎲 Pasa Race — Ludo
-        <button onClick={toggleMute} className="ml-1 rounded-full p-1 text-[#80848e] transition hover:bg-black/5" title={muted ? "Awaz on karo" : "Awaz band karo"}>
-          {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-        </button>
         <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-extrabold normal-case tracking-normal ${st.done ? "bg-black/[0.06] text-[#80848e]" : st.started ? "bg-[#23a55a]/15 text-[#178a4c]" : "bg-[#f5a623]/15 text-[#9a6a00]"}`}>
           {st.started ? (st.done ? "Khatam" : "🟢 Chal raha hai") : "Players ka intezar"}
         </span>
@@ -772,99 +993,30 @@ export default function PasaMessage({ m }: { m: Message }) {
         <p className="-mt-1 mb-2 inline-block rounded-full bg-[#f5a623]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#9a6a00]">🏆 Tournament match</p>
       )}
 
-      {/* players + chips */}
-      <div className="space-y-1">
-        {players.map((pid, idx) => {
-          const toks: number[] = Array.isArray(st.tokens?.[pid]) ? st.tokens[pid] : [];
-          const bahar = toks.filter((p: number) => p >= 1 && p < 58).length;
-          const ghar = toks.filter((p: number) => p >= 58).length;
-          const isTurn = st.started && !st.done && turnId === pid;
-          const left = leftSet.has(pid);
-          const isBot = !!(st.bots && st.bots[pid]);
-          return (
-            <div
-              key={pid}
-              className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[13px] ${isTurn ? "bg-[#5865f2]/10 font-extrabold text-[#2f3035]" : "font-semibold text-[#5c5e66]"} ${left ? "opacity-50" : ""}`}
-            >
-              <span>{PASA_COLORS[idx] || "🔵"}</span>
-              <span className="min-w-0 flex-1 truncate">
-                {nameOf(pid)}
-                {championId === pid ? " 👑" : ""}
-                {pid === st.host ? <span className="ml-1 rounded bg-black/[0.06] px-1 py-px text-[9px] font-extrabold uppercase text-[#80848e]">host</span> : null}
-                {isBot ? <span className="ml-1 text-[10px] text-[#80848e]">({st.bots[pid] === "easy" ? "asan" : "normal"})</span> : null}
-                {dangerPlayers.has(pid) && st.started && !st.done ? <span title="Khatra hai!"> ⚠️</span> : null}
-              </span>
-              {left ? (
-                <span className="shrink-0 text-[11px] italic text-[#80848e]">chala gaya</span>
-              ) : (
-                <span className="shrink-0 text-[11px] tabular-nums text-[#80848e]">
-                  bahar {bahar} · ghar {ghar}{safePlayerDone(st, pid) ? " 🏁" : ""}
-                </span>
-              )}
-            </div>
-          );
-        })}
-        {players.length === 0 && <p className="text-sm italic text-[#80848e]">Abhi koi player nahi — pehle join karo!</p>}
-      </div>
+      {/* BOARD — running game me card ka matlab sirf board + overlays */}
+      {boardBlock(false)}
 
-      {/* settings summary */}
-      <p className="mt-1.5 text-center text-[11px] font-semibold text-[#80848e]">
-        {per} gotiyan · ⏱ timer {settings.timer ? "on" : "off"} · 💥 marna {settings.capture ? "on" : "off"}{settings.teams ? " · 👥 teams" : ""}
-      </p>
-
-      {/* board */}
-      <div className="mt-2">{boardEl(true, true)}</div>
-      <p className="mt-1 text-center text-[10px] text-[#a0a3ab]">Board par tap karo — bara dekhne ke liye ⤢</p>
-
-      {/* bari + dice */}
-      {st.started && !st.done && turnId && (
-        <p className={`mt-2 text-center text-sm ${isMyTurn ? "rounded-lg bg-[#5865f2]/10 px-2 py-1.5 font-extrabold text-[#5865f2]" : "font-semibold text-[#5c5e66]"}`}>
-          🎯 {nameOf(turnId)} ki bari hai{isMyTurn ? " — tumhari!" : ""}
-        </p>
-      )}
-      {st.started && (
-        <div className="mt-2 flex items-center justify-center gap-3">
-          <PasaDice
-            playerIdx={diceIdx}
-            value={diceValue}
-            rolling={diceRolling}
-            disabled={!!st.done || !isMyTurn || st.phase !== "roll"}
-            remainingSeconds={timerOn ? remainS : null}
-            onRoll={() => callDb(rollPasaDice as any, m.id)}
-          />
-          <div className="text-left">
-            {st.lastRoll?.by ? (
-              <p className="text-xs font-semibold text-[#5c5e66]">🎲 {nameOf(st.lastRoll.by)} ko {st.lastRoll.v} aaya</p>
-            ) : (
-              <p className="text-xs font-semibold text-[#80848e]">Abhi pasa nahi phainka gaya</p>
-            )}
-            {timerOn && remainS !== null && (
-              <p className={`mt-1 text-[11px] font-extrabold ${remainS <= 3 ? "text-[#ed4245]" : "text-[#5c5e66]"}`}>⏱ {Math.ceil(remainS)}s baki</p>
-            )}
-            {isMyTurn && st.phase === "roll" && !st.done && (
-              <p className="mt-1 text-[11px] font-bold text-[#5865f2]">Pasa par tap karo 👆</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* actions */}
-      {st.started && !st.done && isMyTurn && st.phase === "roll" && (
-        <button onClick={() => callDb(rollPasaDice as any, m.id)} className="btn btn-blurple mt-3 w-full py-3 text-[15px]">🎲 Pasa phenko</button>
-      )}
-      {st.started && !st.done && isMyTurn && st.phase === "move" && (
-        selected === null ? (
-          <p className="mt-3 text-center text-sm font-extrabold text-[#5865f2]">Goti select karo 👆</p>
-        ) : (
-          <button onClick={() => { callDb(movePasaToken as any, m.id, selected); setSelected(null); }} className="mt-3 w-full rounded-lg bg-[#23a55a] px-3 py-2.5 text-sm font-extrabold text-white transition active:scale-[0.98]">
-            ▶ Chalao (goti {selected + 1})
-          </button>
-        )
-      )}
-
-      {/* lobby */}
+      {/* ── LOBBY strip (sirf game shuru hone se pehle) ── */}
       {!st.started && (
         <div className="mt-3 space-y-2">
+          {/* joined players — compact chips */}
+          <div className="flex flex-wrap items-center gap-1">
+            {players.map((pid, idx) => (
+              <span key={pid} className="flex items-center gap-1 rounded-full bg-black/[0.05] py-0.5 pl-1.5 pr-2 text-[11px] font-bold text-[#2f3035]">
+                <span className="h-2 w-2 rounded-full" style={{ background: skin.playerColors[idx] }} />
+                {nameOf(pid)}
+                {championId === pid ? " 👑" : ""}
+                {pid === st.host && <span className="rounded bg-black/[0.07] px-1 py-px text-[8px] font-extrabold uppercase text-[#80848e]">host</span>}
+                {st.bots?.[pid] && <span className="text-[9px] font-semibold text-[#80848e]">({st.bots[pid] === "easy" ? "asan" : "normal"})</span>}
+              </span>
+            ))}
+            {players.length === 0 && <span className="text-xs italic text-[#80848e]">Abhi koi player nahi</span>}
+            <span className="ml-auto text-[10px] font-semibold text-[#a0a3ab]">{players.length}/4 players</span>
+          </div>
+          <p className="text-center text-[11px] font-semibold text-[#80848e]">
+            {per} goti{per > 1 ? "yan" : ""} · ⏱ timer {settings.timer ? "on" : "off"} · 💥 marna {settings.capture ? "on" : "off"}{settings.teams ? " · 👥 teams" : ""}{torOn ? " · 🔒 tor on" : ""}
+          </p>
+
           {!joined && players.length < 4 && (
             <button onClick={() => callDb(joinPasa as any, m.id)} className="btn btn-blurple w-full py-2.5 text-sm">➕ Join karo</button>
           )}
@@ -881,6 +1033,7 @@ export default function PasaMessage({ m }: { m: Message }) {
             <div className="space-y-1.5 rounded-lg bg-black/[0.03] p-2">
               <div className="flex items-center gap-1.5">
                 <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">Gotiyan</span>
+                {toggleBtn(per === 1, "1 goti", () => patchSettings({ per: 1 }))}
                 {toggleBtn(per === 2, "2 goti", () => patchSettings({ per: 2 }))}
                 {toggleBtn(per === 4, "4 goti", () => patchSettings({ per: 4 }))}
               </div>
@@ -894,6 +1047,18 @@ export default function PasaMessage({ m }: { m: Message }) {
                 {toggleBtn(!!settings.capture, "On", () => patchSettings({ capture: true }))}
                 {toggleBtn(!settings.capture, "Off", () => patchSettings({ capture: false }))}
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">🔒 Tor</span>
+                {toggleBtn(!!settings.tor && settings.capture && per >= 2, "On", () => patchSettings({ tor: true }), !settings.capture || per < 2)}
+                {toggleBtn(!settings.tor || !settings.capture || per < 2, "Off", () => patchSettings({ tor: false }))}
+              </div>
+              {per < 2 ? (
+                <p className="text-[10px] text-[#a0a3ab]">1-goti mode me tor nahi hota — sirf pehle pugna (finish) hai.</p>
+              ) : !settings.capture ? (
+                <p className="text-[10px] text-[#a0a3ab]">Tor ke liye 💥 Marna on hona lazmi hai (warna ghar kabhi nahi milega).</p>
+              ) : settings.tor ? (
+                <p className="text-[10px] text-[#a0a3ab]">🔒 Tor on: jis ne ek goti na mari ho, wo ghar (home) nahi ja sakta.</p>
+              ) : null}
               <div className="flex items-center gap-1.5">
                 <span className="w-16 shrink-0 text-[11px] font-bold text-[#5c5e66]">👥 Teams</span>
                 {toggleBtn(!!settings.teams, "On (2v2)", () => patchSettings({ teams: true }))}
@@ -914,41 +1079,12 @@ export default function PasaMessage({ m }: { m: Message }) {
         </div>
       )}
 
-      {/* in-game leave */}
-      {st.started && !st.done && joined && (
-        <button onClick={() => callDb(leavePasa as any, m.id)} className="mt-2 w-full rounded-lg px-3 py-1.5 text-[11px] font-bold text-[#80848e] transition hover:bg-black/[0.04] active:scale-[0.98]">🚪 Game chhoro</button>
-      )}
-
-      {/* winner */}
+      {/* ── DONE strip — rematch (winner board par overlay me hai) ── */}
       {st.done && winnerId && (
-        <div className="mt-3 rounded-lg bg-[#f5a623]/10 px-3 py-2.5 text-center">
-          <p className="flex items-center justify-center gap-1.5 text-sm font-extrabold text-[#2f3035]">
-            <Trophy size={15} className="text-[#f5a623]" /> {nameOf(winnerId)} 👑 jeet gaya!
-          </p>
-          {settings.teams && <p className="mt-0.5 text-xs font-semibold text-[#5c5e66]">👥 Unki team jeet gayi!</p>}
-          <button onClick={() => callDb(rematchPasa as any, m.id)} className="mt-2 w-full rounded-lg bg-[#5865f2] px-3 py-2 text-sm font-extrabold text-white transition active:scale-[0.98]">🔁 Rematch</button>
-        </div>
+        <button onClick={() => callDb(rematchPasa as any, m.id)} className="mt-3 w-full rounded-lg bg-[#5865f2] px-3 py-2.5 text-sm font-extrabold text-white transition active:scale-[0.98]">🔁 Rematch — wohi players, naya match</button>
       )}
 
-      {/* log — commentary strips */}
-      {logLines.length > 0 && (
-        <div className="mt-2.5 space-y-1">
-          {logLines.map((line, i) => {
-            const last = i === logLines.length - 1;
-            return (
-              <p key={i} className={`rounded-md px-2 py-1 text-[11px] leading-snug ${last ? "bg-[#5865f2]/10 font-bold text-[#2f3035]" : "bg-black/[0.04] font-medium text-[#5c5e66]"}`}>{line}</p>
-            );
-          })}
-        </div>
-      )}
-
-      {/* footer buttons */}
-      <div className="mt-3 flex gap-1.5">
-        <button onClick={() => setLbOpen(true)} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">🏆 Leaderboard</button>
-        <button onClick={() => setShowRules(true)} className="flex-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-xs font-extrabold text-[#2f3035] transition active:scale-[0.98]">📜 Rules</button>
-      </div>
-
-      {/* fullscreen board modal — read-only */}
+      {/* fullscreen board modal — wohi interactive board (taps yahan bhi chalte hain) */}
       {boardOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4" onClick={() => setBoardOpen(false)}>
           <div className="w-full max-w-[min(92vw,560px)]" onClick={(e) => e.stopPropagation()}>
@@ -958,7 +1094,34 @@ export default function PasaMessage({ m }: { m: Message }) {
                 <X size={18} />
               </button>
             </div>
-            {boardEl(false, false)}
+            {boardBlock(true)}
+          </div>
+        </div>
+      )}
+
+      {/* log modal — poora commentary log (board par sirf aakhri line toast me hai) */}
+      {showLog && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowLog(false)}>
+          <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-extrabold text-[#2f3035]">📜 Game Log</p>
+              <button onClick={() => setShowLog(false)} className="rounded-full p-1 text-[#80848e] transition hover:bg-black/5" aria-label="Band karo">
+                <X size={17} />
+              </button>
+            </div>
+            {allLogLines.length === 0 ? (
+              <p className="text-sm italic text-[#80848e]">Abhi koi event nahi hua.</p>
+            ) : (
+              <div className="space-y-1">
+                {allLogLines.map((line, i) => {
+                  const last = i === allLogLines.length - 1;
+                  return (
+                    <p key={i} className={`rounded-md px-2 py-1 text-[12px] leading-snug ${last ? "bg-[#5865f2]/10 font-bold text-[#2f3035]" : "bg-black/[0.04] font-medium text-[#5c5e66]"}`}>{line}</p>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => setShowLog(false)} className="btn btn-blurple mt-3 w-full py-2 text-sm">Band karo</button>
           </div>
         </div>
       )}
@@ -974,17 +1137,19 @@ export default function PasaMessage({ m }: { m: Message }) {
               </button>
             </div>
             <ul className="list-disc space-y-1.5 pl-5 text-[13px] leading-snug text-[#3a3b42]">
-              <li>Har player ke paas {per} gotiyan hoti hain (host lobby me 2 ya 4 chun sakta hai).</li>
+              <li>Har cheez <b>board par</b> hai: pasa bari wale ke ghar ke pas board ke kone par hota hai — use tap karke phenko. Goti tap karo, phir <b>usi goti ko dobara tap</b> karo ya <b>manzil wale cell ko tap</b> karo — goti chal jayegi. Raste ke dots aur manzil ki ring pehle hi dikh jati hai.</li>
+              <li>Har player ke paas {per} goti{per > 1 ? "yan" : ""} hoti {per > 1 ? "hain" : "hai"} (host lobby me 1, 2 ya 4 chun sakta hai).</li>
               <li>Goti ghar (base) se bahar nikalne ke liye <b>6</b> ana lazmi hai.</li>
-              <li>Pasa phenko, phir jo goti chalani hai use tap karke select karo aur <b>▶ Chalao</b> dabao (ya goti ko dobara tap karo).</li>
               <li><b>Extra bari</b> milti hai: 6 aane par, kisi ko marne par, ya goti ke <b>pora finish (58)</b> hone par. Sirf home patri me ghusne par extra bari <b>nahi</b> milti.</li>
               <li>Lagatar <b>teen 6</b> aayen to teesra 6 zaya ho jata hai — bari agle player ko chali jati hai.</li>
               <li><b>Block rule:</b> ek hi cell par tumhari 2 gotiyan hon to block ban jata hai — opponent us cell ko par nahi kar sakta na maar sakta hai.</li>
               <li><b>Safe ⭐</b> wale cells par koi kisi ko nahi maar sakta.</li>
               <li>Finish ke liye <b>exact number</b> chahiye — zyada aye to goti nahi chalegi.</li>
               <li>Jis ki <b>saari gotiyan ghar (58)</b> pohonch jayen, wahi jeet-ta hai.</li>
+              {torOn && <li><b>🔒 Tor rule (is game me ON hai):</b> jab tak tum kisi ki <b>ek goti na maro</b>, tumhari koi goti <b>home patri me nahi ja sakti</b> aur finish bhi nahi ho sakti. Naam ke pas 🔒 isiliye dikhta hai.</li>}
+              {per === 1 && <li><b>1-goti mode:</b> is me tor nahi hota — sirf pehle finish (pugna) karna hai.</li>}
               <li>Timer on ho to har bari ke liye sirf <b>10 second</b> milte hain — waqt khatam ho to auto chal chal jati hai.</li>
-              <li><b>Teams (2v2):</b> aamne-saamne wale players ek team hote hain — partner ko nahi mara jata, aur ek ki saari gotiyan ghar jayen to team jeet-ti hai.</li>
+              <li><b>Teams (2v2):</b> aamne-saamne wale players ek team hote hain — partner ko nahi mara jata, aur dono ki saari gotiyan ghar jayen to team jeet-ti hai.</li>
               <li>⚠️ nishan wali goti khatre me hai — koi opponent us se 1–6 qadam peeche hai!</li>
             </ul>
             <button onClick={() => setShowRules(false)} className="btn btn-blurple mt-3 w-full py-2 text-sm">Samajh gaya 👍</button>

@@ -389,9 +389,11 @@ export function parsePasa(caption?: string): PasaState | null {
 /* ───────── 7) Pasa / Ludo v2 — FULL engine (2–4 tokens, blocks, teams, bots, tournament) ─────────
    Token progress scale: 0 = base (yard), 1..52 = track (global cell = pasaCell(idx, progress)),
    53..57 = apni home column, 58 = finish. Jeet = saari tokens 58 par. */
-export interface PasaSettings { per: 2 | 4; timer: boolean; capture: boolean; teams: boolean }
+export interface PasaSettings { per: 1 | 2 | 4; timer: boolean; capture: boolean; teams: boolean; tor: boolean }
 export interface PasaStateV2 {
   v: 2; players: string[]; tokens: Record<string, number[]>;
+  /** har player ne kul kitni gotiyan mari hain (tor rule ke liye) — purani games me missing ho sakta hai */
+  kills?: Record<string, number>;
   turn: string; phase: "roll" | "move"; roll: number | null; sixChain: number;
   settings: PasaSettings; bots: Record<string, "easy" | "normal">;
   host: string; started: boolean; log: string[]; done: boolean; winner: string | null;
@@ -434,11 +436,28 @@ export function pasaPlayerDone(st: PasaStateV2, playerId: string): boolean {
   if (!Array.isArray(toks) || toks.length === 0) return false;
   return toks.every((t) => t === 58);
 }
+/** Player ne ab tak kam az kam ek goti mari hai? (purani payloads me kills missing = 0) */
+export function pasaHasKill(st: PasaStateV2, playerId: string): boolean {
+  const k = st.kills && typeof st.kills[playerId] === "number" ? st.kills[playerId] : 0;
+  return k > 0;
+}
+/**
+ * Tor rule kab ACTIVE hai: host ne tor on kiya ho, capture bhi on ho (warna game
+ * kabhi khatam nahi hoga) aur mode per>=2 ho (1-goti mode me tor kabhi nahi —
+ * user ki hidayat: "usme tor nhi sirf pugana").
+ */
+export function pasaTorActive(st: PasaStateV2): boolean {
+  const s = st.settings;
+  if (!s) return false;
+  return !!s.tor && !!s.capture && (s.per === 2 || s.per === 4);
+}
 /**
  * Legal token indices jo `roll` se chal sakti hain.
  * Rules: base (0) se sirf 6 par; 58 wali nahi chalti; exact roll lazmi (nt>58 illegal);
  * opponent ki 2+ tokens wali cell (block) se na guzar sakte ho na land kar sakte ho;
  * apni block/tokens se guzarna hamesha legal; home column (53..57) hamesha safe.
+ * Tor: jab tak player ne ek goti na mari ho, us ki goti home column (53+) me NAHI
+ * ja sakti aur finish (58) bhi nahi ho sakti.
  */
 export function pasaLegalMoves(st: PasaStateV2, playerId: string, roll: number): number[] {
   if (!Number.isInteger(roll) || roll < 1 || roll > 6) return [];
@@ -469,6 +488,8 @@ export function pasaLegalMoves(st: PasaStateV2, playerId: string, roll: number):
     }
     return false;
   };
+  // Tor gate: kill na hua ho to home column / finish band hai
+  const torGate = pasaTorActive(st) && !pasaHasKill(st, playerId);
   const out: number[] = [];
   toks.forEach((t, ti) => {
     if (typeof t !== "number" || t === 58) return;
@@ -481,6 +502,7 @@ export function pasaLegalMoves(st: PasaStateV2, playerId: string, roll: number):
     if (t >= 1) {
       const nt = t + roll;
       if (nt > 58) return;
+      if (torGate && nt >= 53) return; // tor: pehle goti maro, phir hi ghar
       // raste ke har step (track hisse tak) par opponent block check
       const lastTrackStep = Math.min(nt, 52);
       for (let step = t + 1; step <= lastTrackStep; step++) {

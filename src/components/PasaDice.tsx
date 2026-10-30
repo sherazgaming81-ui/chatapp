@@ -23,9 +23,11 @@ interface PasaDiceProps {
   /** timer on ho to bachi hui seconds (float), warna null — ring nahi dikhegi */
   remainingSeconds: number | null;
   onRoll: () => void;
+  /** "board" = board ke kone par docked chhoti dice; default "normal" */
+  variant?: "normal" | "board";
 }
 
-export default function PasaDice({ playerIdx, value, rolling, disabled, remainingSeconds, onRoll }: PasaDiceProps) {
+export default function PasaDice({ playerIdx, value, rolling, disabled, remainingSeconds, onRoll, variant = "normal" }: PasaDiceProps) {
   const color = BOARD_SKIN.playerColors[playerIdx] || BOARD_SKIN.playerColors[0];
   const shade = BOARD_SKIN.playerShades[playerIdx] || BOARD_SKIN.playerShades[0];
   const face = value !== null && value >= 1 && value <= 6 ? value : 1;
@@ -33,7 +35,7 @@ export default function PasaDice({ playerIdx, value, rolling, disabled, remainin
   const CIRC = 2 * Math.PI * 36;
 
   return (
-    <div className={`ludo-dice-wrap${rolling ? " ludo-dice-wrap--rolling" : ""}`}>
+    <div className={`ludo-dice-wrap${variant === "board" ? " ludo-dice-wrap--board" : ""}${rolling ? " ludo-dice-wrap--rolling" : ""}`}>
       {remainingSeconds !== null && (
         <svg className="ludo-countdown-ring" viewBox="0 0 80 80" aria-hidden="true">
           <circle className="ludo-countdown-ring__track" cx="40" cy="40" r="36" />
@@ -52,7 +54,9 @@ export default function PasaDice({ playerIdx, value, rolling, disabled, remainin
         aria-label={rolling ? "Pasa ghum raha hai" : "Pasa phenko"}
         style={{
           background: `linear-gradient(150deg, ${shade.light} 0%, ${color} 52%, ${shade.dark} 100%)`,
-          boxShadow: `0 9px 0 ${shade.dark}, 0 13px 18px rgba(75,43,27,0.21)`,
+          boxShadow: variant === "board"
+            ? `0 6px 0 ${shade.dark}, 0 9px 13px rgba(75,43,27,0.25)`
+            : `0 9px 0 ${shade.dark}, 0 13px 18px rgba(75,43,27,0.21)`,
         }}
       >
         <span className="ludo-dice-face">

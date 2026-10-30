@@ -602,3 +602,13 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
 .ludo-countdown-ring circle { fill: none; stroke-width: 3px; }
 .ludo-countdown-ring__track { stroke: rgba(119,115,109,.17); }
 .ludo-countdown-ring__progress { stroke-linecap: round; transition: stroke-dashoffset .1s linear; }
+
+/* dice — board ke kone par docked chhota variant (Ludo King style) */
+.ludo-dice-wrap--board { width: 62px; height: 62px; }
+.ludo-dice-wrap--board .ludo-dice-button { width: 47px; height: 47px; padding: 4px; border-radius: 15px; }
+.ludo-dice-wrap--board .ludo-countdown-ring { inset: 2px; width: 58px; height: 58px; }
+.ludo-dice-wrap--board .ludo-dice-shadow { bottom: 0; left: 13px; width: 38px; height: 6px; }
+
+/* board par aakhri event ka toast (neeche kinare par chhoti line) */
+.ludo-toast { animation: ludo-toast-in .25s ease-out; }
+@keyframes ludo-toast-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }

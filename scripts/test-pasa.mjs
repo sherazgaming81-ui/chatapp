@@ -12,7 +12,7 @@ const out = mkdtempSync(join(tmpdir(), "pasa-test-"));
 execFileSync("npx", ["tsc", "src/lib/games.ts", "--outDir", out, "--module", "commonjs", "--target", "es2020", "--moduleResolution", "node", "--skipLibCheck", "--noEmitOnError", "false"], { cwd: root, stdio: "pipe" });
 const require = createRequire(import.meta.url);
 const G = require(join(out, "games.js"));
-const { pasaLegalMoves, pasaSixChainAfter, pasaPlayerDone, pasaBotName, pasaCell } = G;
+const { pasaLegalMoves, pasaSixChainAfter, pasaPlayerDone, pasaBotName, pasaCell, pasaTorActive, pasaHasKill } = G;
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -22,13 +22,14 @@ function eq(name, got, want) {
 }
 function ok(name, cond) { eq(name, !!cond, true); }
 
-function mkState(tokens, settings = {}) {
+function mkState(tokens, settings = {}, kills = {}) {
   return {
     v: 2,
     players: ["A", "B", "C", "D"],
     tokens,
+    kills,
     turn: "A", phase: "move", roll: null, sixChain: 0,
-    settings: { per: 4, timer: true, capture: true, teams: false, ...settings },
+    settings: { per: 4, timer: true, capture: true, teams: false, tor: false, ...settings },
     bots: {}, host: "A", started: true, log: [], done: false, winner: null,
     leftPlayers: [], t: "🎲 Ludo",
   };
@@ -68,6 +69,33 @@ console.log("— safe cell —");
 st = mkState({ A: [5, ...F.slice(1)], B: [48, 58, 58, 58], C: F, D: F });
 ok("setup: B ki token safe cell 8 par", pasaCell(1, 48) === 8 && G.PASA_SAFE_CELLS.includes(8));
 ok("safe cell par land karna move ke tor par legal hai (wahan CAPTURE engine rokta hai — db.ts pasaApplyMove me PASA_SAFE_CELLS check)", pasaLegalMoves(st, "A", 4).includes(0));
+
+console.log("— tor rule (kill-gate: pehle goti maro, phir ghar) —");
+// (a) tor on + kill=0: home column entry (53+) band, track move theek hai
+let torSt = mkState({ A: [50, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { A: 0 });
+ok("tor active hai (tor+capture+per4)", pasaTorActive(torSt));
+eq("(a) kill=0: 50 se roll 5 home entry (55) — illegal", pasaLegalMoves(torSt, "A", 5), []);
+ok("(a) kill=0: 50 se roll 2 track par (52) — legal", pasaLegalMoves(torSt, "A", 2).includes(0));
+eq("(a) kill=0: 56 se roll 2 finish — illegal", pasaLegalMoves(mkState({ A: [56, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { A: 0 }), "A", 2), []);
+ok("(a) kill=0: base se 6 par bahar — legal (tor sirf ghar rokta hai)", pasaLegalMoves(mkState({ A: [0, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { A: 0 }), "A", 6).includes(0));
+// (b) kill>=1: sab khula hai
+const killedSt = mkState({ A: [50, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { A: 1 });
+ok("(b) pasaHasKill kill=1 par true", pasaHasKill(killedSt, "A"));
+ok("(b) kill>=1: 50 se roll 5 home entry (55) — legal", pasaLegalMoves(killedSt, "A", 5).includes(0));
+ok("(b) kill>=1: 56 se roll 2 finish — legal", pasaLegalMoves(mkState({ A: [56, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { A: 1 }), "A", 2).includes(0));
+// kills per-player: B ka kill A ke kaam nahi
+eq("(b) dusre (B) ka kill A ko home nahi deta", pasaLegalMoves(mkState({ A: [50, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }, { B: 2 }), "A", 5), []);
+// (c) per=1: tor setting on ho tab bhi apply nahi hota
+const oneSt = mkState({ A: [50], B: [58], C: [58], D: [58] }, { tor: true, per: 1 }, { A: 0 });
+eq("(c) per=1 me tor active NAHI", pasaTorActive(oneSt), false);
+ok("(c) per=1: kill=0 par bhi 50 se roll 5 home — legal (sirf pugana)", pasaLegalMoves(oneSt, "A", 5).includes(0));
+ok("(c) per=1: 56 se roll 2 finish — legal", pasaLegalMoves(mkState({ A: [56], B: [58], C: [58], D: [58] }, { tor: true, per: 1 }, { A: 0 }), "A", 2).includes(0));
+// (d) capture off: tor auto off
+const capOffSt = mkState({ A: [50, ...F.slice(1)], B: F, C: F, D: F }, { tor: true, capture: false }, { A: 0 });
+eq("(d) capture off par tor active NAHI", pasaTorActive(capOffSt), false);
+ok("(d) capture off: kill=0 par bhi home entry — legal", pasaLegalMoves(capOffSt, "A", 5).includes(0));
+// kills record missing (purani game): tor on ho to kill=0 mana jayega
+eq("purani game (kills missing): tor on par home band", pasaLegalMoves({ ...mkState({ A: [50, ...F.slice(1)], B: F, C: F, D: F }, { tor: true }), kills: undefined }, "A", 5), []);
 
 console.log("— teen 6 rule (pasaSixChainAfter) —");
 eq("pehla 6", pasaSixChainAfter(0, 6), { chain: 1, forfeited: false });

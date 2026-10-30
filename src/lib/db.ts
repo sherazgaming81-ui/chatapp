@@ -1991,6 +1991,21 @@ function pasaInitTokens(players: string[], settings: PasaSettings): Record<strin
   for (const p of players) tokens[p] = Array(settings.per).fill(0);
   return tokens;
 }
+/**
+ * Settings normalize: per sirf 1/2/4; tor sirf tab on reh sakta hai jab capture on
+ * ho aur per>=2 ho (warna "no home" rule game ko kabhi khatam hi nahi hone dega).
+ */
+function pasaNormSettings(s: PasaSettings): PasaSettings {
+  const per: 1 | 2 | 4 = s && (s.per === 1 || s.per === 2 || s.per === 4) ? s.per : 4;
+  const capture = !!(s && s.capture);
+  const tor = !!(s && s.tor) && capture && per >= 2;
+  return { per, timer: !!(s && s.timer), capture, teams: !!(s && s.teams), tor };
+}
+function pasaInitKills(players: string[]): Record<string, number> {
+  const kills: Record<string, number> = {};
+  for (const p of players) kills[p] = 0;
+  return kills;
+}
 /** Bari agle active player ko: leftPlayers wala skip, pasaPlayerDone (saari 58) wala skip. */
 function pasaAdvanceTurn(st: PasaStateV2): PasaStateV2 {
   const n = st.players.length;
@@ -2032,10 +2047,12 @@ export async function createPasa(chatId: string, settings: PasaSettings, opts?: 
   if (!chatId) return null;
   const players = opts?.players && opts.players.length > 0 ? [...opts.players] : [s.me];
   const started = !!opts?.started;
+  settings = pasaNormSettings(settings);
   const state: PasaStateV2 = {
     v: 2,
     players,
     tokens: pasaInitTokens(players, settings),
+    kills: pasaInitKills(players),
     turn: players[0],
     phase: "roll",
     roll: null,
@@ -2062,9 +2079,9 @@ export async function createPasa(chatId: string, settings: PasaSettings, opts?: 
   if (!ok) return null;
   return m;
 }
-/** Wrapper — purana entry point (Composer): default 4-goti, timer on, capture on, FFA. */
+/** Wrapper — purana entry point (Composer): default 4-goti, timer on, capture on, tor on, FFA. */
 export async function sendPasa(chatId: string) {
-  return createPasa(chatId, { per: 4, timer: true, capture: true, teams: false });
+  return createPasa(chatId, { per: 4, timer: true, capture: true, teams: false, tor: true });
 }
 export async function joinPasa(msgId: string) {
   const s = getState();
@@ -2144,7 +2161,8 @@ export async function updatePasaSettings(msgId: string, patch: Partial<PasaSetti
   if (!m) return;
   const st = parsePasaV2(m.caption);
   if (!st || st.started || st.host !== s.me) return;
-  const settings: PasaSettings = { ...st.settings, ...patch };
+  // normalize: capture off ya per=1 ho to tor auto off (warna home kabhi nahi milega)
+  const settings: PasaSettings = pasaNormSettings({ ...st.settings, ...patch });
   // per badla to saari tokens naye count se re-init
   const tokens = settings.per !== st.settings.per ? pasaInitTokens(st.players, settings) : st.tokens;
   await updatePayloadMsg(msgId, { ...st, settings, tokens });
@@ -2200,6 +2218,7 @@ function pasaApplyMove(st: PasaStateV2, playerId: string, tokenIdx: number): Pas
   const tokens: Record<string, number[]> = {};
   for (const p of st.players) tokens[p] = [...(st.tokens[p] || [])];
   let captured = false;
+  let killCount = 0;
   if (t === 0) entries.push(`🚪 ${name} ki goti bahar aa gayi`);
   // capture: track cell par, safe na ho, settings.capture on ho
   if (nt >= 1 && nt <= 52 && st.settings.capture) {
@@ -2212,7 +2231,7 @@ function pasaApplyMove(st: PasaStateV2, playerId: string, tokenIdx: number): Pas
         let hit = false;
         for (let i = 0; i < oppToks.length; i++) {
           const op = oppToks[i];
-          if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) { oppToks[i] = 0; hit = true; }
+          if (op >= 1 && op <= 52 && pasaCell(oppIdx, op) === cell) { oppToks[i] = 0; hit = true; killCount++; }
         }
         if (hit) { captured = true; entries.push(`💥 ${name} ne ${pasaNameOf(oppId)} ki goti maar di!`); }
       });
@@ -2220,9 +2239,12 @@ function pasaApplyMove(st: PasaStateV2, playerId: string, tokenIdx: number): Pas
   }
   toks[tokenIdx] = nt;
   tokens[playerId] = toks;
+  // tor ke liye kills record: har mari hui goti +1 (sirf mover ka count barhta hai)
+  const kills: Record<string, number> = { ...(st.kills || {}) };
+  if (killCount > 0) kills[playerId] = (typeof kills[playerId] === "number" ? kills[playerId] : 0) + killCount;
   const finishedToken = nt === 58;
   if (finishedToken) entries.push(`🏁 ${name} ki ek goti ghar pohch gayi!`);
-  let next: PasaStateV2 = { ...st, tokens, roll: null, phase: "roll" };
+  let next: PasaStateV2 = { ...st, tokens, kills, roll: null, phase: "roll" };
   // jeet check
   const allHome = toks.length > 0 && toks.every((x) => x === 58);
   if (allHome) {
@@ -2430,7 +2452,7 @@ export async function startTourneyGame(tourneyMsgId: string, slot: "semi1" | "se
   else if (slot === "semi2") { a = ts.semis[1].a; b = ts.semis[1].b; existingGameId = ts.semis[1].gameId; }
   else { a = ts.final.a; b = ts.final.b; existingGameId = ts.final.gameId; }
   if (!a || !b || existingGameId) return;
-  const game = await createPasa(tm.chatId, { per: 2, timer: false, capture: true, teams: false }, { players: [a, b], started: true, tourney: { msgId: tourneyMsgId, slot } });
+  const game = await createPasa(tm.chatId, { per: 2, timer: false, capture: true, teams: false, tor: false }, { players: [a, b], started: true, tourney: { msgId: tourneyMsgId, slot } });
   if (!game) return;
   const next: TourneyState = { ...ts, semis: ts.semis.map((sm) => ({ ...sm })), final: { ...ts.final } };
   if (slot === "semi1") next.semis[0] = { ...next.semis[0], gameId: game.id };
