@@ -1,57 +1,76 @@
 "use client";
 // ─────────────────────────────────────────────────────────────
 // Ludo BOARD SKIN — board ki SARI visual styling sirf yahan se.
-// User 5 designs dekh kar ek select karega: sirf is file ko badalna
-// hoga, PasaMessage.tsx me board ke liye koi hardcoded rang nahi hai.
-// Geometry (PATH / HOME_CELLS coordinates) layout hai, skin nahi —
-// wo PasaMessage.tsx me rehti hai. Animations / glow / halo / chips /
-// sounds bhi skin se independent hain; sirf rang, frame aur token
-// ka look yahan se ata hai.
+// Design: Manus wala UI port (pawn gotiyan + wood/gold frame).
+// Values Manus ke SKIN object se hain (player color/light/dark
+// shades, board colors, frame palette) — PasaMessage.tsx me board
+// ke liye koi hardcoded rang nahi. Geometry (PATH / HOME_CELLS
+// coordinates) layout hai, skin nahi — wo PasaMessage.tsx me hai.
+// CSS classes/vars (globals.css ka "Ludo — Manus design port"
+// section) inhi hex values ko mirror karte hain.
 // ─────────────────────────────────────────────────────────────
 
 export const BOARD_SKIN = {
-  /** player index 0..3 — red, green, yellow, blue */
-  playerColors: ["#e63329", "#00a651", "#f5a800", "#1e6fd9"],
+  /** player index 0..3 — red, green, yellow, blue (Manus SKIN.players.*.color) */
+  playerColors: ["#E63329", "#00A651", "#FFC61A", "#2456A6"],
 
-  /** #39 classic frame — sunehra / lakri (wood) wala bahari frame */
-  frame: {
-    border: "3px solid #6b4423",
-    background:
-      "linear-gradient(135deg, #8b5a2b 0%, #c89b3c 28%, #f0d27a 50%, #b8860b 72%, #8b5a2b 100%)",
-    padding: "10px",
-    borderRadius: "14px",
-    shadow: "0 10px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.45)",
+  /** har player ke light/dark shades — pawn gradient + dice gradient + yard label */
+  playerShades: [
+    { light: "#FF9A8F", dark: "#9F201C" }, // red
+    { light: "#8DE3A6", dark: "#006B35" }, // green
+    { light: "#FFE78C", dark: "#B77900" }, // yellow
+    { light: "#91B9FF", dark: "#16366C" }, // blue
+  ],
+
+  /** yard ke andar ka chhota label */
+  playerNames: ["RED", "GREEN", "YELLOW", "BLUE"],
+
+  /** Manus frame palette — wood/gold rim */
+  framePalette: {
+    light: "#E2C58D",
+    gold: "#D6A24A",
+    honey: "#AE7137",
+    mid: "#82512E",
+    dark: "#4B2B1B",
   },
 
-  /** andar wale board (15x15 grid) ki border */
-  boardBorder: "2px solid rgba(0,0,0,0.55)",
-  /** har cell ki halki border */
-  cellBorder: "rgba(0,0,0,0.25)",
-  /** aam (safed) cell ka rang */
-  cellBg: "#ffffff",
+  /** bahari frame — Manus board-frame: layered wood gradient + dark rim border */
+  frame: {
+    border: "3px solid #4B2B1B",
+    background:
+      "linear-gradient(145deg, #E2C58D 0%, #D6A24A 22%, #AE7137 57%, #82512E 100%)",
+    padding: "10px",
+    borderRadius: "18px",
+    shadow:
+      "0 10px 0 rgba(75,43,27,0.83), 0 18px 28px rgba(75,43,27,0.22), inset 0 2px 1px rgba(255,255,255,0.62)",
+  },
+
+  /** andar wale board (15x15 grid) ki border + corner radius */
+  boardBorder: "1px solid #4B2B1B",
+  boardRadius: 10,
+  /** har cell ki halki border (Manus board.grid) */
+  cellBorder: "#C9CDD2",
+  /** track cell ka rang (Manus board.track) */
+  cellBg: "#FFFFFF",
+  /** halki garam safed surface (yard rings waghera, Manus board.surface) */
+  surfaceBg: "#FFFDF8",
+  /** safe cell ka background (Manus board.safe) */
+  safeCellBg: "#FFF8E4",
 
   /** yard ke andar ke safed box ka rang */
-  yardInnerBg: "#ffffff",
+  yardInnerBg: "#FFFFFF",
 
   /**
    * Center ke 4 triangles — order: [left, top, right, bottom]
    * asal board: left red, top green, right yellow, bottom blue
    */
-  centerColors: ["#e63329", "#00a651", "#f5a800", "#1e6fd9"],
+  centerColors: ["#E63329", "#00A651", "#FFC61A", "#2456A6"],
 
-  /** goti (token) ka look */
-  token: {
-    borderColor: "#ffffff",
-    shadow:
-      "0 2px 5px rgba(0,0,0,0.45), inset 0 -3px 5px rgba(0,0,0,0.28), inset 0 2px 3px rgba(255,255,255,0.35)",
-    innerDot: "rgba(255,255,255,0.55)",
-  },
-
-  /** safe cell par star ka rang */
-  safeMarkColor: "#d97706",
-  /** selected token ki manzil (destination) par halo ka rang */
-  haloColor: "#5865f2",
-  /** start cell par direction arrow ka rang */
+  /** safe cell par star ka rang (Manus: wood gold) */
+  safeMarkColor: "#D6A24A",
+  /** destination halo ka default rang (asal render me mover ke player rang se override hota hai) */
+  haloColor: "#D6A24A",
+  /** start cell par direction arrow ka fallback rang (asal render me player dark shade) */
   arrowColor: "rgba(0,0,0,0.4)",
 };
 

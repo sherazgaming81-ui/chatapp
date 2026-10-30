@@ -40,6 +40,8 @@ import {
 } from "@/lib/pasaSound";
 import FxOverlay from "./FxOverlay";
 import LudoLeaderboard from "./LudoLeaderboard";
+import PawnToken from "./PawnToken";
+import PasaDice from "./PasaDice";
 
 /* ───────── board geometry (LAYOUT — skin nahi) ───────── */
 // 52-cell patri: global cell index -> [row, col] (15x15 board, 0-indexed)
@@ -80,11 +82,7 @@ function yardSlotPos(yardIdx: number, slot: number): { row: number; col: number 
 
 // start cells par asal simt ke arrows: red →, green ↓, yellow ←, blue ↑
 const START_ARROWS: Record<number, string> = { 0: "→", 13: "↓", 26: "←", 39: "↑" };
-const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const SAFE_SET = new Set<number>((PASA_SAFE_CELLS as unknown as number[]) || []);
-// finish tokens center ke andar — player ke kone ki taraf offset
-const FINISH_OFF: [number, number][] = [[-0.78, -0.78], [-0.78, 0.78], [0.78, 0.78], [0.78, -0.78]];
-const FINISH_JITTER: [number, number][] = [[-0.34, -0.34], [0.34, -0.34], [-0.34, 0.34], [0.34, 0.34]];
 // ek cell par kai tokens — 2x2 mini offsets (cell units)
 const STACK_OFF: [number, number][] = [[-0.21, -0.21], [0.21, -0.21], [-0.21, 0.21], [0.21, 0.21]];
 
@@ -150,18 +148,19 @@ function LudoBoard({
   const per: number = st?.settings?.per === 4 ? 4 : 2;
 
   // tokens ki render list (positions continuous cell coords me)
+  // finished (58) tokens overlay me nahi — center ke finish stacks me jate hain (Manus style)
   const renders: TokenRender[] = [];
   const groups = new Map<string, TokenRender[]>();
+  const finishedByPlayer = new Map<number, number[]>();
   players.forEach((pid, pIdx) => {
     const toks: number[] = Array.isArray(st?.tokens?.[pid]) ? st.tokens[pid] : [];
     toks.slice(0, per).forEach((prog, ti) => {
       let row = 0, col = 0, gk = "";
       if (prog >= 58) {
-        const fo = FINISH_OFF[pIdx] || [0, 0];
-        const fj = FINISH_JITTER[ti] || [0, 0];
-        row = 7.5 + fo[0] + fj[0] * 0.8;
-        col = 7.5 + fo[1] + fj[1] * 0.8;
-        gk = `fin-${pIdx}-${ti}`;
+        const arr = finishedByPlayer.get(pIdx) || [];
+        arr.push(ti);
+        finishedByPlayer.set(pIdx, arr);
+        return;
       } else if (prog >= 53) {
         const rc = HOME_CELLS[pIdx]?.[prog - 53];
         if (!rc) return;
@@ -200,6 +199,8 @@ function LudoBoard({
     if (h !== undefined) return skin.playerColors[h];
     const cell = CELL_OF_RC.get(`${r},${c}`);
     if (cell !== undefined && cell % 13 === 0) return skin.playerColors[cell / 13];
+    // safe cells (start ke ilawa) — Manus board.safe wala halka sunehra background
+    if (cell !== undefined && SAFE_SET.has(cell)) return skin.safeCellBg;
     return skin.cellBg;
   };
 
@@ -222,7 +223,7 @@ function LudoBoard({
     >
       <div
         className="relative w-full overflow-hidden"
-        style={{ border: skin.boardBorder, borderRadius: 6, background: skin.cellBg }}
+        style={{ border: skin.boardBorder, borderRadius: skin.boardRadius, background: skin.cellBg }}
       >
         {/* 15x15 cells */}
         <div className="grid" style={{ gridTemplateColumns: "repeat(15, minmax(0,1fr))" }}>
@@ -238,11 +239,10 @@ function LudoBoard({
                 className="relative flex aspect-square items-center justify-center"
                 style={{ backgroundColor: cellBg(r, c), boxShadow: `inset 0 0 0 0.5px ${skin.cellBorder}` }}
               >
-                {isSafe && (
-                  <span style={{ color: skin.safeMarkColor, fontSize: "clamp(9px, 2.6vw, 15px)", lineHeight: 1 }}>★</span>
-                )}
+                {isSafe && <span className="ludo-safe-ring" aria-hidden="true" />}
+                {isSafe && <span className="ludo-safe-star" aria-hidden="true">★</span>}
                 {showArrow && (
-                  <span style={{ color: skin.arrowColor, fontSize: "clamp(8px, 2.2vw, 13px)", lineHeight: 1, fontWeight: 800 }}>
+                  <span className="ludo-start-direction" style={{ color: skin.playerShades[(cell as number) / 13]?.dark || skin.arrowColor }} aria-hidden="true">
                     {START_ARROWS[cell as number]}
                   </span>
                 )}
@@ -254,7 +254,10 @@ function LudoBoard({
         {/* overlay layer */}
         <div className="pointer-events-none absolute inset-0">
           {/* yards ke safed box + circles */}
-          {YARDS.map((y, idx) => (
+          {YARDS.map((y, idx) => {
+            const pid = players[idx];
+            const ptoks: number[] = pid && Array.isArray(st?.tokens?.[pid]) ? st.tokens[pid] : [];
+            return (
             <div key={`yard-${idx}`}>
               <div
                 className="absolute"
@@ -265,133 +268,156 @@ function LudoBoard({
                   height: `${(4.08 / 15) * 100}%`,
                   background: skin.yardInnerBg,
                   borderRadius: "16%",
+                  border: `2px solid ${skin.playerShades[idx].dark}35`,
+                  boxShadow: "inset 0 2px 5px rgba(75,43,27,0.10), 0 2px 5px rgba(75,43,27,0.09)",
                 }}
-              />
+              >
+                <span
+                  className="ludo-yard-label"
+                  style={{
+                    position: "absolute", top: "3%", left: 0, right: 0, textAlign: "center",
+                    color: skin.playerShades[idx].dark, fontSize: "clamp(5px, 1.45vw, 8px)",
+                  }}
+                >
+                  {skin.playerNames[idx]}
+                </span>
+              </div>
               {[0, 1, 2, 3].map((slot) => {
                 const pos = yardSlotPos(idx, slot);
+                const slotMovable = interactive && idx === myIdx && ptoks[slot] === 0 && legalMoves.includes(slot);
                 return (
                   <div
                     key={slot}
-                    className="absolute rounded-full"
+                    className={`absolute rounded-full ${slotMovable ? "ludo-yard-ring--movable" : ""}`}
                     style={{
                       left: `${(pos.col / 15) * 100}%`,
                       top: `${(pos.row / 15) * 100}%`,
                       width: `${(1.55 / 15) * 100}%`,
                       aspectRatio: "1",
                       transform: "translate(-50%,-50%)",
-                      border: `2.5px solid ${skin.playerColors[idx]}`,
-                      background: skin.yardInnerBg,
+                      border: `2px solid ${skin.playerColors[idx]}`,
+                      background: skin.surfaceBg,
+                      boxShadow: "inset 0 2px 5px rgba(75,43,27,0.08)",
                     }}
                   />
                 );
               })}
             </div>
-          ))}
+            );
+          })}
 
-          {/* center — 4 triangles (left red, top green, right yellow, bottom blue) */}
+          {/* center — Manus style SVG triangles (upar green, right yellow, neeche blue, left red)
+              + finish dot + finished pawns ke stacks apne rang ke kone me */}
           <div
             className="absolute"
             style={{
               left: "40%", top: "40%", width: "20%", height: "20%",
-              background: `conic-gradient(from 45deg, ${skin.centerColors[2]} 0deg 90deg, ${skin.centerColors[3]} 90deg 180deg, ${skin.centerColors[0]} 180deg 270deg, ${skin.centerColors[1]} 270deg 360deg)`,
+              background: "#FFFFFF",
               boxShadow: `inset 0 0 0 1px ${skin.cellBorder}`,
+              overflow: "hidden",
             }}
-          />
+          >
+            <svg className="absolute inset-0 block h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <polygon points="0,0 100,0 50,50" fill={skin.playerColors[1]} />
+              <polygon points="100,0 100,100 50,50" fill={skin.playerColors[2]} />
+              <polygon points="100,100 0,100 50,50" fill={skin.playerColors[3]} />
+              <polygon points="0,100 0,0 50,50" fill={skin.playerColors[0]} />
+              <path d="M0 0L100 100M100 0L0 100" stroke="#FFFFFF" strokeWidth="1.2" opacity="0.9" />
+            </svg>
+            <span className="ludo-finish-dot" aria-hidden="true" />
+            {[0, 1, 2, 3].map((pi) => {
+              const list = finishedByPlayer.get(pi);
+              if (!list || list.length === 0) return null;
+              return (
+                <div key={pi} className={`ludo-finish-stack ludo-finish-stack--${pi}`} aria-hidden="true">
+                  {list.map((ti) => (
+                    <span key={ti} className="block h-full w-full">
+                      <PawnToken playerIdx={pi} number={ti + 1} />
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+            {destPos && destPos.row === 7.5 && destPos.col === 7.5 && myIdx >= 0 && (
+              <span className={`ludo-finish-dest ludo-finish-dest--${myIdx}`} aria-hidden="true" />
+            )}
+          </div>
 
-          {/* destination halo */}
-          {destPos && (
+          {/* destination halo — Manus ring, mover ke rang me (center wali manzil center ke andar dikhti hai) */}
+          {destPos && !(destPos.row === 7.5 && destPos.col === 7.5) && (
             <div
-              className="absolute animate-pulse rounded-full"
+              className="ludo-destination-halo"
               style={{
                 left: `${(destPos.col / 15) * 100}%`,
                 top: `${(destPos.row / 15) * 100}%`,
-                width: `${(1 / 15) * 100}%`,
+                width: `${(0.8 / 15) * 100}%`,
                 aspectRatio: "1",
-                transform: "translate(-50%,-50%)",
-                border: `3px solid ${skin.haloColor}`,
-                boxShadow: `0 0 0 2px rgba(255,255,255,0.7), 0 0 14px ${skin.haloColor}`,
-                zIndex: 5,
+                borderColor: skin.playerColors[myIdx] || skin.haloColor,
               }}
             />
           )}
 
-          {/* capture flash */}
+          {/* capture flash — Manus capture-pop burst */}
           {captureFlash && (
             <div
               key={captureFlash.k}
-              className="pasa-flash absolute"
+              className="ludo-capture-burst"
               style={{
                 left: `${(captureFlash.col / 15) * 100}%`,
                 top: `${(captureFlash.row / 15) * 100}%`,
-                fontSize: 30,
-                zIndex: 30,
+                fontSize: "clamp(15px, 4vw, 24px)",
               }}
             >
               💥
             </div>
           )}
 
-          {/* TOKENS — slide transition ke sath */}
+          {/* TOKENS — Manus SVG pawns, slide transition ke sath */}
           {renders.map((tr) => {
             const stacked = tr.stackN > 1;
             const off = stacked ? STACK_OFF[tr.stackI % 4] : [0, 0];
             const row = tr.row + (off[0] as number);
             const col = tr.col + (off[1] as number);
-            const sizeFrac = stacked ? 0.55 : 0.78;
+            const sizeFrac = stacked ? 0.5 : 0.72;
             const isLegal = interactive && tr.pIdx === myIdx && legalMoves.includes(tr.ti);
             const isSel = selected !== null && tr.pIdx === myIdx && tr.ti === selected;
+            const isCurrent = glowIdx >= 0 && tr.pIdx === glowIdx;
             const danger = dangerSet.has(`${tr.pid}:${tr.ti}`);
             return (
               <div
                 key={tr.key}
                 onClick={interactive ? (e) => { e.stopPropagation(); onTokenTap?.(tr.pIdx, tr.ti); } : undefined}
-                className={`absolute rounded-full ${isLegal ? "animate-pulse" : ""}`}
+                className="absolute"
                 style={{
                   left: `${(col / 15) * 100}%`,
                   top: `${(row / 15) * 100}%`,
                   width: `${(sizeFrac / 15) * 100}%`,
-                  aspectRatio: "1",
-                  transform: `translate(-50%,-50%)${isSel ? " scale(1.22)" : ""}`,
+                  aspectRatio: "52 / 68",
+                  transform: `translate(-50%,-56%)${isSel ? " scale(1.17)" : ""}`,
                   transition: "left .45s ease, top .45s ease, transform .18s ease",
-                  background: skin.playerColors[tr.pIdx],
-                  border: `2px solid ${skin.token.borderColor}`,
-                  boxShadow: isSel
-                    ? `0 0 0 3px ${skin.haloColor}, ${skin.token.shadow}`
-                    : isLegal
-                      ? `0 0 0 3px ${skin.haloColor}, 0 0 12px ${skin.haloColor}, ${skin.token.shadow}`
-                      : skin.token.shadow,
+                  filter: isSel ? "drop-shadow(0 5px 5px rgba(75,43,27,0.46))" : undefined,
                   zIndex: isSel ? 22 : isLegal ? 21 : 20,
                   cursor: interactive ? "pointer" : undefined,
                   pointerEvents: interactive ? "auto" : "none",
                 }}
               >
-                <span
-                  className="absolute rounded-full"
-                  style={{
-                    left: "50%", top: "50%", width: "42%", height: "42%",
-                    transform: "translate(-50%,-50%)",
-                    background: skin.token.innerDot,
-                  }}
-                />
-                {/* #22 number badge */}
-                <span
-                  className="absolute flex items-center justify-center rounded-full font-extrabold"
-                  style={{
-                    right: -3, top: -3, minWidth: 11, height: 11, padding: "0 2px",
-                    background: "#ffffff", color: "#2f3035", fontSize: 8, lineHeight: 1,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
-                  }}
+                <div
+                  className={isLegal ? "ludo-pawn-bob" : isCurrent ? "ludo-pawn-current" : undefined}
+                  style={{ width: "100%", height: "100%", "--token-color": skin.playerColors[tr.pIdx] } as any}
                 >
-                  {tr.ti + 1}
-                </span>
+                  <PawnToken playerIdx={tr.pIdx} number={tr.ti + 1} />
+                </div>
                 {danger && (
-                  <span className="absolute" style={{ right: -5, bottom: -5, fontSize: 10, lineHeight: 1 }}>⚠️</span>
+                  <span className="absolute" style={{ right: -5, top: -4, fontSize: 10, lineHeight: 1, zIndex: 2 }}>⚠️</span>
                 )}
               </div>
             );
           })}
         </div>
       </div>
+      {/* Manus frame rim + shine */}
+      <div className="ludo-frame__rim" aria-hidden="true" />
+      <span className="ludo-frame__shine" aria-hidden="true" />
     </div>
   );
 }
@@ -675,6 +701,11 @@ export default function PasaMessage({ m }: { m: Message }) {
   const winnerId: string | null = typeof st.winner === "string" ? st.winner : null;
   const logLines: string[] = Array.isArray(st.log) ? st.log.filter((x: unknown) => typeof x === "string").slice(-6) : [];
   const diceValue: number | null = diceRolling ? diceShown : (typeof st.roll === "number" ? st.roll : st.lastRoll?.v ?? null);
+  // dice ka rang: jis ne aakhri roll kiya us ka, warna jis ki bari hai us ka
+  const diceIdx = (() => {
+    const bi = typeof st.lastRoll?.by === "string" ? players.indexOf(st.lastRoll.by) : -1;
+    return bi >= 0 ? bi : turnIdx >= 0 ? turnIdx : 0;
+  })();
   const hostName = nameOf(st.host);
 
   const onTokenTap = (pIdx: number, ti: number) => {
@@ -694,7 +725,7 @@ export default function PasaMessage({ m }: { m: Message }) {
     callDb(updatePasaSettings as any, m.id, patch);
 
   const boardEl = (interactiveBoard: boolean, withTap: boolean) => (
-    <div className={shaking && interactiveBoard ? "pasa-shake" : undefined}>
+    <div className={shaking && interactiveBoard ? "ludo-board-shake" : undefined}>
       <LudoBoard
         st={st}
         interactive={interactiveBoard && isMyTurn && st.phase === "move"}
@@ -723,9 +754,7 @@ export default function PasaMessage({ m }: { m: Message }) {
   );
 
   return (
-    <div className="mt-1.5 w-full max-w-sm rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
-      <style>{`@keyframes pasa-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}.pasa-shake{animation:pasa-shake .4s ease}@keyframes pasa-flash{0%{opacity:1;transform:translate(-50%,-50%) scale(1.5)}100%{opacity:0;transform:translate(-50%,-50%) scale(.7)}}.pasa-flash{animation:pasa-flash .8s ease forwards}`}</style>
-
+    <div className="ludo-scope mt-1.5 w-full max-w-sm rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
       {showFx && <FxOverlay kind="confetti" emoji="🏆" onDone={() => setShowFx(false)} />}
       {lbOpen && <LudoLeaderboard open={lbOpen} onClose={() => setLbOpen(false)} />}
 
@@ -795,9 +824,14 @@ export default function PasaMessage({ m }: { m: Message }) {
       )}
       {st.started && (
         <div className="mt-2 flex items-center justify-center gap-3">
-          <span className={`text-5xl leading-none ${diceRolling ? "animate-bounce" : ""}`} style={{ minWidth: 52, textAlign: "center" }}>
-            {diceValue ? DICE_FACES[diceValue - 1] : "🎲"}
-          </span>
+          <PasaDice
+            playerIdx={diceIdx}
+            value={diceValue}
+            rolling={diceRolling}
+            disabled={!!st.done || !isMyTurn || st.phase !== "roll"}
+            remainingSeconds={timerOn ? remainS : null}
+            onRoll={() => callDb(rollPasaDice as any, m.id)}
+          />
           <div className="text-left">
             {st.lastRoll?.by ? (
               <p className="text-xs font-semibold text-[#5c5e66]">🎲 {nameOf(st.lastRoll.by)} ko {st.lastRoll.v} aaya</p>
@@ -805,12 +839,10 @@ export default function PasaMessage({ m }: { m: Message }) {
               <p className="text-xs font-semibold text-[#80848e]">Abhi pasa nahi phainka gaya</p>
             )}
             {timerOn && remainS !== null && (
-              <div className="mt-1">
-                <p className={`text-[11px] font-extrabold ${remainS <= 3 ? "text-[#ed4245]" : "text-[#5c5e66]"}`}>⏱ {Math.ceil(remainS)}s</p>
-                <div className="mt-0.5 h-1.5 w-24 overflow-hidden rounded-full bg-black/10">
-                  <div className={`h-full rounded-full ${remainS <= 3 ? "bg-[#ed4245]" : "bg-[#5865f2]"}`} style={{ width: `${(remainS / 10) * 100}%`, transition: "width .25s linear" }} />
-                </div>
-              </div>
+              <p className={`mt-1 text-[11px] font-extrabold ${remainS <= 3 ? "text-[#ed4245]" : "text-[#5c5e66]"}`}>⏱ {Math.ceil(remainS)}s baki</p>
+            )}
+            {isMyTurn && st.phase === "roll" && !st.done && (
+              <p className="mt-1 text-[11px] font-bold text-[#5865f2]">Pasa par tap karo 👆</p>
             )}
           </div>
         </div>
