@@ -422,7 +422,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       {attachOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setAttachOpen(false)} />
-          <div className="pop-in fixed inset-x-4 bottom-24 z-40 rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
+          <div className="pop-in thin-scroll fixed inset-x-4 bottom-24 z-40 max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain rounded-2xl border border-black/10 bg-white p-2 soft-shadow [-webkit-overflow-scrolling:touch] md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
             <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
