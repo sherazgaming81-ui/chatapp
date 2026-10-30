@@ -70,6 +70,17 @@ function toMessage(r: any): Message {
       msg.text = "";
     } catch { /* ignore */ }
   }
+  // payload messages (poll/location/contact/games): in ka JSON state text column me
+  // store hota hai — DB me `caption` column hai hi nahi, wahan bhejne se insert 400
+  // ho jata tha (poll waghera isi liye fail thay). Yahan text se caption wapas banao
+  // aur display text alag rakho taake previews me raw JSON na dikhe.
+  if (["poll", "location", "contact", "quiz", "tictactoe", "riddle"].includes(msg.type) && msg.text.startsWith("{")) {
+    try {
+      const d = JSON.parse(msg.text);
+      msg.caption = msg.text;
+      msg.text = (d && (d.t || d.q)) || "";
+    } catch { /* ignore */ }
+  }
   return msg;
 }
 
@@ -481,7 +492,11 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
   if (!chatId || !file) return null;
   const mb = file.size / (1024 * 1024);
   if (mb > MAX_FILE_MB) { toast("File bohat bari", `${fmtSize(file.size)} — max ${MAX_FILE_MB}MB`); return null; }
-  // Supabase Storage try karo, fail ho to data URL fallback
+  // Supabase Storage try karo, fail ho to data URL fallback.
+  // NOTE: `chat-files` bucket abhi Supabase me bana hi nahi — is liye storage hamesha
+  // fail hota hai aur asal files data-URL par atki rehti theen (bari file = insert fail).
+  // Bucket ban jaye to yehi code khud storage use karne lage ga; tab tak chhoti files
+  // (5MB tak) data-URL se jayengi, bari par saaf message milega (khamosh fail nahi).
   let url = "";
   try {
     const path = `${chatId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -492,12 +507,21 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
     }
   } catch { /* fallback below */ }
   if (!url) {
-    url = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result as string);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
+    if (file.size > 5 * 1024 * 1024) {
+      toast("File nahi gayi", `${file.name} (${fmtSize(file.size)}) — abhi itni bari file nahi ja sakti`);
+      return null;
+    }
+    try {
+      url = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    } catch {
+      toast("File nahi gayi", file.name);
+      return null;
+    }
   }
   const meta = JSON.stringify({ name: file.name, size: file.size, mime: file.type });
   const m: Message = {
@@ -726,7 +750,8 @@ export async function postAnnouncement(text: string) {  const s = getState();
 }
 
 // ───────── B5 polls ─────────
-// Poll definition (question + options + endsAt) lives in the message `caption` column as JSON.
+// Poll definition (question + options + endsAt) JSON message ke `text` column me store hota hai
+// (DB me `caption` column nahi hai — wahan bhejne se insert 400 hota tha); toMessage use wapas caption me rakhta hai.
 // Votes live in the message `reactions` jsonb under special keys "__poll_<idx>" -> userIds.
 // This needs NO new tables and syncs live through the existing UPDATE realtime handler.
 export interface PollData { q: string; opts: string[]; endsAt: number }
@@ -741,10 +766,11 @@ export async function sendPoll(chatId: string, q: string, opts: string[], endsAt
   const s = getState();
   if (!chatId || !q.trim() || opts.filter((o) => o.trim()).length < 2) return null;
   const poll: PollData = { q: q.trim(), opts: opts.map((o) => o.trim()).filter(Boolean).slice(0, 5), endsAt };
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "poll", text: poll.q, at: Date.now(), reactions: {}, caption: JSON.stringify(poll) };
+  const payload = JSON.stringify({ ...poll, t: poll.q });
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "poll", text: poll.q, at: Date.now(), reactions: {}, caption: payload };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "poll",
-    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: payload, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Poll nahi gaya");
   if (!ok) return null;
   return m;
@@ -792,7 +818,7 @@ export async function sendLocation(chatId: string, lat: number, lng: number): Pr
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "location", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ lat, lng }) };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "location",
-    text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: m.caption, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Location nahi gayi");
   if (!ok) return null;
   return m;
@@ -805,7 +831,7 @@ export async function sendContact(chatId: string, name: string, phone: string): 
   const m: Message = { id: uid("m"), from: s.me, chatId, type: "contact", text: "", at: Date.now(), reactions: {}, caption: JSON.stringify({ name: name.trim(), phone: phone.trim() }) };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "contact",
-    text: "", media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: m.caption, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Contact nahi gaya");
   if (!ok) return null;
   return m;
@@ -1276,10 +1302,11 @@ export async function sendQuiz(chatId: string): Promise<Message | null> {
   if (active) { toast("Quiz pehle se chal raha hai", "Khatam hone ka intezar karo"); return null; }
   const questions = pickQuizQuestions();
   const state = { questions, current: 0, qEndsAt: Date.now() + 15000, done: false };
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "quiz", text: "🧠 Deen Quiz!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  const payload = JSON.stringify({ ...state, t: "🧠 Deen Quiz!" });
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "quiz", text: "🧠 Deen Quiz!", at: Date.now(), reactions: {}, caption: payload };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "quiz",
-    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: payload, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Quiz nahi gaya");
   if (!ok) return null;
   return m;
@@ -1314,7 +1341,7 @@ export async function advanceQuiz(msgId: string) {
   const nextState = { ...st, current: nextIdx, qEndsAt: Date.now() + 15000, done };
   const caption = JSON.stringify(nextState);
   update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
-  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+  try { await sb().from("messages").update({ text: caption }).eq("id", msgId); } catch { /* ignore */ }
   if (done) {
     // winner announce
     const scores = quizScores(m.reactions, st.questions);
@@ -1351,10 +1378,11 @@ export async function sendTicTacToe(chatId: string, opponentId: string): Promise
     board: Array(9).fill(""), turn: s.me, winner: null,
   };
   const oppName = s.members.find((x) => x.id === opponentId)?.name || "member";
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "tictactoe", text: `⭕❌ TicTacToe challenge: ${oppName}`, at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  const payload = JSON.stringify({ ...state, t: `⭕❌ TicTacToe challenge: ${oppName}` });
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "tictactoe", text: `⭕❌ TicTacToe challenge: ${oppName}`, at: Date.now(), reactions: {}, caption: payload };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "tictactoe",
-    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: payload, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Challenge nahi gaya");
   if (!ok) return null;
   return m;
@@ -1369,7 +1397,7 @@ export async function acceptTicTacToe(msgId: string) {
   const next = { ...st, accepted: true, turn: st.challenger };
   const caption = JSON.stringify(next);
   update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
-  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+  try { await sb().from("messages").update({ text: caption }).eq("id", msgId); } catch { /* ignore */ }
 }
 export async function tttMove(msgId: string, cell: number) {
   const s = getState();
@@ -1390,7 +1418,7 @@ export async function tttMove(msgId: string, cell: number) {
   const next = { ...st, board, turn: nextTurn, winner };
   const caption = JSON.stringify(next);
   update({ messages: s.messages.map((x) => (x.id === msgId ? { ...x, caption } : x)) });
-  try { await sb().from("messages").update({ caption }).eq("id", msgId); } catch { /* ignore */ }
+  try { await sb().from("messages").update({ text: caption }).eq("id", msgId); } catch { /* ignore */ }
   if (winner) {
     const wname = winner === "draw" ? null : s.members.find((x) => x.id === winner)?.name || "Koi";
     postSystem(m.chatId, winner === "draw" ? "⭕❌ TicTacToe draw ho gaya! Rematch? 🔄" : `⭕❌ ${wname} jeet gaya! 🎉`);
@@ -1406,10 +1434,11 @@ export async function sendRiddle(chatId: string): Promise<Message | null> {
   if (active) { toast("Paheli pehle se chal rahi hai", "Pehle iska jawab do!"); return null; }
   const { riddle } = dailyRiddle();
   const state = { q: riddle.q, a: riddle.a, alt: riddle.alt, day: today, solved: false, winner: null };
-  const m: Message = { id: uid("m"), from: s.me, chatId, type: "riddle", text: "🧩 Aaj ki Paheli!", at: Date.now(), reactions: {}, caption: JSON.stringify(state) };
+  const payload = JSON.stringify({ ...state, t: "🧩 Aaj ki Paheli!" });
+  const m: Message = { id: uid("m"), from: s.me, chatId, type: "riddle", text: "🧩 Aaj ki Paheli!", at: Date.now(), reactions: {}, caption: payload };
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "riddle",
-    text: m.text, media_url: "", caption: m.caption, reply_to: null, created_at: m.at, read_by: [],
+    text: payload, media_url: "", reply_to: null, created_at: m.at, read_by: [],
   }, "Paheli nahi gayi");
   if (!ok) return null;
   return m;
@@ -1426,7 +1455,7 @@ export async function checkRiddleAnswer(chatId: string, text: string, senderId: 
     const next = { ...st, solved: true, winner: senderId };
     const caption = JSON.stringify(next);
     update({ messages: s.messages.map((x) => (x.id === r.id ? { ...x, caption } : x)) });
-    try { await sb().from("messages").update({ caption }).eq("id", r.id); } catch { /* ignore */ }
+    try { await sb().from("messages").update({ text: caption }).eq("id", r.id); } catch { /* ignore */ }
     const name = getState().members.find((x) => x.id === senderId)?.name || "Kisi ne";
     postSystem(chatId, `🧩 Paheli solve! ${name} ne sahi jawab diya: "${st.a}" 🎉`);
   }

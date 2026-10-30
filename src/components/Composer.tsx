@@ -346,6 +346,22 @@ export default function Composer({ chatId }: { chatId: string }) {
             rows={1}
             value={text}
             onChange={(e) => onType(e.target.value)}
+            onPaste={(e) => {
+              // Clipboard paste: PrintScreen / Snipping Tool ke screenshots aur copy ki
+              // hui files seedha chat me — pehle handler hi nahi tha, is liye SS paste
+              // nahi hota tha. Image ho to photo ki tarah, aur file ho to file ki tarah.
+              const cd = e.clipboardData;
+              if (!cd) return;
+              const pasted: File[] = Array.from(cd.files || []);
+              if (!pasted.length) {
+                for (const it of Array.from(cd.items || [])) {
+                  if (it.kind === "file") { const f = it.getAsFile(); if (f) pasted.push(f); }
+                }
+              }
+              if (!pasted.length) return; // aam text paste — normal rehne do
+              e.preventDefault();
+              pasted.forEach((f) => { if (f.type.startsWith("image/")) pickImage(f); else pickFile(f); });
+            }}
             onKeyDown={(e) => {
               if (showPalette && cmdList.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
                 e.preventDefault();
