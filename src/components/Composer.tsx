@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, EyeOff } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, EyeOff, BrickWall, Rocket } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendSticker, sendGif, clearChat, postSystem, sendGumnam } from "@/lib/db";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendSticker, sendGif, clearChat, postSystem, sendGumnam, sendBrick, sendStarfall } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
@@ -406,6 +406,8 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
+            <AttachItem icon={<BrickWall size={19} />} color="#f5a623" bg="#f5a623/10" label="Brick Breaker 🧱" desc="Eentein toro, score banao — akelay khelo" onClick={() => { setAttachOpen(false); sendBrick(chatId); }} />
+            <AttachItem icon={<Rocket size={19} />} color="#38e1ff" bg="#38e1ff/10" label="Starfall 🚀" desc="Space shooter — waves, boss, upgrades" onClick={() => { setAttachOpen(false); sendStarfall(chatId); }} />
             <AttachItem icon={<EyeOff size={19} />} color="#5c5e66" bg="#5c5e66/10" label="Gumnam Paigham 🕵️" desc="Naam chhupa kar bhejo" onClick={() => { setAttachOpen(false); setGumnamOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />

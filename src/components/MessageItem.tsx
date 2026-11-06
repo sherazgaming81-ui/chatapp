@@ -7,6 +7,8 @@ import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui"
 import EmojiPicker from "@/components/EmojiPicker";
 import PollMessage from "@/components/PollMessage";
 import StickerMessage from "@/components/StickerMessage";
+import BrickMessage from "@/components/BrickMessage";
+import StarfallMessage from "@/components/StarfallMessage";
 import GumnamMessage from "@/components/GumnamMessage";
 import { SuperReactionModal, SuperPill } from "@/components/SuperReaction";
 import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
@@ -526,10 +528,12 @@ function GifMessage({ m }: { m: Message }) {
 
 /* GAMES REMOVED (user ka hukum 2026-11-06): purane game messages crash nahi honge —
    unki jagah saaf fallback line dikhegi, baqi chat bilkul normal chalegi. */
-const GAME_TYPES = new Set(["quiz", "tictactoe", "riddle", "spin", "truthdare", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney", "brick", "starfall"]);
+const GAME_TYPES = new Set(["quiz", "tictactoe", "riddle", "spin", "truthdare", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney"]);
 
 function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; mine?: boolean }) {
   if (GAME_TYPES.has(m.type)) return <p className="text-sm italic text-[#80848e]">🎮 Ye game ab available nahi hai</p>;
+  if (m.type === "brick") return <BrickMessage m={m} />;
+  if (m.type === "starfall") return <StarfallMessage m={m} />;
   if (m.type === "image" && m.src) {
     return (
       <div className="mt-1">
