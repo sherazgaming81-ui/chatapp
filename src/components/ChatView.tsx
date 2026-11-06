@@ -104,6 +104,7 @@ export default function ChatView() {
   /* 19 — lazy load purane messages (upar scroll par) */
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [winSize, setWinSize] = useState(150); // PERF: render-window — DOM me aik waqt me kitne messages
   const loadingMoreRef = useRef(false);
 
   /* 2 — chat switch par skeleton shimmer */
@@ -114,6 +115,7 @@ export default function ChatView() {
       prevChatRef.current = activeChatId;
       setSkel(true);
       setHasMore(true);
+      setWinSize(150);
       setNewCount(0); // UI-7 — chat badalne par naye-messages count reset
       seenOthersRef.current = 0;
       patchUI({ selectedMsgs: [] }); // chat badlo to selection saaf
@@ -153,6 +155,10 @@ export default function ChatView() {
     () => messages.filter((m) => m.chatId === activeChatId && !hiddenForMe.includes(m.id)),
     [messages, activeChatId, hiddenForMe]
   );
+  const msgById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  /* PERF: sirf aakhri winSize messages render karo — hazaron DOM nodes hi lag ki sab se bari wajah thay.
+     Upar scroll par window barhta hai, phir server se purane ate hain (sab data safe rehta hai). */
+  const shown = useMemo(() => msgs.slice(-winSize), [msgs, winSize]);
 
   /* UI-7 — dusron ke messages ki ginti stick ke hisab se track karo */
   const othersCount = useMemo(() => msgs.filter((m) => m.from !== meId).length, [msgs, meId]);
@@ -215,14 +221,28 @@ export default function ChatView() {
     const el = sc.current;
     if (!el) return;
     setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
-    /* 19 — bilkul upar pahunche to purane messages lao (scroll position bachao) */
-    if (el.scrollTop < 80 && hasMore && !loadingMoreRef.current && activeChatId && msgs.length > 0) {
+    /* 19 — bilkul upar pahunche to purane messages dikhao (scroll position bachao) */
+    if (el.scrollTop < 80 && activeChatId && msgs.length > 0 && !loadingMoreRef.current) {
+      /* PERF: pehle memory me pehle se load-shuda messages ka render-window barhao — server call nahi */
+      if (winSize < msgs.length) {
+        loadingMoreRef.current = true;
+        const prevH = el.scrollHeight;
+        setWinSize((w) => w + 150);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const el2 = sc.current;
+          if (el2) el2.scrollTop += el2.scrollHeight - prevH;
+          loadingMoreRef.current = false;
+        }));
+        return;
+      }
+      if (!hasMore) return;
       loadingMoreRef.current = true;
       setLoadingMore(true);
       const prevH = el.scrollHeight;
       const oldest = msgs[0].at;
       loadOlderMessages(activeChatId, oldest).then((more) => {
         setHasMore(more);
+        setWinSize((w) => w + 150); // PERF: server se aye purane messages window me bhi shamil
         requestAnimationFrame(() => {
           const el2 = sc.current;
           if (el2) el2.scrollTop = el2.scrollHeight - prevH;
@@ -236,7 +256,7 @@ export default function ChatView() {
   // A8 — group by day for sticky headers
   const sections = useMemo(() => {
     const out: { key: string; label: string; msgs: typeof msgs }[] = [];
-    msgs.forEach((m) => {
+    shown.forEach((m) => {
       const d = new Date(m.at);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       let s = out.find((x) => x.key === key);
@@ -244,7 +264,7 @@ export default function ChatView() {
       s.msgs.push(m);
     });
     return out;
-  }, [msgs]);
+  }, [shown]);
 
   // A9 — first unread position
   const unreadInfo = useMemo(() => {
@@ -293,6 +313,10 @@ export default function ChatView() {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.classList.add("flash");
       setTimeout(() => el.classList.remove("flash"), 1600);
+    } else if (winSize < msgs.length) {
+      /* PERF: message render-window se bahir hai — pehle window kholo, phir jump karo */
+      setWinSize(msgs.length);
+      setTimeout(() => jumpTo(id), 500);
     }
   };
   // I15 — global search se jump
@@ -307,7 +331,7 @@ export default function ChatView() {
   }, [jumpToMsg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
+    <div className="panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/10 px-3 sm:px-4">
         <button onClick={() => patchUI({ mobileDrawer: "channels" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Channels">
           <Menu size={20} />
@@ -430,7 +454,7 @@ export default function ChatView() {
           sections.map((sec) => (
             <div key={sec.key}>
               <div className="sticky top-0 z-[5] flex justify-center py-1.5">
-                <span key={sec.key} className="date-pill rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[11px] font-bold text-[#5c5e66] shadow-sm backdrop-blur">{sec.label}</span>
+                <span key={sec.key} className="date-pill rounded-full border border-black/10 bg-white/95 px-3 py-1 text-[11px] font-bold text-[#5c5e66] shadow-sm">{sec.label}</span>
               </div>
               {sec.msgs.map((m, i) => {
                 const prev = sec.msgs[i - 1];
@@ -458,7 +482,7 @@ export default function ChatView() {
                         </button>
                       </div>
                     )}
-                    <MessageItem m={m} member={member} prevSame={prevSame} query={searchOn ? q : ""} />
+                    <MessageItem m={m} member={member} prevSame={prevSame} query={searchOn ? q : ""} replySrc={m.replyTo ? (msgById.get(m.replyTo) ?? null) : null} />
                   </Fragment>
                 );
               })}

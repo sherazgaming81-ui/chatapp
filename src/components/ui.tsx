@@ -39,7 +39,7 @@ export function Avatar({ m, size = 40, showDot = false, meId, role }: { m: Pick<
           background: avatar ? undefined : `linear-gradient(135deg, hsl(${hueFor(m.id)} 65% 55%), hsl(${(hueFor(m.id) + 40) % 360} 65% 45%))`,
         }}
       >
-        {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} /> : initial}
+        {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" draggable={false} loading="lazy" decoding="async" /> : initial}
       </span>
       {showDot && (
         <span

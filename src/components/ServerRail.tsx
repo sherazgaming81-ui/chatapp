@@ -13,7 +13,7 @@ export default function ServerRail() {
   const pick = (id: string) => patchUI({ tab: "chat", activeChatId: id, replyTo: null });
 
   return (
-    <nav className="glass flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-2xl py-3 no-scrollbar" aria-label="Chats">
+    <nav className="panel flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-2xl py-3 no-scrollbar" aria-label="Chats">
       {group && (
         <button onClick={() => pick(group.id)} title={group.name} className="group relative">
           <span className={`grid h-12 w-12 place-items-center overflow-hidden bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-2xl font-bold text-white soft-shadow transition-all duration-200 ${activeChatId === group.id ? "rounded-2xl" : "rounded-full group-hover:rounded-2xl"}`}>

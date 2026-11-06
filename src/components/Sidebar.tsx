@@ -30,7 +30,7 @@ export default function Sidebar() {
   const lastMsg = (chatId: string) => messages.filter((m) => m.chatId === chatId && !m.deleted).slice(-1)[0];
 
   return (
-    <aside className="glass flex w-60 shrink-0 flex-col rounded-2xl">
+    <aside className="panel flex w-60 shrink-0 flex-col rounded-2xl">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4">
         <h2 className="truncate text-[15px] font-extrabold tracking-tight text-[#2f3035]">{group?.name || "ChatsApp"}</h2>
         <div className="flex shrink-0 items-center">

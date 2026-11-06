@@ -41,7 +41,7 @@ export default function MemberList() {
     );
 
   return (
-    <aside className="glass thin-scroll hidden w-60 shrink-0 overflow-y-auto rounded-2xl px-2 py-4 md:block">
+    <aside className="panel thin-scroll hidden w-60 shrink-0 overflow-y-auto rounded-2xl px-2 py-4 md:block">
       <Group title="Owner" list={owner} />
       <Group title="Staff" list={staff} />
       <Group title="Online" list={online} />

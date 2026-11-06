@@ -1,26 +1,12 @@
 "use client";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useRef, useState } from "react";
 import { Reply, Smile, Trash2, Play, Pause, Pin, PinOff, Pencil, Info, X, Check, CheckCheck, Star, StarOff, MapPin, User, Navigation, FileText, FileAudio, FileVideo, FileArchive, File as FileIcon, Download, Plus, Sparkles } from "lucide-react";
 import { getState, useStore, patchUI, toast } from "@/lib/store";
 import { deleteMessage, hardDeleteMessage, toggleReaction, togglePin, toggleStar, hideMessageForMe } from "@/lib/db";
 import { Avatar, nameColor, Badge, fmtTime, fmtDayLabel } from "@/components/ui";
 import EmojiPicker from "@/components/EmojiPicker";
 import PollMessage from "@/components/PollMessage";
-import QuizMessage from "@/components/QuizMessage";
-import TicTacToeMessage from "@/components/TicTacToeMessage";
-import RiddleMessage from "@/components/RiddleMessage";
 import StickerMessage from "@/components/StickerMessage";
-import SpinWheelMessage from "@/components/SpinWheelMessage";
-import TruthDareMessage from "@/components/TruthDareMessage";
-import HisaabMessage from "@/components/HisaabMessage";
-import EmojiPaheliMessage from "@/components/EmojiPaheliMessage";
-import SachJhootMessage from "@/components/SachJhootMessage";
-import NumberGuessMessage from "@/components/NumberGuessMessage";
-import KainchiMessage from "@/components/KainchiMessage";
-import PasaMessage from "@/components/PasaMessage";
-import BrickMessage from "@/components/BrickMessage";
-import StarfallMessage from "@/components/StarfallMessage";
-import TourneyMessage from "@/components/TourneyMessage";
 import GumnamMessage from "@/components/GumnamMessage";
 import { SuperReactionModal, SuperPill } from "@/components/SuperReaction";
 import { LinkedText, LinkPreviewCard, extractUrls } from "@/components/LinkPreview";
@@ -164,9 +150,8 @@ function BlurImage({ src, onOpen }: { src: string; onOpen: () => void }) {
   );
 }
 
-export default function MessageItem({ m, member, prevSame, query = "" }: { m: Message; member?: Member; prevSame: boolean; query?: string }) {
+function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: Message; member?: Member; prevSame: boolean; query?: string; replySrc?: Message | null }) {
   const meId = useStore((s) => s.me);
-  const messages = useStore((s) => s.messages);
   const infoOpen = useStore((s) => s.ui.infoMsg === m.id);
   const selectedMsgs = useStore((s) => s.ui.selectedMsgs);
   const isSelected = selectedMsgs.includes(m.id);
@@ -232,7 +217,6 @@ export default function MessageItem({ m, member, prevSame, query = "" }: { m: Me
   };
   const [deleting, setDeleting] = useState(false); // B15
   const mine = m.from === meId;
-  const replySrc = m.replyTo ? messages.find((x) => x.id === m.replyTo) : null;
   const replyMember = replySrc ? getState().members.find((x) => x.id === replySrc.from) : null;
   const staff = (getState().members.find((x) => x.id === meId)?.role || "member") !== "member";
   const iAmOwner = getState().members.find((x) => x.id === meId)?.role === "owner";
@@ -540,7 +524,12 @@ function GifMessage({ m }: { m: Message }) {
   );
 }
 
+/* GAMES REMOVED (user ka hukum 2026-11-06): purane game messages crash nahi honge —
+   unki jagah saaf fallback line dikhegi, baqi chat bilkul normal chalegi. */
+const GAME_TYPES = new Set(["quiz", "tictactoe", "riddle", "spin", "truthdare", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney", "brick", "starfall"]);
+
 function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; mine?: boolean }) {
+  if (GAME_TYPES.has(m.type)) return <p className="text-sm italic text-[#80848e]">🎮 Ye game ab available nahi hai</p>;
   if (m.type === "image" && m.src) {
     return (
       <div className="mt-1">
@@ -551,22 +540,8 @@ function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; 
   }
   if (m.type === "voice") return <VoiceBubble m={m} />;
   if (m.type === "poll") return <PollMessage m={m} />;
-  if (m.type === "quiz") return <QuizMessage m={m} />;
-  if (m.type === "tictactoe") return <TicTacToeMessage m={m} />;
-  if (m.type === "riddle") return <RiddleMessage m={m} />;
   if (m.type === "sticker") return <StickerMessage m={m} />;
   if (m.type === "gif") return <GifMessage m={m} />;
-  if (m.type === "spin") return <SpinWheelMessage m={m} />;
-  if (m.type === "hisaab") return <HisaabMessage m={m} />;
-  if (m.type === "emojipaheli") return <EmojiPaheliMessage m={m} />;
-  if (m.type === "sachjhoot") return <SachJhootMessage m={m} />;
-  if (m.type === "numguess") return <NumberGuessMessage m={m} />;
-  if (m.type === "kainchi") return <KainchiMessage m={m} />;
-  if (m.type === "pasa") return <PasaMessage m={m} />;
-  if (m.type === "brick") return <BrickMessage m={m} />;
-  if (m.type === "starfall") return <StarfallMessage m={m} />;
-  if (m.type === "tourney") return <TourneyMessage m={m} />;
-  if (m.type === "truthdare") return <TruthDareMessage m={m} />;
   if (m.type === "gumnam") return <GumnamMessage m={m} />;
   if (m.type === "super") return <SuperPill m={m} />;
   if (m.type === "location") return <LocationCard m={m} />;
@@ -749,3 +724,22 @@ function SeenByModal({ m, onClose }: { m: Message; onClose: () => void }) {
     </>
   );
 }
+
+/* PERF: memo — parent (ChatView) ke har re-render par saare messages dobara render hote thay
+   (typing/presence/read-receipt updates par poori list hitchkole khati thi).
+   Ab item sirf tab render hoga jab us ka apna data asal me badle. */
+export default memo(MessageItem, (a, b) =>
+  a.m === b.m &&
+  a.prevSame === b.prevSame &&
+  a.query === b.query &&
+  a.replySrc === b.replySrc &&
+  a.member?.id === b.member?.id &&
+  a.member?.name === b.member?.name &&
+  a.member?.avatar === b.member?.avatar &&
+  a.member?.role === b.member?.role &&
+  a.member?.online === b.member?.online &&
+  a.member?.banned === b.member?.banned &&
+  a.member?.mutedUntil === b.member?.mutedUntil &&
+  a.member?.style === b.member?.style &&
+  a.member?.privacy === b.member?.privacy
+);

@@ -73,6 +73,13 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: rgba(0,0,0,0.08) 0px 1px 4px 0px;
 }
+/* PERF: bare panels (chat/sidebar/members) ke liye glass jaisa look, backdrop-blur ke baghair —
+   full-screen blur scroll ke waqt mobile GPU ko maar deta tha */
+.panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: rgba(0,0,0,0.06) 0px 1px 4px 0px;
+}
 .soft-shadow { box-shadow: rgba(0,0,0,0.14) 0px 1px 4px 0px; }
 
 /* ── buttons ── */

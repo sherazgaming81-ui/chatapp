@@ -200,8 +200,10 @@ export async function load(userId: string, email: string): Promise<boolean> {
   // 3. messages for ALL chats
   let messages: Message[] = [];
   try {
-    const { data: msgs } = await sb().from("messages").select("*").in("chat_id", allChatIds).order("created_at", { ascending: true }).limit(1500);
-    messages = (msgs || []).map(toMessage);
+    // PERF/FIX: descending + reverse — hamesha SAB SE NAYE 1500 messages ayen
+    // (pehle ascending par limit purane 1500 par atak jati thi, naye ghayab ho sakte thay)
+    const { data: msgs } = await sb().from("messages").select("*").in("chat_id", allChatIds).order("created_at", { ascending: false }).limit(1500);
+    messages = (msgs || []).map(toMessage).reverse();
   } catch { /* keep going */ }
 
   // 4. chat list meta (group + DMs)
@@ -462,11 +464,6 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
   }, "Message nahi gaya");
   if (!ok) return null;
   checkMessageBadges();
-  // Phase 7 — apna jawab bhi paheli se milao
-  setTimeout(() => checkRiddleAnswer(chatId, m.text, m.from).catch(() => {}), 300);
-  setTimeout(() => checkHisaabAnswer(chatId, m.text, m.from).catch(() => {}), 300);
-  setTimeout(() => checkEmojiAnswer(chatId, m.text, m.from).catch(() => {}), 300);
-  setTimeout(() => checkNumGuess(chatId, m.text, m.from).catch(() => {}), 300);
   return m;
 }
 
@@ -1087,10 +1084,6 @@ export function startRealtime() {
         playPop();
       }
     } catch { /* ignore */ }
-    // Phase 7 — paheli ka jawab check karo
-    if (m.type === "text" && m.text) {
-      setTimeout(() => checkRiddleAnswer(m.chatId, m.text, m.from).catch(() => {}), 300);
-    }
   });
   ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p: any) => {
     // Mega-2 — status viewers (read_by) updates alag slice me

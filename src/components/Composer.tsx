@@ -1,12 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, RotateCw, HelpCircle, EyeOff, Calculator, BadgeCheck, Target, Scissors, Dices, Trophy, BrickWall, Rocket } from "lucide-react";
+import { ImagePlus, Mic, Send, X, Square, Reply, Terminal, Pencil, Check, Plus, Smile, BarChart3, MapPin, User, Trash2, Loader2, FileUp, EyeOff } from "lucide-react";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
-import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendQuiz, sendTicTacToe, sendRiddle, sendSticker, sendGif, clearChat, postSystem, sendSpinWheel, sendTruthDare, sendGumnam, sendHisaab, sendEmojiPaheli, sendSachJhoot, sendNumGuess, sendKainchi, createPasa, createTournament, sendBrick, sendStarfall } from "@/lib/db";
-import { pickTruthDare } from "@/lib/fun";
+import { sendText, sendMedia, sendFile, postAnnouncement, setMute, setBan, addWarn, togglePin, editMessage, sendPoll, sendLocation, sendContact, sendSticker, sendGif, clearChat, postSystem, sendGumnam } from "@/lib/db";
 import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
-import LudoLeaderboard from "@/components/LudoLeaderboard";
 
 // ───────── command palette ─────────
 interface Cmd { name: string; desc: string; usage: string; staff: boolean; hint?: string }
@@ -19,9 +17,6 @@ const COMMANDS: Cmd[] = [
   { name: "unban", desc: "Ban hatao", usage: "/unban @naam", staff: true },
   { name: "pin", desc: "Reply wale message ko pin karo", usage: "/pin", staff: true, hint: "pehle kisi message par reply karo" },
   { name: "safai", desc: "Poori chat sab ke liye saaf karo", usage: "/safai", staff: true },
-  { name: "quiz", desc: "Deen Quiz shuru karo (5 sawal)", usage: "/quiz", staff: false },
-  { name: "tictactoe", desc: "Kisi ko TicTacToe challenge karo", usage: "/tictactoe @naam", staff: false },
-  { name: "paheli", desc: "Aaj ki paheli bhejo", usage: "/paheli", staff: false },
   { name: "help", desc: "Saare commands dekho", usage: "/help", staff: false },
 ];
 
@@ -59,12 +54,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   const [emojiOpen, setEmojiOpen] = useState(false); // B8 emoji picker
   const [pollOpen, setPollOpen] = useState(false); // B5 poll creator
   const [contactOpen, setContactOpen] = useState(false); // B7 contact share
-  const [spinOpen, setSpinOpen] = useState(false); // Fun — Spin Wheel
-  const [kainchiOpen, setKainchiOpen] = useState(false); // Fun — Kainchi Pathar Kaghaz
-  const [truthDareOpen, setTruthDareOpen] = useState(false); // Fun — Truth or Dare
   const [gumnamOpen, setGumnamOpen] = useState(false); // Fun — Gumnam Paigham
-  const [tourneyOpen, setTourneyOpen] = useState(false); // 🏆 Ludo Tournament — player select modal
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false); // 🏆 Ludo Leaderboard modal
   const [photoFile, setPhotoFile] = useState<File | null>(null); // UI-11 — photo send options (caption + quality)
   const [locBusy, setLocBusy] = useState(false); // B6 location
   const mr = useRef<MediaRecorder | null>(null);
@@ -175,18 +165,8 @@ export default function Composer({ chatId }: { chatId: string }) {
         }
         toast("Ghalat command", "/safai, /safai all, ya /safai 50"); break;
       }
-      case "quiz":
-        sendQuiz(chatId); setText(""); break;
-      case "tictactoe": {
-        const t = findMemberByName(members, args.split(/\s+/)[0] || "");
-        if (!t) { toast("Member nahi mila", "Jaise /tictactoe @Ahmed"); return true; }
-        if (t.id === meId) { toast("Khud ko challenge nahi!", "Kisi aur ko chunno"); return true; }
-        sendTicTacToe(chatId, t.id); setText(""); break;
-      }
-      case "paheli":
-        sendRiddle(chatId); setText(""); break;
       case "help":
-        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai [all|N] /quiz /tictactoe /paheli"); break;
+        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai [all|N]"); break;
     }
     return true;
   };
@@ -426,18 +406,6 @@ export default function Composer({ chatId }: { chatId: string }) {
             <AttachItem icon={<ImagePlus size={19} />} color="#5865f2" bg="#5865f2/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
-            <AttachItem icon={<RotateCw size={19} />} color="#5865f2" bg="#5865f2/10" label="Spin Wheel 🎡" desc="Wheel ghumao, kismat azmao" onClick={() => { setAttachOpen(false); setSpinOpen(true); }} />
-            <AttachItem icon={<HelpCircle size={19} />} color="#ed4245" bg="#ed4245/10" label="Truth or Dare 🎲" desc="Sawal ya challenge chuno" onClick={() => { setAttachOpen(false); setTruthDareOpen(true); }} />
-            <AttachItem icon={<Calculator size={19} />} color="#5865f2" bg="#5865f2/10" label="Hisaab Race 🔢" desc="Tez hisaab, pehla jawab jeete" onClick={() => { setAttachOpen(false); sendHisaab(chatId); }} />
-            <AttachItem icon={<Smile size={19} />} color="#f5a623" bg="#f5a623/10" label="Emoji Paheli 🧩" desc="Emoji se Urdu lafz guess karo" onClick={() => { setAttachOpen(false); sendEmojiPaheli(chatId); }} />
-            <AttachItem icon={<BadgeCheck size={19} />} color="#23a55a" bg="#23a55a/10" label="Sach Ya Jhoot ✅" desc="Sach hai ya jhoot, batao" onClick={() => { setAttachOpen(false); sendSachJhoot(chatId); }} />
-            <AttachItem icon={<Target size={19} />} color="#ed4245" bg="#ed4245/10" label="Number Guess 🎯" desc="1-100 chhupa number guess karo" onClick={() => { setAttachOpen(false); sendNumGuess(chatId); }} />
-            <AttachItem icon={<BrickWall size={19} />} color="#f5a623" bg="#f5a623/10" label="Brick Breaker 🧱" desc="Eentein toro, score banao — akelay khelo" onClick={() => { setAttachOpen(false); sendBrick(chatId); }} />
-            <AttachItem icon={<Rocket size={19} />} color="#38e1ff" bg="#38e1ff/10" label="Starfall 🚀" desc="Space shooter — waves, boss, upgrades" onClick={() => { setAttachOpen(false); sendStarfall(chatId); }} />
-            <AttachItem icon={<Scissors size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Kainchi Pathar ✂️" desc="Dost ko challenge karo" onClick={() => { setAttachOpen(false); setKainchiOpen(true); }} />
-            <AttachItem icon={<Dices size={19} />} color="#00b0f4" bg="#00b0f4/10" label="Ludo 🎲" desc="Asal Ludo — gotiyan select karke chalao, 2-4 players" onClick={() => { setAttachOpen(false); createPasa(chatId, { per: 4, timer: true, capture: true, teams: false, tor: true }); }} />
-            <AttachItem icon={<Trophy size={19} />} color="#f5a623" bg="#f5a623/10" label="🏆 Ludo Tournament" desc="4 players — semi-final aur final" onClick={() => { setAttachOpen(false); setTourneyOpen(true); }} />
-            <AttachItem icon={<Trophy size={19} />} color="#5865f2" bg="#5865f2/10" label="🏆 Ludo Leaderboard" desc="Sab se zyada jeetne wale dekho" onClick={() => { setAttachOpen(false); setLeaderboardOpen(true); }} />
             <AttachItem icon={<EyeOff size={19} />} color="#5c5e66" bg="#5c5e66/10" label="Gumnam Paigham 🕵️" desc="Naam chhupa kar bhejo" onClick={() => { setAttachOpen(false); setGumnamOpen(true); }} />
             <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
             <AttachItem icon={<User size={19} />} color="#9b7bff" bg="#9b7bff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
@@ -460,12 +428,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       )}
       {pollOpen && <PollModal chatId={chatId} onClose={() => setPollOpen(false)} />}
       {contactOpen && <ContactModal chatId={chatId} pickDevice={pickDeviceContact} onClose={() => setContactOpen(false)} />}
-      {spinOpen && <SpinModal chatId={chatId} onClose={() => setSpinOpen(false)} />}
-      {kainchiOpen && <KainchiModal chatId={chatId} onClose={() => setKainchiOpen(false)} />}
-      {truthDareOpen && <TruthDareModal chatId={chatId} onClose={() => setTruthDareOpen(false)} />}
       {gumnamOpen && <GumnamModal chatId={chatId} onClose={() => setGumnamOpen(false)} />}
-      {tourneyOpen && <TourneyModal chatId={chatId} onClose={() => setTourneyOpen(false)} />}
-      <LudoLeaderboard open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />
       {photoFile && <PhotoSendModal chatId={chatId} file={photoFile} onClose={() => setPhotoFile(null)} />}
     </div>
   );
@@ -571,117 +534,6 @@ function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDev
   );
 }
 
-// Fun — Spin Wheel creator modal (PollModal pattern)
-function SpinModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
-  const [opts, setOpts] = useState(["", ""]);
-  const busy = useRef(false);
-  const send = async () => {
-    if (busy.current) return;
-    const clean = opts.map((o) => o.trim()).filter(Boolean).slice(0, 8);
-    if (clean.length < 2) { toast("Kam se kam 2 options likho", ""); return; }
-    busy.current = true;
-    await sendSpinWheel(chatId, clean);
-    onClose();
-  };
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><RotateCw size={19} className="text-[#5865f2]" /> Spin Wheel 🎡</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
-        </div>
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Options (2–8)</p>
-        <div className="space-y-1.5">
-          {opts.map((o, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <input value={o} onChange={(e) => setOpts(opts.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} maxLength={40}
-                className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
-              {opts.length > 2 && (
-                <button onClick={() => setOpts(opts.filter((_, j) => j !== i))} className="shrink-0 rounded-lg p-2.5 text-[#ed4245] hover:bg-[#ed4245]/10" aria-label="Hatao">
-                  <Trash2 size={16} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        {opts.length < 8 && (
-          <button onClick={() => setOpts([...opts, ""])} className="mt-2 flex items-center gap-1 text-sm font-bold text-[#5865f2] hover:underline"><Plus size={15} /> Option add karo</button>
-        )}
-        <button onClick={send} className="btn btn-blurple mt-5 w-full py-3 text-[15px]">Wheel bhejo</button>
-      </div>
-    </>
-  );
-}
-
-// Fun — Kainchi Pathar Kaghaz challenge modal (PollModal pattern — dost chuno)
-function KainchiModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
-  const members = useStore((s) => s.members);
-  const meId = useStore((s) => s.me);
-  const busy = useRef(false);
-  const others = members.filter((x) => x.id !== meId);
-  const pick = async (memberId: string) => {
-    if (busy.current) return;
-    busy.current = true;
-    await sendKainchi(chatId, memberId);
-    onClose();
-  };
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Scissors size={19} className="text-[#9b7bff]" /> Kainchi Pathar ✂️</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
-        </div>
-        <p className="mt-1 text-sm text-[#80848e]">Kis dost ko challenge karna hai? Pehle 2 rounds jeetne wala winner.</p>
-        <div className="mt-4 space-y-1.5">
-          {others.length === 0 && <p className="text-sm italic text-[#80848e]">Koi aur member nahi hai</p>}
-          {others.map((mb) => (
-            <button key={mb.id} onClick={() => pick(mb.id)} className="flex w-full items-center gap-3 rounded-xl border border-black/10 px-3.5 py-2.5 text-left transition hover:border-[#9b7bff]/50 hover:bg-[#9b7bff]/[0.06] active:scale-[0.99]">
-              <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#2f3035]">{mb.name}</span>
-              <span className="shrink-0 text-xs font-bold text-[#9b7bff]">Challenge ⚔️</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// Fun — Truth or Dare picker modal
-function TruthDareModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
-  const busy = useRef(false);
-  const pick = async (mode: "truth" | "dare") => {
-    if (busy.current) return;
-    busy.current = true;
-    await sendTruthDare(chatId, mode, pickTruthDare(mode));
-    onClose();
-  };
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><HelpCircle size={19} className="text-[#ed4245]" /> Truth or Dare 🎲</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
-        </div>
-        <p className="mt-1 text-sm text-[#80848e]">Kaunsa bhejna hai? Sawal/challenge khud chun kar ayega.</p>
-        <div className="mt-4 space-y-2">
-          <button onClick={() => pick("truth")} className="w-full rounded-xl border border-[#5865f2]/40 bg-[#5865f2]/[0.07] px-4 py-3.5 text-left transition hover:bg-[#5865f2]/[0.12] active:scale-[0.99]">
-            <span className="block text-[15px] font-extrabold text-[#5865f2]">🤔 Truth</span>
-            <span className="block text-xs text-[#80848e]">Ek sawal — sach sach jawab dena hoga</span>
-          </button>
-          <button onClick={() => pick("dare")} className="w-full rounded-xl border border-[#ed4245]/40 bg-[#ed4245]/[0.06] px-4 py-3.5 text-left transition hover:bg-[#ed4245]/[0.11] active:scale-[0.99]">
-            <span className="block text-[15px] font-extrabold text-[#ed4245]">🔥 Dare</span>
-            <span className="block text-xs text-[#80848e]">Ek challenge — karke dikhana hoga</span>
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // Fun — Gumnam Paigham modal (naam chhupa, sirf owner ko asal sender pata)
 function GumnamModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
   const [body, setBody] = useState("");
@@ -707,75 +559,6 @@ function GumnamModal({ chatId, onClose }: { chatId: string; onClose: () => void 
           🕵️ Aapka naam kisi ko nahi dikhega — sirf owner ko pata chalega ke paigham kis ne bheja.
         </p>
         <button onClick={send} className="btn btn-blurple mt-4 flex w-full items-center justify-center gap-1.5 py-3 text-[15px]"><Send size={16} /> Gumnam bhejo</button>
-      </div>
-    </>
-  );
-}
-
-// 🏆 Ludo Tournament — 4 players select modal (PollModal/KainchiModal pattern)
-function TourneyModal({ chatId, onClose }: { chatId: string; onClose: () => void }) {
-  const members = useStore((s) => s.members);
-  const meId = useStore((s) => s.me);
-  const [selected, setSelected] = useState<string[]>(() => (meId ? [meId] : []));
-  const busy = useRef(false);
-
-  const toggle = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  const create = async () => {
-    if (busy.current) return;
-    if (selected.length !== 4) return;
-    busy.current = true;
-    await createTournament(chatId, selected);
-    onClose();
-  };
-
-  const exactly4 = selected.length === 4;
-  const hint =
-    selected.length < 4
-      ? `Abhi ${selected.length}/4 select hue — aur ${4 - selected.length} chuno`
-      : selected.length > 4
-        ? `Zyada ho gaye (${selected.length}/4) — ${selected.length - 4} kam karo`
-        : "Perfect! 4 players tayyar hain 🏆";
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]"><Trophy size={19} className="text-[#f5a623]" /> Ludo Tournament 🏆</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
-        </div>
-        <p className="mt-1 text-sm text-[#80848e]">Bilkul 4 players chuno — 2 semi-finals, phir final hoga. Har match 2 gotiyon wala hoga.</p>
-        <div className="mt-4 space-y-1.5">
-          {members.length === 0 && <p className="text-sm italic text-[#80848e]">Koi member nahi hai</p>}
-          {members.map((mb) => {
-            const checked = selected.includes(mb.id);
-            const isMe = mb.id === meId;
-            return (
-              <label
-                key={mb.id}
-                className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition active:scale-[0.99] ${checked ? "border-[#5865f2]/50 bg-[#5865f2]/[0.06]" : "border-black/10 hover:border-black/25"}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(mb.id)}
-                  className="h-4 w-4 shrink-0 accent-[#5865f2]"
-                />
-                <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#2f3035]">
-                  {mb.name}{isMe ? " (aap)" : ""}
-                </span>
-                {checked && <Check size={16} className="shrink-0 text-[#5865f2]" />}
-              </label>
-            );
-          })}
-        </div>
-        <p className={`mt-3 text-center text-xs font-bold ${exactly4 ? "text-[#23a55a]" : "text-[#80848e]"}`}>{hint}</p>
-        <button onClick={create} disabled={!exactly4} className="btn btn-blurple mt-3 w-full py-3 text-[15px] disabled:cursor-not-allowed disabled:opacity-50">
-          🏆 Tournament banao
-        </button>
       </div>
     </>
   );
