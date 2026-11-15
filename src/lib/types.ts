@@ -51,18 +51,7 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "truthdare" | "gumnam" | "super" | "status" | "hisaab" | "emojipaheli" | "sachjhoot" | "numguess" | "kainchi" | "pasa" | "tourney" | "brick" | "starfall";
-
-/* Mega-2 — WhatsApp-style status/story (messages table me type="status" rows, alag slice) */
-export interface StatusItem {
-  id: string;
-  from: string;
-  body: string; // text status ka text ya photo ka caption
-  bg?: string; // text status ka background color
-  src?: string; // photo status (media_url data URL)
-  at: number; // ms epoch — 24h baad expire
-  readBy: string[]; // viewers
-}
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "truthdare" | "gumnam" | "super" | "hisaab" | "emojipaheli" | "sachjhoot" | "numguess" | "kainchi" | "pasa" | "tourney" | "brick" | "starfall";
 
 export interface Message {
   id: string;
@@ -95,7 +84,7 @@ export interface ChatMeta {
 }
 
 export interface UIState {
-  tab: "chat" | "owner" | "deen" | "status";
+  tab: "chat" | "owner";
   activeChatId: string | null;
   toasts: { id: string; title: string; body: string }[];
   typing: { id: string; chatId: string }[]; // AUDIT FIX: per-chat typing (pehle kisi bhi chat ki typing sab jagah dikhti thi)
@@ -108,7 +97,6 @@ export interface UIState {
   infoMsg: string | null; // A17 seen-by modal (message id)
   viewer: { msgId: string } | null; // A7 full-screen media viewer
   starredOpen: boolean; // B13 starred messages page
-  asmaOpen: boolean; // Asma-ul-Husna player overlay (Deen)
   groupInfo: null | { chatId: string; view: "info" | "media" | "files" }; // D1/D5/I13 group info panel
   globalSearchOpen: boolean; // I15 global search overlay
   jumpToMsg: string | null; // I15 — message id to scroll to after search jump
@@ -124,7 +112,6 @@ export interface State {
   loading: boolean; // initial data load
   members: Member[];
   messages: Message[];
-  statuses: StatusItem[]; // Mega-2 — active (24h ke andar wale) statuses
   chats: ChatMeta[];
   pins: Record<string, string[]>; // chatId -> pinned message ids (from group_settings)
   unread: Record<string, number>; // chatId -> unread count (WhatsApp-style badges)

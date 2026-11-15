@@ -11,8 +11,6 @@ export interface BadgeDef {
 
 export const BADGES: BadgeDef[] = [
   { id: "pehla-salam", icon: "👋", title: "Pehla Salam", desc: "Apna pehla message bheja" },
-  { id: "quran-khawan", icon: "📖", title: "Quran Khawan", desc: "Quran-e-Pak khola" },
-  { id: "naam-yaad", icon: "✨", title: "Naam Yaad", desc: "Asma-ul-Husna quiz me 10/10" },
   { id: "sathi", icon: "🤝", title: "Sathi", desc: "7 din active rahe" },
   { id: "mehfil", icon: "💬", title: "Mehfil", desc: "100 messages bheje" },
 ];

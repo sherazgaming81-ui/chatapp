@@ -1,7 +1,7 @@
 "use client";
 // Phase 6 — F1 Welcome Splash. Pehli dafa app khulne par 3 slides.
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Clapperboard, MessagesSquare, MoonStar, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, MessagesSquare, Zap } from "lucide-react";
 import Explainer from "@/components/Explainer";
 
 const SLIDES = [
@@ -12,10 +12,10 @@ const SLIDES = [
     body: "Apne madrasa doston se juro — elaan, baatein aur yaadein, sab ek jagah. Bina WhatsApp ke!",
   },
   {
-    icon: MoonStar,
+    icon: MessagesSquare,
     color: "from-[#0e6b4a] to-[#23a55a]",
-    title: "Deen, har din",
-    body: "Quran-e-Pak, Allah ke 99 Naam, namaz timings, tasbeeh aur qibla — sab kuch isi app me. 🕌",
+    title: "Sirf baatein",
+    body: "Group chat, private DMs, voice notes, photos aur stickers — bas apne doston se baatein, seedha aur simple. 💬",
   },
   {
     icon: Zap,

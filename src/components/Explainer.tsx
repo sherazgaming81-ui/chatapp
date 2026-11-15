@@ -2,43 +2,29 @@
 // 10-scene explainer video — 3s per scene (30s total). Pure CSS animations, 60fps.
 // Video-player style: play/pause, seek bar, scene markers, time display, "Dobara".
 // SFX (Web Audio): whoosh on scene change, pop on elements. Sound toggle.
-// Real Karachi prayer times (Aladhan API) in Deen scene. ChatsApp logo in scenes 1 & 10.
+// ChatsApp logo in scenes 1 & 10.
 // WHITE/light theme.
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { MoonSvg } from "@/components/MoonPage";
 import { sfxWelcome, sfxChatBubbles, sfxLock, sfxDeen, sfxStickers, sfxStudio, sfxMoon, sfxGames, sfxShield, sfxLaunch } from "@/lib/sfx";
 import { getSound, setSound } from "@/lib/prefs";
 
 const SCENE_LEN = 3; // seconds per scene
 
-// Fallback: verified real Karachi times (16 Oct 2026, Hanafi/MWL)
-const FALLBACK_TIMES = ["5:14 AM", "12:18 PM", "4:27 PM", "6:04 PM", "7:20 PM"];
-const PRAYER_NAMES = ["Fajr", "Zuhr", "Asr", "Maghrib", "Isha"];
-
-function to12h(t24: string): string {
-  const m = t24.match(/(\d{1,2}):(\d{2})/);
-  if (!m) return t24;
-  let h = parseInt(m[1], 10);
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${h}:${m[2]} ${ap}`;
-}
-
 const SCENES = [
   { cap: "Assalam-o-Alaikum! 🌙", sub: "ChatsApp — Baatein, ab aur qareeb", bg: "linear-gradient(135deg,#e8ebff,#f7f8ff)" },
   { cap: "Madrasa Group", sub: "Apne doston se juro — elaan aur baatein", bg: "linear-gradient(135deg,#dcf5e9,#f2fdf7)" },
   { cap: "Private DMs", sub: "Sirf aap dono ke liye — mehfooz baatein", bg: "linear-gradient(135deg,#ece9ff,#f8f7ff)" },
-  { cap: "Deen, har din", sub: "Namaz timings, Quran, duaein, qibla", bg: "linear-gradient(135deg,#fff3d6,#fffdf4)" },
+  { cap: "Voice Notes", sub: "Bol kar bhejo — sun kar jawab do", bg: "linear-gradient(135deg,#fff3d6,#fffdf4)" },
   { cap: "Apne Stickers", sub: "Photo ya text se apne stickers banao", bg: "linear-gradient(135deg,#ffe3ec,#fff5f8)" },
   { cap: "Profile Studio", sub: "Banner, effects, badges — profile sajao", bg: "linear-gradient(135deg,#dceeff,#f4faff)" },
-  { cap: "Chaand aur Hijri", sub: "Live moon phase aur Islamic mahina", bg: "linear-gradient(135deg,#e4e8f7,#f5f6fb)" },
-  { cap: "Khel aur Mazaa", sub: "Deen quiz, paheli, tic-tac-toe", bg: "linear-gradient(135deg,#ffe9d6,#fff8f0)" },
+  { cap: "Photos aur Media", sub: "Yaadein share karo — sab ek jagah", bg: "linear-gradient(135deg,#e4e8f7,#f5f6fb)" },
+  { cap: "Khel aur Mazaa", sub: "Quiz, paheli, tic-tac-toe", bg: "linear-gradient(135deg,#ffe9d6,#fff8f0)" },
   { cap: "Mehfooz aur Private", sub: "App lock aur privacy aapke haath me", bg: "linear-gradient(135deg,#d4f5ef,#f2fdfb)" },
   { cap: "Chalo shuru karte hain! 🚀", sub: "Baatein, ab aur qareeb", bg: "linear-gradient(135deg,#e8ebff,#dcf5e9)" },
 ];
 
-function Scene({ n, times }: { n: number; times: string[] }) {
+function Scene({ n }: { n: number }) {
   if (n === 0) return (
     <div className="flex flex-col items-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -70,16 +56,17 @@ function Scene({ n, times }: { n: number; times: string[] }) {
     </div>
   );
   if (n === 3) return (
-    <div className="flex items-center gap-5">
-      <svg className="ex-pop" width="84" height="84" viewBox="0 0 100 100">
-        <path d="M64 14a38 38 0 1 0 22 68 30 30 0 1 1-22-68z" fill="#f2c94c" />
-      </svg>
-      <div className="ex-in space-y-1.5 rounded-2xl bg-white p-3.5 text-left text-sm font-bold text-[#2f3035] soft-shadow" style={{ animationDelay: ".4s" }}>
-        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[#80848e]">Karachi · Aaj</p>
-        {PRAYER_NAMES.map((nm, i) => (
-          <p key={nm}>🕌 {nm} <span className="tabular-nums text-[#5865f2]">{times[i]}</span></p>
-        ))}
+    <div className="flex flex-col items-center">
+      <div className="ex-pop flex items-center gap-3 rounded-full bg-white py-3 pl-4 pr-5 soft-shadow">
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-[#5865f2] text-xl text-white">🎙️</span>
+        <span className="flex items-end gap-1">
+          {[10, 18, 26, 14, 22, 30, 16, 24, 12, 20].map((h, i) => (
+            <span key={i} className="ex-typing w-1.5 rounded-full bg-[#5865f2]" style={{ height: h, animationDelay: `${i * 0.12}s` }} />
+          ))}
+        </span>
+        <span className="text-xs font-bold tabular-nums text-[#80848e]">0:42</span>
       </div>
+      <p className="ex-in mt-4 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-[#2f3035] soft-shadow" style={{ animationDelay: ".4s" }}>Bolna, likhne se tez hai 🎧</p>
     </div>
   );
   if (n === 4) return (
@@ -107,8 +94,12 @@ function Scene({ n, times }: { n: number; times: string[] }) {
   );
   if (n === 6) return (
     <div className="flex flex-col items-center">
-      <div className="moon-float"><MoonSvg phase={0.5} size={92} /></div>
-      <p className="ex-in mt-3 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-[#2f3035] soft-shadow" style={{ animationDelay: ".4s" }}>Poora Chaand · Roshni 100%</p>
+      <div className="flex gap-2.5">
+        {["📷", "🎥", "🖼️"].map((e, i) => (
+          <span key={e} className="ex-pop grid h-20 w-20 place-items-center rounded-[24px] bg-white text-4xl soft-shadow" style={{ animationDelay: `${i * 0.3}s` }}>{e}</span>
+        ))}
+      </div>
+      <p className="ex-in mt-4 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-[#2f3035] soft-shadow" style={{ animationDelay: ".4s" }}>Har yaad, mehfooz 📌</p>
     </div>
   );
   if (n === 7) return (
@@ -156,7 +147,6 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
   const [t, setT] = useState(0);
   const [play, setPlay] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
-  const [times, setTimes] = useState<string[]>(FALLBACK_TIMES);
   const raf = useRef(0), last = useRef(0);
   const lastScene = useRef(-1);
   const barRef = useRef<HTMLDivElement>(null);
@@ -167,28 +157,6 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
 
   // Sound preference
   useEffect(() => { setSoundOn(getSound()); }, []);
-
-  // Real Karachi prayer times (Aladhan API) — fail ho to fallback
-  useEffect(() => {
-    let live = true;
-    fetch("https://api.aladhan.com/v1/timingsByCity?city=Karachi&country=Pakistan&method=1")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!live) return;
-        const tm = d?.data?.timings;
-        if (tm) {
-          setTimes([
-            to12h(tm.Fajr || "05:14"),
-            to12h(tm.Dhuhr || "12:18"),
-            to12h(tm.Asr || "16:27"),
-            to12h(tm.Maghrib || "18:04"),
-            to12h(tm.Isha || "19:20"),
-          ]);
-        }
-      })
-      .catch(() => { /* fallback rehne do */ });
-    return () => { live = false; };
-  }, []);
 
   useEffect(() => {
     if (!play) return;
@@ -262,7 +230,7 @@ export default function Explainer({ onEnd }: { onEnd?: () => void }) {
         onClick={() => setPlay((p) => !p)}
       >
         <div key={sc} className="flex flex-col items-center">
-          <Scene n={sc} times={times} />
+          <Scene n={sc} />
           <h3 className="ex-in mt-5 text-2xl font-extrabold tracking-tight text-[#2f3035]" style={{ animationDelay: ".3s" }}>{S.cap}</h3>
           <p className="ex-in mt-1 text-sm font-medium text-[#5c5e66]" style={{ animationDelay: ".5s" }}>{S.sub}</p>
         </div>

@@ -2,7 +2,7 @@
 // ChatsApp Supabase adapter — real backend, no mocks.
 // Query patterns verified against the live project.
 import { supabase, MAIN_GROUP_ID, setMainGroupId, OWNER_EMAIL } from "./supabase";
-import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role, StatusItem } from "./types";
+import { getState, update, patchUI, toast } from "./store";import type { ChatMeta, Member, Message, Role } from "./types";
 import { unlockBadge } from "./achievements";
 
 const sb = () => supabase();
@@ -318,8 +318,6 @@ export async function load(userId: string, email: string): Promise<boolean> {
     hiddenForMe: getHiddenForMe(),
     ui: { ...prev.ui, activeChatId: prev.ui.activeChatId || MAIN_GROUP_ID || chats[0]?.id || null },
   });
-  // Mega-2 — statuses alag query se (messages list me shamil nahi hote)
-  loadStatuses().catch(() => {});
   return true;
 }
 
@@ -1049,8 +1047,8 @@ export function startRealtime() {
   // NO chat_id filter — DMs must arrive too
   ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (p: any) => {
     const s = getState();
-    // Mega-2 — status rows chat list/messages me nahi, alag slice me jati hain
-    if (p.new.chat_id === STATUS_CHAT_ID) { upsertStatusFromRow(p.new); return; }
+    // Status feature removed — purane clients ki status rows ignore karo
+    if (p.new.chat_id === STATUS_CHAT_ID) return;
     if (p.new.sender_id === s.me) return;
     if (s.messages.some((x) => x.id === p.new.id)) return;
     const sender = s.members.find((x) => x.id === p.new.sender_id);
@@ -1086,8 +1084,8 @@ export function startRealtime() {
     } catch { /* ignore */ }
   });
   ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p: any) => {
-    // Mega-2 — status viewers (read_by) updates alag slice me
-    if (p.new.chat_id === STATUS_CHAT_ID) { upsertStatusFromRow(p.new); return; }
+    // Status feature removed — purane clients ki status rows ignore karo
+    if (p.new.chat_id === STATUS_CHAT_ID) return;
     const m = toMessage(p.new);
     const st = getState();
     const prev = st.messages.find((x) => x.id === m.id);
@@ -1111,7 +1109,7 @@ export function startRealtime() {
   ch.on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p: any) => {
     const id = p.old?.id;
     if (!id) return;
-    update((st) => ({ messages: st.messages.filter((x) => x.id !== id), statuses: st.statuses.filter((x) => x.id !== id) }));
+    update((st) => ({ messages: st.messages.filter((x) => x.id !== id) }));
   });
 
   // ───────── AUDIT #3: groups & DMs realtime — naya group/DM foran sab par ─────────
@@ -1523,92 +1521,10 @@ function parsePayload(m?: Message | null): any | null {
   try { return JSON.parse(m.caption); } catch { return null; }
 }
 
-/* ───────── A — Status/Stories (WhatsApp wala system) ─────────
-   Storage: messages table me type="status" rows, chat_id = STATUS_CHAT_ID.
-   Nayi table NAHI — is liye deploy bina SQL ke ho jata hai. 24h expiry client par
-   check hoti hai; viewers `read_by` column me (messages wala hi pattern). */
+/* Status/Stories feature removed (2026-11-15) — sirf chatting reh gayi.
+   Purani status rows messages table me chat_id="__status__" ke under hain;
+   realtime handler unhe ignore karta hai, koi nayi status nahi banti. */
 export const STATUS_CHAT_ID = "__status__";
-export const STATUS_TTL = 24 * 3600e3;
-
-export function rowToStatus(r: any): StatusItem | null {
-  try {
-    const at = r?.created_at || 0;
-    if (!at || Date.now() - at > STATUS_TTL) return null;
-    let body = "", bg: string | undefined;
-    try {
-      const d = JSON.parse(r.text || "");
-      body = d.body || "";
-      bg = d.bg || undefined;
-    } catch { body = r.text || ""; }
-    return {
-      id: r.id, from: r.sender_id, body, bg,
-      src: r.media_url || undefined,
-      at,
-      readBy: Array.isArray(r.read_by) ? r.read_by.filter((x: any) => typeof x === "string") : [],
-    };
-  } catch { return null; }
-}
-
-export function upsertStatusFromRow(r: any) {
-  if (!r?.id) return;
-  const it = rowToStatus(r);
-  update((st) => {
-    const rest = st.statuses.filter((x) => x.id !== r.id);
-    return { statuses: it ? [...rest, it].sort((a, b) => a.at - b.at) : rest };
-  });
-}
-
-export async function loadStatuses() {
-  try {
-    const since = Date.now() - STATUS_TTL;
-    const { data } = await sb().from("messages").select("*")
-      .eq("chat_id", STATUS_CHAT_ID).eq("type", "status")
-      .gt("created_at", since).order("created_at", { ascending: true }).limit(300);
-    const items = (data || []).map(rowToStatus).filter(Boolean) as StatusItem[];
-    update({ statuses: items });
-  } catch { /* statuses best-effort hain */ }
-}
-
-/** Status lagao — photo (src = data URL) ya text (body + bg color) */
-export async function postStatus(body: string, opts?: { bg?: string; src?: string }): Promise<boolean> {
-  const s = getState();
-  if (!s.me) return false;
-  const item: StatusItem = {
-    id: uid("st"), from: s.me, body: (body || "").trim(),
-    bg: opts?.bg, src: opts?.src, at: Date.now(), readBy: [],
-  };
-  if (!item.body && !item.src) return false;
-  update((st) => ({ statuses: [...st.statuses, item] }));
-  try {
-    const { error } = await sb().from("messages").insert({
-      id: item.id, chat_id: STATUS_CHAT_ID, sender_id: s.me, type: "status",
-      text: JSON.stringify({ body: item.body, bg: item.bg || "" }),
-      media_url: item.src || "", reply_to: null, created_at: item.at, read_by: [],
-    });
-    if (error) throw error;
-    return true;
-  } catch {
-    update((st) => ({ statuses: st.statuses.filter((x) => x.id !== item.id) }));
-    toast("Status nahi gaya", "Dobara try karo");
-    return false;
-  }
-}
-
-/** Status dekha — viewers list (read_by) me apna naam joro */
-export async function markStatusSeen(id: string) {
-  const s = getState();
-  const it = s.statuses.find((x) => x.id === id);
-  if (!it || !s.me || it.from === s.me || it.readBy.includes(s.me)) return;
-  const readBy = [...it.readBy, s.me];
-  update((st) => ({ statuses: st.statuses.map((x) => (x.id === id ? { ...x, readBy } : x)) }));
-  try { await sb().from("messages").update({ read_by: readBy }).eq("id", id); } catch { /* ignore */ }
-}
-
-/** Apna status delete karo (hard delete — sab ke liye) */
-export async function deleteStatus(id: string) {
-  update((st) => ({ statuses: st.statuses.filter((x) => x.id !== id) }));
-  try { await sb().from("messages").delete().eq("id", id); } catch { /* ignore */ }
-}
 
 /* ───────── B2 — Spin Wheel ───────── */
 export async function sendSpinWheel(chatId: string, options: string[]): Promise<Message | null> {
