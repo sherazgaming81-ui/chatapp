@@ -700,7 +700,7 @@ export default function BrickMessage({ m }: { m: Message }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m.id]);
 
-  if (!st) return <p className="text-sm italic text-[#80848e]">Game load nahi hua</p>;
+  if (!st) return <p className="text-sm italic text-[#9a94bd]">Game load nahi hua</p>;
 
   const myBest = st.scores[me]?.best || 0;
   const top = Object.entries(st.scores).filter(([, e]) => e.best > 0).sort((a, b) => b[1].best - a[1].best).slice(0, 5);
@@ -708,8 +708,8 @@ export default function BrickMessage({ m }: { m: Message }) {
   const act = (fn?: () => void) => { fn?.(); canvasRef.current?.focus({ preventScroll: true }); };
 
   return (
-    <div className="mt-1.5 w-full max-w-[540px] rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#5865f2]">
+    <div className="mt-1.5 w-full max-w-[540px] rounded-xl border border-white/10 bg-[#241a4d] p-3.5 soft-shadow">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#d08cff]">
         🧱 Brick Breaker
         {myBest > 0 && (
           <span className="ml-auto rounded-full bg-[#f5a623]/10 px-2 py-0.5 text-[10px] font-extrabold normal-case tracking-normal text-[#b97e10]">
@@ -736,7 +736,7 @@ export default function BrickMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.state === "paused" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">⏸ Ruka hua</p>
             <button onClick={() => act(() => engRef.current?.mainAction())} className="rounded-full bg-[#d4f88a] px-6 py-2.5 text-sm font-extrabold text-[#202916] soft-shadow transition hover:brightness-105 active:scale-95">
               ▶ Jari rakho
@@ -744,7 +744,7 @@ export default function BrickMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.state === "levelClear" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">✅ Level {hud.level} clear!</p>
             <button onClick={() => act(() => engRef.current?.mainAction())} className="rounded-full bg-[#d4f88a] px-6 py-2.5 text-sm font-extrabold text-[#202916] soft-shadow transition hover:brightness-105 active:scale-95">
               ▶ Agla level
@@ -752,7 +752,7 @@ export default function BrickMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.state === "bossIntro" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">👹 Warden aa gaya — Level {hud.level}</p>
             <button onClick={() => act(() => engRef.current?.mainAction())} className="rounded-full bg-[#d4f88a] px-6 py-2.5 text-sm font-extrabold text-[#202916] soft-shadow transition hover:brightness-105 active:scale-95">
               ▶ Shuru karo
@@ -760,7 +760,7 @@ export default function BrickMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.state === "gameOver" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">🏁 Game Over — Score {hud.score.toLocaleString()}</p>
             <button onClick={() => act(() => engRef.current?.mainAction())} className="rounded-full bg-[#d4f88a] px-6 py-2.5 text-sm font-extrabold text-[#202916] soft-shadow transition hover:brightness-105 active:scale-95">
               🔁 Phir se khelo
@@ -769,15 +769,15 @@ export default function BrickMessage({ m }: { m: Message }) {
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-3 text-[13px] font-semibold text-[#2f3035]">
+      <div className="mt-2 flex items-center gap-3 text-[13px] font-semibold text-[#f2eefc]">
         <span>Score <b className="tabular-nums">{hud.score.toLocaleString()}</b></span>
-        <span className="text-[#80848e]">Level <b className="text-[#2f3035] tabular-nums">{hud.level}</b></span>
+        <span className="text-[#9a94bd]">Level <b className="text-[#f2eefc] tabular-nums">{hud.level}</b></span>
         <span aria-label="lives">❤️ ×{hud.lives}</span>
         <span className="ml-auto flex items-center gap-1">
           <button
             onClick={() => act(() => engRef.current?.togglePause())}
             disabled={!inGame && hud.state !== "paused"}
-            className="grid h-8 w-8 place-items-center rounded-full text-[#5c5e66] transition hover:bg-black/5 disabled:opacity-30"
+            className="grid h-8 w-8 place-items-center rounded-full text-[#b8b3d9] transition hover:bg-white/[0.06] disabled:opacity-30"
             title={hud.state === "paused" ? "Jari rakho" : "Pause"}
           >
             {hud.state === "paused" ? <Play size={16} /> : <Pause size={16} />}
@@ -785,7 +785,7 @@ export default function BrickMessage({ m }: { m: Message }) {
           <button
             onClick={() => act(() => engRef.current?.restart())}
             disabled={hud.state === "menu"}
-            className="grid h-8 w-8 place-items-center rounded-full text-[#5c5e66] transition hover:bg-black/5 disabled:opacity-30"
+            className="grid h-8 w-8 place-items-center rounded-full text-[#b8b3d9] transition hover:bg-white/[0.06] disabled:opacity-30"
             title="Phir se shuru"
           >
             <RotateCcw size={16} />
@@ -796,10 +796,10 @@ export default function BrickMessage({ m }: { m: Message }) {
       {top.length > 0 && (
         <div className="mt-2 border-t border-black/5 pt-2">
           {top.map(([id, e], i) => (
-            <p key={id} className="flex items-center gap-1.5 py-0.5 text-xs text-[#5c5e66]">
+            <p key={id} className="flex items-center gap-1.5 py-0.5 text-xs text-[#b8b3d9]">
               <span>{["🥇", "🥈", "🥉", "4.", "5."][i]}</span>
-              <span className={`font-semibold ${id === me ? "text-[#5865f2]" : "text-[#2f3035]"}`}>{e.name}</span>
-              <span className="ml-auto font-bold tabular-nums text-[#2f3035]">{e.best.toLocaleString()}</span>
+              <span className={`font-semibold ${id === me ? "text-[#d08cff]" : "text-[#f2eefc]"}`}>{e.name}</span>
+              <span className="ml-auto font-bold tabular-nums text-[#f2eefc]">{e.best.toLocaleString()}</span>
             </p>
           ))}
         </div>

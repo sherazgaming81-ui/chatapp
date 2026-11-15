@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, User } from "lucide-react";
+import { MessageCircle, User, Briefcase } from "lucide-react";
 import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/lib/db";
 import VersionBanner from "@/components/VersionBanner";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
@@ -19,6 +19,7 @@ import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
 import ProfileStudio from "@/components/ProfileStudio";
 import OwnerPanel from "@/components/OwnerPanel";
+import HqPage from "@/components/HqPage";
 import StarredView from "@/components/StarredView";
 import MediaViewer from "@/components/MediaViewer";
 import GroupInfo from "@/components/GroupInfo";
@@ -231,7 +232,10 @@ export default function App() {
 
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
-  const main = starredOpen ? <StarredView /> : showOwner ? <OwnerPanel /> : <ChatView />;
+  // Business HQ — sirf asal owner (role=owner) ko; members ke liye tab exist hi nahi karta
+  const isOwnerUser = me?.role === "owner";
+  const showHq = tab === "hq" && isOwnerUser;
+  const main = starredOpen ? <StarredView /> : showHq ? <HqPage /> : showOwner ? <OwnerPanel /> : <ChatView />;
   const compactCls = prefs.compact ? "compact" : "";
 
   return (
@@ -256,23 +260,32 @@ export default function App() {
         <ServerRail />
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">{main}</div>
-        <MemberList />
+        {!showHq && <MemberList />}
       </div>
       {/* mobile: single column + drawers (handled inside ChatView/Sidebar) */}
       <div className="flex min-w-0 flex-1 flex-col md:hidden">
         {main}
-        {/* 12 — mobile bottom navigation (sirf Chats + Profile) */}
-        <nav className="mobile-nav grid shrink-0 grid-cols-2" aria-label="Navigation">
+        {/* 12 — mobile bottom navigation (Chats + Profile; owner ko HQ bhi) */}
+        <nav className={`mobile-nav grid shrink-0 ${isOwnerUser ? "grid-cols-3" : "grid-cols-2"}`} aria-label="Navigation">
           <button
             onClick={() => patchUI({ tab: "chat" })}
-            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#5865f2]" : "text-[#80848e]"}`}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#d08cff]" : "text-[#9a94bd]"}`}
           >
             <MessageCircle size={21} />
             Chats
           </button>
+          {isOwnerUser && (
+            <button
+              onClick={() => patchUI({ tab: "hq" })}
+              className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showHq ? "text-[#d08cff]" : "text-[#9a94bd]"}`}
+            >
+              <Briefcase size={21} />
+              HQ
+            </button>
+          )}
           <button
             onClick={() => patchUI({ settingsOpen: true })}
-            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#80848e] transition active:text-[#5865f2]"
+            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#9a94bd] transition active:text-[#d08cff]"
           >
             <User size={21} />
             Profile
@@ -298,7 +311,7 @@ export default function App() {
       </div>
     </div>
     ) : (
-      <div className="flex h-full w-full bg-white" />
+      <div className="flex h-full w-full bg-[#19103b]" />
     )}
     {/* TASK 4: Loader overlay — main UI pehle se rendered, hatne par foran dikhe */}
     {loading && <Loader />}

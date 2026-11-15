@@ -61,21 +61,21 @@ export default function EmojiPicker({
   };
 
   const catBtn = (active: boolean) =>
-    `shrink-0 rounded-full p-2 transition ${active ? "bg-[#5865f2]/15 text-[#5865f2]" : "text-[#8a8d94] hover:bg-black/5 hover:text-[#5c5e66]"}`;
+    `shrink-0 rounded-full p-2 transition ${active ? "bg-[#b026ff]/15 text-[#d08cff]" : "text-[#8a8d94] hover:bg-white/[0.06] hover:text-[#b8b3d9]"}`;
 
   return (
-    <div className={`pop-in ${fill ? "absolute inset-0" : "absolute bottom-full left-0"} z-40 mb-2 flex h-[440px] max-h-[70vh] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl`}>
+    <div className={`pop-in ${fill ? "absolute inset-0" : "absolute bottom-full left-0"} z-40 mb-2 flex h-[440px] max-h-[70vh] w-[380px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#241a4d] shadow-2xl`}>
       {/* Search (emoji tab only — GIF/Sticker tabs have their own search) */}
       {tab === "emoji" && (
       <div className="shrink-0 px-3 pt-3">
-        <div className="flex items-center gap-2 rounded-full bg-black/5 px-3.5 py-2">
-          <Search size={16} className="shrink-0 text-[#80848e]" />
+        <div className="flex items-center gap-2 rounded-full bg-white/[0.06] px-3.5 py-2">
+          <Search size={16} className="shrink-0 text-[#9a94bd]" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search emoji"
             autoFocus
-            className="min-w-0 flex-1 bg-transparent text-[14px] text-[#2f3035] outline-none placeholder:text-[#9a9ca3]"
+            className="min-w-0 flex-1 bg-transparent text-[14px] text-[#f2eefc] outline-none placeholder:text-[#9a9ca3]"
           />
         </div>
       </div>
@@ -102,12 +102,12 @@ export default function EmojiPicker({
         ) : tab === "gif" ? (
           <GifPicker onPick={(g) => onGif?.(g)} />
         ) : list.length === 0 ? (
-          <p className="px-2 py-10 text-center text-sm text-[#80848e]">
+          <p className="px-2 py-10 text-center text-sm text-[#9a94bd]">
             {q.trim() ? "Kuch nahi mila" : "Abhi koi recent emoji nahi — koi emoji bhejo!"}
           </p>
         ) : (
           <>
-            <p className="sticky top-0 bg-white px-2 py-1.5 text-[13px] font-semibold text-[#5c5e66]">
+            <p className="sticky top-0 bg-white px-2 py-1.5 text-[13px] font-semibold text-[#b8b3d9]">
               {q.trim() ? "Search results" : cat === "recent" ? "Recently used" : catDef?.name}
             </p>
             <div className="grid grid-cols-9 gap-0.5">
@@ -115,7 +115,7 @@ export default function EmojiPicker({
                 <button
                   key={`${e}-${i}`}
                   onClick={() => pick(e)}
-                  className="rounded-lg p-1 text-[26px] leading-[1.4] hover:bg-black/5 active:scale-90"
+                  className="rounded-lg p-1 text-[26px] leading-[1.4] hover:bg-white/[0.06] active:scale-90"
                 >
                   {e}
                 </button>
@@ -127,7 +127,7 @@ export default function EmojiPicker({
 
       {/* Bottom tabs: Emoji | GIF | Sticker (onlyEmoji par chhupao) */}
       {!onlyEmoji && (
-      <div className="flex shrink-0 border-t border-black/10">
+      <div className="flex shrink-0 border-t border-white/10">
         {(
           [
             { id: "emoji" as Tab, label: "Emoji", icon: <Smile size={19} /> },
@@ -139,12 +139,12 @@ export default function EmojiPicker({
             key={t.id}
             onClick={() => { setTab(t.id); setQ(""); }}
             className={`relative flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[13px] font-medium transition ${
-              tab === t.id ? "text-[#5865f2]" : "text-[#8a8d94] hover:text-[#5c5e66]"
+              tab === t.id ? "text-[#d08cff]" : "text-[#8a8d94] hover:text-[#b8b3d9]"
             }`}
           >
             {t.icon}
             {t.label}
-            {tab === t.id && <span className="absolute bottom-0 h-0.5 w-10 rounded-full bg-[#5865f2]" />}
+            {tab === t.id && <span className="absolute bottom-0 h-0.5 w-10 rounded-full bg-[#b026ff]" />}
           </button>
         ))}
       </div>

@@ -41,13 +41,13 @@ export default function ProfileModal() {
     <>
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" onClick={close} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[92vh] w-[400px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
-        <button onClick={close} className="absolute right-3 top-3 z-10 rounded-full bg-black/30 p-1.5 text-white hover:bg-black/50" aria-label="Band karo">
+        <button onClick={close} className="absolute right-3 top-3 z-10 rounded-full bg-black/30 p-1.5 text-white hover:bg-white/[0.06]0" aria-label="Band karo">
           <X size={16} />
         </button>
         <ProfileCard m={m}>
           {/* photo zoom (avatar par tap) */}
           {m.avatar && (
-            <button onClick={() => setPhotoZoom(true)} className="mt-2 text-xs font-bold text-[#5865f2] hover:underline">
+            <button onClick={() => setPhotoZoom(true)} className="mt-2 text-xs font-bold text-[#d08cff] hover:underline">
               Bari photo dekho 🔍
             </button>
           )}
@@ -138,8 +138,8 @@ export default function ProfileModal() {
         <>
           <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => patchUI({ confirmBan: null })} />
           <div className="pop-in fixed left-1/2 top-1/2 z-[70] w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 soft-shadow">
-            <h3 className="text-lg font-extrabold text-[#2f3035]">Ban karein?</h3>
-            <p className="mt-1 text-sm text-[#5c5e66]"><b className="text-[#2f3035]">{m.name}</b> group me message nahi bhej payega.</p>
+            <h3 className="text-lg font-extrabold text-[#f2eefc]">Ban karein?</h3>
+            <p className="mt-1 text-sm text-[#b8b3d9]"><b className="text-[#f2eefc]">{m.name}</b> group me message nahi bhej payega.</p>
             <input value={banReason} onChange={(e) => setBanReason(e.target.value)} placeholder="Wajah (optional)…" className="field mt-3 w-full px-3 py-2.5 text-sm" />
             <div className="mt-4 flex gap-2">
               <button onClick={() => patchUI({ confirmBan: null })} className="btn btn-ghost flex-1 px-4 py-2.5 text-sm">Rehne do</button>

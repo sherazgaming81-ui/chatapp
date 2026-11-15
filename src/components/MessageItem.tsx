@@ -40,17 +40,17 @@ function FileCard({ m }: { m: Message }) {
       ) : null}
       <a
         href={m.src} download={name} target="_blank" rel="noopener noreferrer"
-        className="mt-1 flex items-center gap-3 rounded-xl bg-black/[0.04] p-3 transition hover:bg-black/[0.07]"
+        className="mt-1 flex items-center gap-3 rounded-xl bg-white/[0.04] p-3 transition hover:bg-black/[0.07]"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white soft-shadow" style={{ color: iconColor }}>
           <Icon size={22} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-bold text-[#2f3035]">{name}</span>
-          <span className="block text-xs text-[#80848e]">{fmtSize(size)}{ext ? ` · ${ext.toUpperCase()}` : ""}</span>
+          <span className="block truncate text-sm font-bold text-[#f2eefc]">{name}</span>
+          <span className="block text-xs text-[#9a94bd]">{fmtSize(size)}{ext ? ` · ${ext.toUpperCase()}` : ""}</span>
         </span>
-        <Download size={18} className="shrink-0 text-[#5865f2]" />
+        <Download size={18} className="shrink-0 text-[#d08cff]" />
       </a>
     </div>
   );
@@ -72,9 +72,9 @@ function Ticks({ m, inverted = false }: { m: Message; inverted?: boolean }) {
   }, [m.id, m.at, readers.length]);
   const age = Date.now() - m.at;
   const st = m.status || (readers.length > 0 ? "read" : age < 3000 ? "sent" : "delivered");
-  const cSent = inverted ? "text-[#54656f]" : "text-[#80848e]";
-  const cRead = inverted ? "text-[#53bdeb]" : "text-[#5865f2]";
-  const cDel = inverted ? "text-[#54656f]" : "text-[#80848e]";
+  const cSent = inverted ? "text-[#54656f]" : "text-[#9a94bd]";
+  const cRead = inverted ? "text-[#53bdeb]" : "text-[#d08cff]";
+  const cDel = inverted ? "text-[#54656f]" : "text-[#9a94bd]";
   if (st === "sent") return <Check size={13} className={`inline ${cSent}`} />;
   return (
     <span key={st} className="tick-pop">
@@ -115,20 +115,20 @@ function VoiceBubble({ m }: { m: Message }) {
     setPlaying(!playing);
   };
   return (
-    <button onClick={toggle} className="mt-1 flex items-center gap-3 rounded-xl bg-black/[0.04] px-4 py-2.5 hover:bg-black/[0.07]">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#5865f2] text-white soft-shadow">
+    <button onClick={toggle} className="mt-1 flex items-center gap-3 rounded-xl bg-white/[0.04] px-4 py-2.5 hover:bg-black/[0.07]">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#b026ff] text-white soft-shadow">
         {playing ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
       </span>
       <span className="flex h-6 items-end gap-[3px]">
         {Array.from({ length: 24 }).map((_, i) => (
           <span
             key={i}
-            className={`w-[3px] rounded-full bg-[#5865f2] ${playing ? "wavebar" : ""}`}
+            className={`w-[3px] rounded-full bg-[#b026ff] ${playing ? "wavebar" : ""}`}
             style={{ height: `${30 + Math.abs(Math.sin(i * 1.7)) * 70}%`, opacity: playing ? 1 : 0.4, animationDelay: `${(i % 8) * 0.09}s` }}
           />
         ))}
       </span>
-      <span className="text-xs tabular-nums text-[#80848e]">{m.dur ? `${Math.round(m.dur)}s` : "voice"}</span>
+      <span className="text-xs tabular-nums text-[#9a94bd]">{m.dur ? `${Math.round(m.dur)}s` : "voice"}</span>
     </button>
   );
 }
@@ -138,7 +138,7 @@ function BlurImage({ src, onOpen }: { src: string; onOpen: () => void }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <button onClick={onOpen} className="mt-1.5 block cursor-zoom-in" title="Bara dekho">
-      <span className={`block overflow-hidden rounded-xl border border-black/10 soft-shadow ${loaded ? "" : "skel"}`}>
+      <span className={`block overflow-hidden rounded-xl border border-white/10 soft-shadow ${loaded ? "" : "skel"}`}>
         <img
           src={src}
           alt=""
@@ -283,12 +283,12 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
   if (m.deleted) {
     return (
       <div className="msg-row group flex items-center gap-2 px-4 py-0.5">
-        <p className="flex-1 text-sm italic text-[#80848e]">Message delete kar diya gaya</p>
+        <p className="flex-1 text-sm italic text-[#9a94bd]">Message delete kar diya gaya</p>
         {(mine || staff) && (
           <button
             onClick={() => hardDeleteMessage(m.id)}
             title="Hamesha ke liye hatao"
-            className="rounded-lg p-1.5 text-[#80848e] opacity-0 transition hover:bg-[#ed4245]/10 hover:text-[#ed4245] group-hover:opacity-100"
+            className="rounded-lg p-1.5 text-[#9a94bd] opacity-0 transition hover:bg-[#ed4245]/10 hover:text-[#ed4245] group-hover:opacity-100"
           >
             <Trash2 size={14} />
           </button>
@@ -309,14 +309,14 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
       onContextMenu={onContextMenu}
       onClick={onSelectClick}
       onDoubleClick={() => { if (!selectMode && !m.deleted) react("❤️"); }}
-      className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls} ${isSelected ? "bg-[#5865f2]/[0.08]" : ""}`}
+      className={`msg-row msg-time-tip group relative px-4 ${prevSame ? "py-0.5" : "mt-[17px] py-0.5"} hover:bg-black/[0.035] ${deleting ? "deleting" : ""} ${slideCls} ${isSelected ? "bg-[#b026ff]/[0.08]" : ""}`}
       data-time={timeLabel}
     >
       {/* multi-select checkbox */}
       {selectMode && (
         <button
           onClick={(e) => { e.stopPropagation(); toggleSelect(); }}
-          className={`absolute left-1 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border-2 transition ${isSelected ? "border-[#5865f2] bg-[#5865f2] text-white" : "border-black/20 bg-white"}`}
+          className={`absolute left-1 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border-2 transition ${isSelected ? "border-[#b026ff] bg-[#b026ff] text-white" : "border-white/25 bg-white"}`}
           aria-label={isSelected ? "Deselect" : "Select"}
         >
           {isSelected && <Check size={14} strokeWidth={3} />}
@@ -326,52 +326,52 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
       {actionsPinned && (
         <>
           <div className="fixed inset-0 z-20 md:hidden" onClick={() => setActionsPinned(false)} />
-          <div className="swipe-actions-bar pop-in fixed bottom-20 left-4 right-4 z-30 flex justify-around rounded-2xl border border-black/10 bg-white p-2 soft-shadow md:hidden">
-            <button onClick={() => { patchUI({ replyTo: m }); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Reply size={20} /><span className="text-[10px] font-bold">Reply</span></button>
-            <button onClick={() => { react("❤️"); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><span className="text-xl">❤️</span><span className="text-[10px] font-bold">React</span></button>
-            <button onClick={() => { toggleStar(m.id); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Star size={20} /><span className="text-[10px] font-bold">Star</span></button>
+          <div className="swipe-actions-bar pop-in fixed bottom-20 left-4 right-4 z-30 flex justify-around rounded-2xl border border-white/10 bg-[#241a4d] p-2 soft-shadow md:hidden">
+            <button onClick={() => { patchUI({ replyTo: m }); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b8b3d9] active:bg-white/[0.06]"><Reply size={20} /><span className="text-[10px] font-bold">Reply</span></button>
+            <button onClick={() => { react("❤️"); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b8b3d9] active:bg-white/[0.06]"><span className="text-xl">❤️</span><span className="text-[10px] font-bold">React</span></button>
+            <button onClick={() => { toggleStar(m.id); setActionsPinned(false); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b8b3d9] active:bg-white/[0.06]"><Star size={20} /><span className="text-[10px] font-bold">Star</span></button>
             {(mine || staff) && (
-              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#ed4245] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Delete</span></button>
+              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#ed4245] active:bg-white/[0.06]"><Trash2 size={20} /><span className="text-[10px] font-bold">Delete</span></button>
             )}
             {/* TASK 2: member dusre ka msg bhi "mere liye" hata sakta hai */}
             {!mine && !staff && (
-              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#5c5e66] active:bg-black/5"><Trash2 size={20} /><span className="text-[10px] font-bold">Hatao</span></button>
+              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b8b3d9] active:bg-white/[0.06]"><Trash2 size={20} /><span className="text-[10px] font-bold">Hatao</span></button>
             )}
           </div>
         </>
       )}
       {/* 14 — glassmorphism context menu (hover + right-click) */}
       <div className={`msg-actions ctx-glass absolute -top-4 z-10 flex overflow-hidden rounded-2xl ${mine ? "right-4" : "left-14"} ${(actionsPinned || ctxOpen) ? "!opacity-100" : ""}`}>
-        <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Smile size={16} /></button>
-        <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Reply size={16} /></button>
-        <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-black/5 ${starred ? "text-[#f5a623]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
+        <button title="React" onClick={() => setReactOpen((v) => !v)} className="p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]"><Smile size={16} /></button>
+        <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]"><Reply size={16} /></button>
+        <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-white/[0.06] ${starred ? "text-[#f5a623]" : "text-[#b8b3d9] hover:text-[#f2eefc]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
         {iAmOwner && (
-          <button title="Super Reaction ⭐" onClick={() => setSuperOpen(true)} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#f5a623]"><Sparkles size={16} /></button>
+          <button title="Super Reaction ⭐" onClick={() => setSuperOpen(true)} className="p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f5a623]"><Sparkles size={16} /></button>
         )}
         {(mine || staff) && (
-          <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Info size={16} /></button>
+          <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]"><Info size={16} /></button>
         )}
         {canEdit && (
-          <button title="Edit" onClick={() => patchUI({ editingMsg: m, replyTo: null })} className="p-2 text-[#5c5e66] hover:bg-black/5 hover:text-[#2f3035]"><Pencil size={16} /></button>
+          <button title="Edit" onClick={() => patchUI({ editingMsg: m, replyTo: null })} className="p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]"><Pencil size={16} /></button>
         )}
         {staff && (
-          <button title={isPinned ? "Unpin" : "Pin"} onClick={() => togglePin(m.chatId, m.id)} className={`p-2 hover:bg-black/5 ${isPinned ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}>{isPinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
+          <button title={isPinned ? "Unpin" : "Pin"} onClick={() => togglePin(m.chatId, m.id)} className={`p-2 hover:bg-white/[0.06] ${isPinned ? "text-[#d08cff]" : "text-[#b8b3d9] hover:text-[#f2eefc]"}`}>{isPinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
         )}
         {/* TASK 2: delete button sab messages par — options permission ke hisab se */}
-        <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#5c5e66] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
-        <button title="Select" onClick={() => { setCtxOpen(false); toggleSelect(); }} className={`p-2 hover:bg-black/5 ${isSelected ? "text-[#5865f2]" : "text-[#5c5e66] hover:text-[#2f3035]"}`}><Check size={16} /></button>
+        <button title="Delete" onClick={() => setConfirmDel(true)} className="p-2 text-[#b8b3d9] hover:bg-[#ed4245]/10 hover:text-[#ed4245]"><Trash2 size={16} /></button>
+        <button title="Select" onClick={() => { setCtxOpen(false); toggleSelect(); }} className={`p-2 hover:bg-white/[0.06] ${isSelected ? "text-[#d08cff]" : "text-[#b8b3d9] hover:text-[#f2eefc]"}`}><Check size={16} /></button>
       </div>
       {reactOpen && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setReactOpen(false)} />
-          <div className="pop-in absolute -top-12 right-4 z-30 flex items-center gap-1 rounded-xl border border-black/10 bg-white p-1.5 soft-shadow">
+          <div className="pop-in absolute -top-12 right-4 z-30 flex items-center gap-1 rounded-xl border border-white/10 bg-[#241a4d] p-1.5 soft-shadow">
             {QUICK.map((e) => (
-              <button key={e} onClick={() => react(e)} title={e} className="rounded-lg p-1.5 text-xl transition hover:bg-black/5 active:scale-90">{e}</button>
+              <button key={e} onClick={() => react(e)} title={e} className="rounded-lg p-1.5 text-xl transition hover:bg-white/[0.06] active:scale-90">{e}</button>
             ))}
             <button
               title="Aur emojis…"
               onClick={() => { setReactOpen(false); setFullReactOpen(true); }}
-              className="grid h-9 w-9 place-items-center rounded-lg text-[#80848e] transition hover:bg-black/5 hover:text-[#5865f2] active:scale-90"
+              className="grid h-9 w-9 place-items-center rounded-lg text-[#9a94bd] transition hover:bg-white/[0.06] hover:text-[#d08cff] active:scale-90"
             >
               <Plus size={18} />
             </button>
@@ -400,15 +400,15 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
       {confirmDel && (
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setConfirmDel(false)} />
-          <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-black/10 bg-white p-5 soft-shadow">
-            <h3 className="text-lg font-extrabold text-[#2f3035]">Message delete karein?</h3>
-            <p className="mt-1 text-sm text-[#5c5e66]">{(mine || staff) ? "Apne liye hatao ya sab ke liye delete karo." : "Ye message sirf aapke liye hatayega."}</p>
+          <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-[#241a4d] p-5 soft-shadow">
+            <h3 className="text-lg font-extrabold text-[#f2eefc]">Message delete karein?</h3>
+            <p className="mt-1 text-sm text-[#b8b3d9]">{(mine || staff) ? "Apne liye hatao ya sab ke liye delete karo." : "Ye message sirf aapke liye hatayega."}</p>
             <div className="mt-4 space-y-2">
               <button onClick={doDeleteForMe} className="btn btn-ghost w-full px-4 py-2.5 text-sm">Mere liye hatao</button>
               {(mine || staff) && (
                 <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Sab ke liye delete</button>
               )}
-              <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#80848e] hover:text-[#2f3035]">Rehne do</button>
+              <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#9a94bd] hover:text-[#f2eefc]">Rehne do</button>
             </div>
           </div>
         </>
@@ -417,9 +417,9 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
       {superOpen && <SuperReactionModal m={m} onClose={() => setSuperOpen(false)} />}
 
       {m.type === "announcement" ? (
-        <div className="card my-2 border-[#5865f2]/30 bg-gradient-to-r from-[#5865f2]/[0.07] to-[#9b7bff]/[0.07] p-3.5">
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-[#5865f2]">📢 Elaan · {name}</p>
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2f3035]">{m.text}</p>
+        <div className="card my-2 border-[#b026ff]/30 bg-gradient-to-r from-[#b026ff]/[0.07] to-[#7b2ff7]/[0.07] p-3.5">
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-[#d08cff]">📢 Elaan · {name}</p>
+          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f2eefc]">{m.text}</p>
         </div>
       ) : m.type === "text" ? (
         /* 6 — WhatsApp-style bubble (tails ke sath) */
@@ -430,9 +430,9 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
               <p className="bubble-name" style={{ color }}>{name}</p>
             )}
             {replySrc && (
-              <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 ${mine ? "bg-black/15" : "bg-black/[0.05]"}`}>
-                <p className="text-xs font-bold" style={{ color: mine ? "#111b21" : replyAnon ? "#5c5e66" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyAnon ? "Gumnam Dost" : replyMember?.name || "Member"}</p>
-                <p className={`truncate text-xs italic ${mine ? "text-[#111b21]/70" : "text-[#80848e]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
+              <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 ${mine ? "bg-white/15" : "bg-white/[0.05]"}`}>
+                <p className="text-xs font-bold" style={{ color: mine ? "#e9d5ff" : replyAnon ? "#9a94bd" : (replyMember ? nameColor(replyMember) : "#5865f2") }}>{replyAnon ? "Gumnam Dost" : replyMember?.name || "Member"}</p>
+                <p className={`truncate text-xs italic ${mine ? "text-[#111b21]/70" : "text-[#9a94bd]"}`}>{replySrc.deleted ? "deleted message" : replySrc.text || "Message"}</p>
               </div>
             )}
             <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
@@ -451,7 +451,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
         </>
       ) : prevSame ? (
         <div className="flex gap-4">
-          <span className="w-10 shrink-0 select-none pt-1 text-right text-[10px] tabular-nums text-[#80848e] opacity-0 group-hover:opacity-100">{fmtTime(m.at)}{mine && <> <Ticks m={m} /></>}</span>
+          <span className="w-10 shrink-0 select-none pt-1 text-right text-[10px] tabular-nums text-[#9a94bd] opacity-0 group-hover:opacity-100">{fmtTime(m.at)}{mine && <> <Ticks m={m} /></>}</span>
           <div className="min-w-0 flex-1">
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} anon={replyAnon} />}
             <MsgBody m={m} query={query} mine={mine} />
@@ -471,7 +471,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-[15px] font-bold" style={{ color }}>{name}</span>
               {member && !hideSender && <Badge role={member.role} />}
-              <span className="text-[11px] font-medium text-[#80848e]">{fmtDayLabel(m.at)} {fmtTime(m.at)}{m.edited ? " · edited" : ""}{mine && <> <Ticks m={m} /></>}</span>
+              <span className="text-[11px] font-medium text-[#9a94bd]">{fmtDayLabel(m.at)} {fmtTime(m.at)}{m.edited ? " · edited" : ""}{mine && <> <Ticks m={m} /></>}</span>
             </p>
             {replySrc && <ReplyLine replySrc={replySrc} replyMember={replyMember} anon={replyAnon} />}
             <MsgBody m={m} query={query} mine={mine} />
@@ -485,7 +485,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
 
 function ReplyLine({ replySrc, replyMember, anon = false }: { replySrc: Message; replyMember?: Member | null; anon?: boolean }) {
   return (
-    <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#80848e]">
+    <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[#9a94bd]">
       <Reply size={13} className="shrink-0" />
       <span className="font-semibold" style={{ color: anon ? "#5c5e66" : replyMember ? nameColor(replyMember) : undefined }}>{anon ? "Gumnam Dost" : replyMember?.name || "Member"}</span>
       <span className="truncate italic">{replySrc.deleted ? "deleted message" : replySrc.text || (replySrc.type === "image" ? "📷 Photo" : replySrc.type === "voice" ? "🎙️ Voice" : replySrc.type === "file" ? `📁 ${replySrc.fileName || "File"}` : replySrc.type === "poll" ? "📊 Poll" : replySrc.type === "quiz" ? "🧠 Quiz" : replySrc.type === "tictactoe" ? "⭕❌ TicTacToe" : replySrc.type === "riddle" ? "🧩 Paheli" : replySrc.type === "sticker" ? "🎨 Sticker" : replySrc.type === "gif" ? "🎞️ GIF" : replySrc.type === "location" ? "📍 Location" : replySrc.type === "contact" ? "👤 Contact" : "Message")}</span>
@@ -500,7 +500,7 @@ function GifMessage({ m }: { m: Message }) {
   const [error, setError] = useState(false);
   // src must be a real URL — m.text is the title ("GIF"), never a URL
   const url = m.src && /^https?:\/\//i.test(m.src) ? m.src : null;
-  if (!url || error) return <p className="text-sm italic text-[#80848e]">GIF load nahi hua</p>;
+  if (!url || error) return <p className="text-sm italic text-[#9a94bd]">GIF load nahi hua</p>;
   return (
     <button
       onClick={() => patchUI({ viewer: { msgId: m.id } })}
@@ -519,7 +519,7 @@ function GifMessage({ m }: { m: Message }) {
         loading="eager"
         fetchPriority="high"
       />
-      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
+      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-white/[0.06]5 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
         GIF
       </span>
     </button>
@@ -531,13 +531,13 @@ function GifMessage({ m }: { m: Message }) {
 const GAME_TYPES = new Set(["quiz", "tictactoe", "riddle", "spin", "truthdare", "hisaab", "emojipaheli", "sachjhoot", "numguess", "kainchi", "pasa", "tourney"]);
 
 function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; mine?: boolean }) {
-  if (GAME_TYPES.has(m.type)) return <p className="text-sm italic text-[#80848e]">🎮 Ye game ab available nahi hai</p>;
+  if (GAME_TYPES.has(m.type)) return <p className="text-sm italic text-[#9a94bd]">🎮 Ye game ab available nahi hai</p>;
   if (m.type === "brick") return <BrickMessage m={m} />;
   if (m.type === "starfall") return <StarfallMessage m={m} />;
   if (m.type === "image" && m.src) {
     return (
       <div className="mt-1">
-        {m.caption && <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2f3035]"><Hi text={m.caption} q={query} /></p>}
+        {m.caption && <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f2eefc]"><Hi text={m.caption} q={query} /></p>}
         <BlurImage src={m.src} onOpen={() => patchUI({ viewer: { msgId: m.id } })} />
       </div>
     );
@@ -551,11 +551,11 @@ function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; 
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
   if (m.type === "file") return <FileCard m={m} />;
-  if (m.type !== "text" && m.text && m.text.startsWith("{")) return <p className="text-sm italic text-[#80848e]">🎮 Ye game ab available nahi hai</p>;
+  if (m.type !== "text" && m.text && m.text.startsWith("{")) return <p className="text-sm italic text-[#9a94bd]">🎮 Ye game ab available nahi hai</p>;
   const urls = extractUrls(m.text);
   return (
     <>
-      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#2f3035]">
+      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#f2eefc]">
         {query ? <Hi text={m.text} q={query} /> : <LinkedText text={m.text} />}
       </p>
       {urls.slice(0, 1).map((u) => <LinkPreviewCard key={u} url={u} mine={mine} />)}
@@ -578,7 +578,7 @@ function LocationCard({ m }: { m: Message }) {
   const { x, y } = tileXY(lat, lng, z);
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
   return (
-    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 block w-full max-w-xs overflow-hidden rounded-xl border border-black/10 bg-white soft-shadow transition hover:border-[#5865f2]/50">
+    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 block w-full max-w-xs overflow-hidden rounded-xl border border-white/10 bg-[#241a4d] soft-shadow transition hover:border-[#b026ff]/50">
       <span className="relative block h-36 w-full bg-[#e8e4d8]">
         <img src={`https://tile.openstreetmap.org/${z}/${x}/${y}.png`} alt="Map" className="h-full w-full object-cover" loading="lazy" draggable={false} />
         <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[#ed4245] drop-shadow">
@@ -586,14 +586,14 @@ function LocationCard({ m }: { m: Message }) {
         </span>
       </span>
       <span className="flex items-center gap-2.5 px-3.5 py-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#5865f2]/10 text-[#5865f2]"><Navigation size={17} /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#b026ff]/15 text-[#d08cff]"><Navigation size={17} /></span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-[#2f3035]">Location</span>
-          <span className="block truncate text-xs tabular-nums text-[#80848e]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+          <span className="block text-sm font-bold text-[#f2eefc]">Location</span>
+          <span className="block truncate text-xs tabular-nums text-[#9a94bd]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
         </span>
-        <span className="shrink-0 text-xs font-bold text-[#5865f2]">Kholo →</span>
+        <span className="shrink-0 text-xs font-bold text-[#d08cff]">Kholo →</span>
       </span>
-      <span className="block px-3.5 pb-2 text-[10px] text-[#80848e]">© OpenStreetMap contributors</span>
+      <span className="block px-3.5 pb-2 text-[10px] text-[#9a94bd]">© OpenStreetMap contributors</span>
     </a>
   );
 }
@@ -603,13 +603,13 @@ function ContactCard({ m }: { m: Message }) {
   let name = "Contact", phone = "";
   try { const d = JSON.parse(m.caption || "{}"); name = d.name || name; phone = String(d.phone || ""); } catch { /* ignore */ }
   return (
-    <div className="mt-1.5 flex w-full max-w-xs items-center gap-3 rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#5865f2]/10 text-[#5865f2]">
+    <div className="mt-1.5 flex w-full max-w-xs items-center gap-3 rounded-xl border border-white/10 bg-[#241a4d] p-3.5 soft-shadow">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#b026ff]/15 text-[#d08cff]">
         <User size={20} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-bold text-[#2f3035]">{name}</span>
-        {phone && <span className="block truncate text-xs tabular-nums text-[#5c5e66]" dir="ltr">{phone}</span>}
+        <span className="block truncate text-sm font-bold text-[#f2eefc]">{name}</span>
+        {phone && <span className="block truncate text-xs tabular-nums text-[#b8b3d9]" dir="ltr">{phone}</span>}
       </span>
       {phone && (
         <a href={`tel:${phone.replace(/\s/g, "")}`} className="btn btn-blurple shrink-0 px-3 py-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
@@ -634,13 +634,13 @@ function Reactions({ m, meId, onReact }: { m: Message; meId: string; onReact?: (
               key={emoji}
               onClick={() => { toggleReaction(m.id, emoji); onReact?.(emoji); }}
               title={mine ? "Hatane ke liye tap karo" : "React karo"}
-              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#5865f2] bg-[#5865f2]/15" : "border-black/10 bg-black/[0.04] hover:border-black/25"}`}
+              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#b026ff] bg-[#b026ff]/15" : "border-white/10 bg-white/[0.04] hover:border-black/25"}`}
             >
               <span>{emoji}</span>
               <span
                 onClick={(e) => { e.stopPropagation(); setListFor(emoji); }}
                 title="Dekho kisne react kiya"
-                className="cursor-pointer text-xs font-bold tabular-nums text-[#5c5e66] hover:text-[#5865f2] hover:underline"
+                className="cursor-pointer text-xs font-bold tabular-nums text-[#b8b3d9] hover:text-[#d08cff] hover:underline"
               >
                 {users.length}
               </span>
@@ -667,25 +667,25 @@ function ReactionListModal({ m, meId, focusEmoji, onClose }: { m: Message; meId:
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-black/10 bg-white p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/10 bg-[#241a4d] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-[#2f3035]">Reactions</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+          <h3 className="text-lg font-extrabold text-[#f2eefc]">Reactions</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <div className="mt-3 space-y-3">
           {ordered.map(([emoji, users]) => (
             <div key={emoji}>
-              <p className="mb-1 text-sm font-bold text-[#5c5e66]">
+              <p className="mb-1 text-sm font-bold text-[#b8b3d9]">
                 <span className="mr-1 text-base">{emoji}</span> {users.length}
               </p>
               <div className="space-y-0.5">
                 {users.map((id) => {
                   const mb = members.find((x) => x.id === id);
                   return (
-                    <div key={id} className="flex items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-black/[0.03]">
-                      {mb ? <Avatar m={mb} size={28} role={mb.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-xs"><User size={14} /></span>}
-                      <span className="text-sm font-semibold text-[#2f3035]">{nameOf(id)}</span>
-                      {id === meId && <span className="text-[11px] text-[#80848e]">(aap)</span>}
+                    <div key={id} className="flex items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-white/[0.05]">
+                      {mb ? <Avatar m={mb} size={28} role={mb.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-xs"><User size={14} /></span>}
+                      <span className="text-sm font-semibold text-[#f2eefc]">{nameOf(id)}</span>
+                      {id === meId && <span className="text-[11px] text-[#9a94bd]">(aap)</span>}
                     </div>
                   );
                 })}
@@ -705,21 +705,21 @@ function SeenByModal({ m, onClose }: { m: Message; onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-black/10 bg-white p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/10 bg-[#241a4d] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-[#2f3035]">Dekha</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+          <h3 className="text-lg font-extrabold text-[#f2eefc]">Dekha</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
-        <p className="mt-0.5 text-sm text-[#80848e]">{readers.length === 0 ? "Abhi kisi ne nahi dekha" : `${readers.length} ne dekha`}</p>
+        <p className="mt-0.5 text-sm text-[#9a94bd]">{readers.length === 0 ? "Abhi kisi ne nahi dekha" : `${readers.length} ne dekha`}</p>
         <div className="mt-3 space-y-1">
           {readers.map((id) => {
             const mb = members.find((x) => x.id === id);
             if (!mb) return null;
             return (
-              <div key={id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-black/[0.03]">
+              <div key={id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.05]">
                 <Avatar m={mb} size={32} role={mb.role} />
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#2f3035]">{mb.name}</span>
-                <span className="text-xs font-bold text-[#5865f2]">✓ Dekh liya</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#f2eefc]">{mb.name}</span>
+                <span className="text-xs font-bold text-[#d08cff]">✓ Dekh liya</span>
               </div>
             );
           })}

@@ -27,13 +27,13 @@ export default function MemberList() {
   const Group = ({ title, list }: { title: string; list: typeof visible }) =>
     list.length === 0 ? null : (
       <div className="mb-5">
-        <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#80848e]">{title} — {list.length}</p>
+        <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">{title} — {list.length}</p>
         {list.map((m) => (
-          <button key={m.id} onClick={() => patchUI({ profileId: m.id })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-black/5">
+          <button key={m.id} onClick={() => patchUI({ profileId: m.id })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.06]">
             <Avatar m={m} size={32} showDot meId={meId} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-[#2f3035]">{m.id === meId ? "Aap" : m.name}<Badge role={m.role} /></span>
-              <span className="block truncate text-xs text-[#80848e]">{statusText(m)}</span>
+              <span className="block truncate text-sm font-semibold text-[#f2eefc]">{m.id === meId ? "Aap" : m.name}<Badge role={m.role} /></span>
+              <span className="block truncate text-xs text-[#9a94bd]">{statusText(m)}</span>
             </span>
           </button>
         ))}

@@ -32,21 +32,21 @@ export function SuperReactionModal({ m, onClose }: { m: Message; onClose: () => 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-black/10 bg-white p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#241a4d] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-[#2f3035]">⭐ Super Reaction</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+          <h3 className="text-lg font-extrabold text-[#f2eefc]">⭐ Super Reaction</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
-        <p className="mt-0.5 text-sm text-[#80848e]">Poori chat ko full-screen effect dikhega — bilkul waisa jo preview me dikhta hai.</p>
+        <p className="mt-0.5 text-sm text-[#9a94bd]">Poori chat ko full-screen effect dikhega — bilkul waisa jo preview me dikhta hai.</p>
 
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Emoji chuno</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#9a94bd]">Emoji chuno</p>
         <div className="flex flex-wrap gap-1.5">
           {EMOJIS.map((e) => (
             <button
               key={e}
               onClick={() => setEmoji(e)}
               className={`grid h-11 w-11 place-items-center rounded-xl border text-[22px] transition active:scale-95 ${
-                emoji === e ? "border-[#5865f2] bg-[#5865f2]/10" : "border-black/10 hover:border-black/25"
+                emoji === e ? "border-[#b026ff] bg-[#b026ff]/15" : "border-white/10 hover:border-black/25"
               }`}
             >
               {e}
@@ -54,18 +54,18 @@ export function SuperReactionModal({ m, onClose }: { m: Message; onClose: () => 
           ))}
         </div>
 
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#80848e]">Style</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#9a94bd]">Style</p>
         <div className="space-y-1.5">
           {KINDS.map((k) => (
             <button
               key={k.kind}
               onClick={() => setKind(k.kind)}
               className={`block w-full rounded-lg border px-3 py-2 text-left transition ${
-                kind === k.kind ? "border-[#5865f2] bg-[#5865f2]/10" : "border-black/10 hover:border-black/25"
+                kind === k.kind ? "border-[#b026ff] bg-[#b026ff]/15" : "border-white/10 hover:border-black/25"
               }`}
             >
-              <span className="block text-sm font-bold text-[#2f3035]">{k.label}</span>
-              <span className="block text-xs text-[#80848e]">{k.desc}</span>
+              <span className="block text-sm font-bold text-[#f2eefc]">{k.label}</span>
+              <span className="block text-xs text-[#9a94bd]">{k.desc}</span>
             </button>
           ))}
         </div>
@@ -90,7 +90,7 @@ export function SuperPill({ m }: { m: Message }) {
   const name = members.find((x) => x.id === m.from)?.name || "Owner";
   return (
     <div className="mt-1 flex justify-center">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f5a623]/40 bg-[#f5a623]/10 px-3 py-1.5 text-[13px] font-bold text-[#2f3035]">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f5a623]/40 bg-[#f5a623]/10 px-3 py-1.5 text-[13px] font-bold text-[#f2eefc]">
         ⭐ {name} ne Super Reaction bheja {data?.emoji || "⭐"}
       </span>
     </div>

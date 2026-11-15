@@ -20,7 +20,7 @@ export default function Loader() {
   return (
     <div
       className="fixed inset-0 z-[300] grid place-items-center overflow-hidden"
-      style={{ background: "radial-gradient(circle at 50% 38%, #ffffff 0%, #eef1f4 68%)" }}
+      style={{ background: "radial-gradient(circle at 50% 38%, #2a1e5c 0%, #120a2a 68%)" }}
     >
       <div className="flex flex-col items-center">
         <svg width="320" height="300" viewBox="0 0 320 300" style={{ maxWidth: "88vw" }}>
@@ -32,9 +32,9 @@ export default function Loader() {
           </defs>
           {BUBBLES.map((b, i) => (
             <g key={i} className="ld-b" style={{ animationDelay: `${b.d}s`, transformBox: "fill-box", transformOrigin: b.out ? "100% 100%" : "0% 100%" }}>
-              <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="14" fill="#ffffff" stroke="#00000014" />
-              <rect x={b.x + 12} y={b.y + 11} width={b.w - 38} height="5" rx="2.5" fill="#00000022" />
-              <rect x={b.x + 12} y={b.y + 20} width={(b.w - 24) * 0.5} height="5" rx="2.5" fill="#00000014" />
+              <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="14" fill="#2a2145" stroke="#ffffff1a" />
+              <rect x={b.x + 12} y={b.y + 11} width={b.w - 38} height="5" rx="2.5" fill="#ffffff30" />
+              <rect x={b.x + 12} y={b.y + 20} width={(b.w - 24) * 0.5} height="5" rx="2.5" fill="#ffffff1c" />
             </g>
           ))}
           <g transform="translate(80 28) scale(2.4)">
@@ -69,10 +69,10 @@ export default function Loader() {
             <path pathLength={30} d="M8 9l6 6 13-14" className="ld-tick2" style={{ strokeDasharray: 30, strokeDashoffset: 30, animation: "ld-tickdraw .3s ease 2.12s forwards, ld-blue .25s ease 2.3s forwards" }} />
           </g>
         </svg>
-        <div className="-mt-3 text-3xl font-extrabold tracking-tight text-[#1a1b1e]">
+        <div className="-mt-3 text-3xl font-extrabold tracking-tight text-[#f2eefc]">
           Chats<span className="text-[#14a96f]">App</span>
         </div>
-        <div className="ld-tag mt-2 text-[15px] tracking-wide text-[#6b7280]">Baatein, ab aur qareeb</div>
+        <div className="ld-tag mt-2 text-[15px] tracking-wide text-[#9a94bd]">Baatein, ab aur qareeb</div>
       </div>
     </div>
   );

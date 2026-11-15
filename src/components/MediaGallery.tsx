@@ -21,7 +21,7 @@ function PhotoGrid({ items, members }: { items: Message[]; members: any[] }) {
         <button
           key={m.id}
           onClick={() => patchUI({ viewer: { msgId: m.id } })}
-          className="group relative aspect-square overflow-hidden rounded-xl bg-black/[0.05] transition active:scale-95"
+          className="group relative aspect-square overflow-hidden rounded-xl bg-white/[0.05] transition active:scale-95"
           title={`${senderName(members, m.from)} · ${fmtFull(m.at)}`}
         >
           <img src={m.src} alt="" className="h-full w-full object-cover" loading="lazy" draggable={false} />
@@ -43,10 +43,10 @@ function AudioList({ items, members }: { items: Message[]; members: any[] }) {
           <div className="mb-1.5 flex items-center gap-2">
             <Avatar m={{ id: m.from, name: senderName(members, m.from), online: false }} size={28} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-[#2f3035]">{senderName(members, m.from)}</p>
-              <p className="text-[11px] text-[#80848e]">{fmtFull(m.at)}{m.dur ? ` · ${Math.round(m.dur)}s` : ""}</p>
+              <p className="truncate text-[13px] font-bold text-[#f2eefc]">{senderName(members, m.from)}</p>
+              <p className="text-[11px] text-[#9a94bd]">{fmtFull(m.at)}{m.dur ? ` · ${Math.round(m.dur)}s` : ""}</p>
             </div>
-            <a href={m.src} download={`chatsapp-audio-${m.id}.mp3`} className="rounded-lg p-2 text-[#5865f2] hover:bg-[#5865f2]/10" aria-label="Download">
+            <a href={m.src} download={`chatsapp-audio-${m.id}.mp3`} className="rounded-lg p-2 text-[#d08cff] hover:bg-[#b026ff]/15" aria-label="Download">
               <Download size={16} />
             </a>
           </div>
@@ -67,14 +67,14 @@ function LinksList({ items, members }: { items: { msg: Message; url: string }[];
         return (
           <div key={msg.id + url} className="rounded-2xl border border-black/[0.07] bg-white/60 p-3">
             <div className="mb-1 flex items-center gap-2">
-              <Link2 size={14} className="shrink-0 text-[#5865f2]" />
-              <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#2f3035]">{domain}</p>
-              <a href={url} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-[#5865f2] hover:bg-[#5865f2]/10" aria-label="Kholo">
+              <Link2 size={14} className="shrink-0 text-[#d08cff]" />
+              <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#f2eefc]">{domain}</p>
+              <a href={url} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-[#d08cff] hover:bg-[#b026ff]/15" aria-label="Kholo">
                 <ExternalLink size={15} />
               </a>
             </div>
             <LinkPreviewCard url={url} />
-            <p className="mt-1.5 text-[11px] text-[#80848e]">
+            <p className="mt-1.5 text-[11px] text-[#9a94bd]">
               {members.find((x: any) => x.id === msg.from)?.name || "Member"} · {fmtFull(msg.at)}
             </p>
           </div>
@@ -88,7 +88,7 @@ function Empty({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
       <SearchX size={28} className="text-[#a0a3ab]" />
-      <p className="text-sm font-bold text-[#80848e]">{label} 📭</p>
+      <p className="text-sm font-bold text-[#9a94bd]">{label} 📭</p>
     </div>
   );
 }
@@ -135,19 +135,19 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`rounded-2xl border p-3 text-center transition active:scale-[0.98] ${tab === t.id ? "border-[#5865f2]/40 bg-[#5865f2]/[0.08]" : "border-black/[0.07] bg-white/60 hover:bg-white"}`}
+              className={`rounded-2xl border p-3 text-center transition active:scale-[0.98] ${tab === t.id ? "border-[#b026ff]/40 bg-[#b026ff]/[0.08]" : "border-black/[0.07] bg-white/60 hover:bg-white"}`}
             >
-              <t.icon size={18} className={`mx-auto ${tab === t.id ? "text-[#5865f2]" : "text-[#80848e]"}`} />
-              <p className="mt-1 text-base font-extrabold tabular-nums text-[#2f3035]">{t.count}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#80848e]">{t.label}</p>
+              <t.icon size={18} className={`mx-auto ${tab === t.id ? "text-[#d08cff]" : "text-[#9a94bd]"}`} />
+              <p className="mt-1 text-base font-extrabold tabular-nums text-[#f2eefc]">{t.count}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9a94bd]">{t.label}</p>
             </button>
           ))}
         </div>
 
         {mode === "files" && tab === "photos" && photos.length > 0 && (
-          <div className="mb-3 flex items-center justify-between rounded-2xl bg-[#5865f2]/[0.07] px-3 py-2">
-            <p className="text-xs font-bold text-[#5865f2]">{photos.length} photos</p>
-            <p className="text-[11px] text-[#80848e]">Download ke liye photo kholo 👆</p>
+          <div className="mb-3 flex items-center justify-between rounded-2xl bg-[#b026ff]/[0.07] px-3 py-2">
+            <p className="text-xs font-bold text-[#d08cff]">{photos.length} photos</p>
+            <p className="text-[11px] text-[#9a94bd]">Download ke liye photo kholo 👆</p>
           </div>
         )}
 
@@ -161,10 +161,10 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
               <div key={m.id} className="flex items-center gap-2.5 rounded-2xl border border-black/[0.07] bg-white/60 p-2.5">
                 <img src={m.src} alt="" className="h-11 w-11 rounded-xl object-cover" loading="lazy" draggable={false} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold text-[#2f3035]">Photo · {senderName(members, m.from)}</p>
-                  <p className="text-[11px] text-[#80848e]">{fmtFull(m.at)}</p>
+                  <p className="truncate text-[13px] font-bold text-[#f2eefc]">Photo · {senderName(members, m.from)}</p>
+                  <p className="text-[11px] text-[#9a94bd]">{fmtFull(m.at)}</p>
                 </div>
-                <a href={m.src} download={`chatsapp-photo-${m.id}.jpg`} className="rounded-lg p-2 text-[#5865f2] hover:bg-[#5865f2]/10" aria-label="Download">
+                <a href={m.src} download={`chatsapp-photo-${m.id}.jpg`} className="rounded-lg p-2 text-[#d08cff] hover:bg-[#b026ff]/15" aria-label="Download">
                   <Download size={16} />
                 </a>
               </div>

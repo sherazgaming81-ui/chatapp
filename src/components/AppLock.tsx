@@ -87,7 +87,7 @@ export default function AppLock() {
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-[#2b2d31] via-[#313338] to-[#1e1f22] px-6">
-      <span className="lock-pop grid h-20 w-20 place-items-center rounded-3xl bg-[#5865f2] soft-shadow">
+      <span className="lock-pop grid h-20 w-20 place-items-center rounded-3xl bg-[#b026ff] soft-shadow">
         <Lock size={36} className="text-white" />
       </span>
       <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-white">ChatsApp</h2>
@@ -97,7 +97,7 @@ export default function AppLock() {
         {[0, 1, 2, 3].map((i) => (
           <span
             key={i}
-            className={`grid h-14 w-14 place-items-center rounded-2xl border-2 text-2xl font-extrabold text-white transition ${pin[i] ? "border-[#5865f2] bg-[#5865f2]/20" : "border-white/15 bg-white/5"}`}
+            className={`grid h-14 w-14 place-items-center rounded-2xl border-2 text-2xl font-extrabold text-white transition ${pin[i] ? "border-[#b026ff] bg-[#b026ff]/20" : "border-white/15 bg-white/5"}`}
           >
             {pin[i] ? "•" : ""}
           </span>
@@ -112,7 +112,7 @@ export default function AppLock() {
               <Delete size={20} />
             </button>
           ) : (
-            <button key={i} onClick={() => digit(k)} disabled={busy} className="grid h-14 place-items-center rounded-2xl bg-white/5 text-xl font-extrabold text-white transition hover:bg-[#5865f2]/40 active:scale-95 disabled:opacity-50">
+            <button key={i} onClick={() => digit(k)} disabled={busy} className="grid h-14 place-items-center rounded-2xl bg-white/5 text-xl font-extrabold text-white transition hover:bg-[#b026ff]/40 active:scale-95 disabled:opacity-50">
               {k}
             </button>
           )

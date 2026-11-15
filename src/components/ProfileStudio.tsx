@@ -28,10 +28,10 @@ function Pick({ on, onClick, label, children }: { on: boolean; onClick: () => vo
     <motion.button
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className={`relative rounded-2xl border p-2 text-left transition ${on ? "border-[#e8bd57] bg-[#e8bd57]/10" : "border-black/10 bg-white hover:bg-black/[0.03]"}`}
+      className={`relative rounded-2xl border p-2 text-left transition ${on ? "border-[#e8bd57] bg-[#e8bd57]/10" : "border-white/10 bg-[#241a4d] hover:bg-white/[0.05]"}`}
     >
       {children}
-      <p className="mt-1.5 px-1 text-xs font-semibold text-[#2f3035]">{label}</p>
+      <p className="mt-1.5 px-1 text-xs font-semibold text-[#f2eefc]">{label}</p>
       {on && (
         <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-[#e8bd57] text-[#2a1d02]">
           <Check size={12} strokeWidth={4} />
@@ -71,22 +71,22 @@ export default function ProfileStudio() {
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" onClick={close} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[560px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white soft-shadow">
         {/* header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-black/10 px-5 py-3.5">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3.5">
           <div>
-            <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#2f3035]">
+            <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f2eefc]">
               <Sparkles size={18} className="text-[#e8bd57]" /> Profile Studio
             </h3>
-            <p className="text-xs text-[#80848e]">Apni profile ko sajao — sab kuch free</p>
+            <p className="text-xs text-[#9a94bd]">Apni profile ko sajao — sab kuch free</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={save} disabled={!dirty || saving} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-40">
               {saving ? "Save…" : "Save"}
             </button>
-            <button onClick={close} className="rounded-full p-2 text-[#80848e] hover:bg-black/5"><X size={18} /></button>
+            <button onClick={close} className="rounded-full p-2 text-[#9a94bd] hover:bg-white/[0.06]"><X size={18} /></button>
           </div>
         </div>
         {/* live preview (sticky) */}
-        <div className="shrink-0 border-b border-black/10 bg-[#f6f7f9] px-4 py-3">
+        <div className="shrink-0 border-b border-white/10 bg-[#f6f7f9] px-4 py-3">
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#e8bd57]">
             <Wand2 size={13} /> Live preview
           </p>
@@ -95,12 +95,12 @@ export default function ProfileStudio() {
           </div>
         </div>
         {/* tabs */}
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-4 py-2">
+        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 px-4 py-2">
           {TABS.map((t) => (
             <button
               key={t.v}
               onClick={() => setTab(t.v)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-bold transition ${tab === t.v ? "bg-[#5865f2] text-white" : "text-[#80848e] hover:bg-black/5"}`}
+              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-bold transition ${tab === t.v ? "bg-[#b026ff] text-white" : "text-[#9a94bd] hover:bg-white/[0.06]"}`}
             >
               {t.l}
             </button>
@@ -134,7 +134,7 @@ export default function ProfileStudio() {
                 <Pick key={f.id} on={st.frame === f.id} onClick={() => set({ frame: f.id })} label={f.name}>
                   <div className="grid h-16 place-items-center">
                     <span
-                      className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#5865f2] to-[#9b7bff] font-bold text-white"
+                      className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] font-bold text-white"
                       style={{ boxShadow: f.css === "none" ? undefined : f.css }}
                     >
                       {(m.name || "?")[0]?.toUpperCase()}
@@ -160,7 +160,7 @@ export default function ProfileStudio() {
           )}
           {tab === "color" && (
             <div>
-              <p className="mb-3 text-sm text-[#80848e]">Profile ka khaas rang (shadow aur glow ke liye)</p>
+              <p className="mb-3 text-sm text-[#9a94bd]">Profile ka khaas rang (shadow aur glow ke liye)</p>
               <div className="flex flex-wrap gap-3">
                 {COLS.map((c) => (
                   <button
@@ -178,8 +178,8 @@ export default function ProfileStudio() {
           )}
           {tab === "badge" && (
             <div>
-              <p className="mb-3 text-sm text-[#80848e]">Zyada se zyada 4 badges dikhao ({st.badges.length}/4)</p>
-              {earned.length === 0 && <p className="text-sm text-[#80848e]">Abhi koi badge unlock nahi hua — achievements se kamao! 🏅</p>}
+              <p className="mb-3 text-sm text-[#9a94bd]">Zyada se zyada 4 badges dikhao ({st.badges.length}/4)</p>
+              {earned.length === 0 && <p className="text-sm text-[#9a94bd]">Abhi koi badge unlock nahi hua — achievements se kamao! 🏅</p>}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {earned.map((bid) => {
                   const info = BADGES.find((b) => b.id === bid);
@@ -189,12 +189,12 @@ export default function ProfileStudio() {
                     <button
                       key={bid}
                       onClick={() => set({ badges: on ? st.badges.filter((x) => x !== bid) : st.badges.length < 4 ? [...st.badges, bid] : st.badges })}
-                      className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${on ? "border-[#e8bd57] bg-[#e8bd57]/10" : "border-black/10 bg-white"}`}
+                      className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${on ? "border-[#e8bd57] bg-[#e8bd57]/10" : "border-white/10 bg-[#241a4d]"}`}
                     >
                       <span className="text-2xl">{info.icon}</span>
                       <span>
-                        <span className="block text-sm font-bold text-[#2f3035]">{info.title}</span>
-                        <span className="block text-[11px] text-[#80848e]">{info.desc}</span>
+                        <span className="block text-sm font-bold text-[#f2eefc]">{info.title}</span>
+                        <span className="block text-[11px] text-[#9a94bd]">{info.desc}</span>
                       </span>
                     </button>
                   );

@@ -10,9 +10,9 @@ export function hueFor(id: string): number {
 // darker variants for light backgrounds
 export function nameColor(m: Member): string {
   if (m.role === "owner") return "#b4238f";
-  if (m.role === "admin") return "#4752c4";
-  if (m.role === "mod") return "#0078a8";
-  return `hsl(${hueFor(m.id)} 60% 38%)`;
+  if (m.role === "admin") return "#a5b4fc";
+  if (m.role === "mod") return "#38bdf8";
+  return `hsl(${hueFor(m.id)} 75% 72%)`;
 }
 
 export function Avatar({ m, size = 40, showDot = false, meId, role }: { m: Pick<Member, "id" | "name" | "avatar" | "online" | "privacy">; size?: number; showDot?: boolean; meId?: string; role?: Member["role"] }) {
@@ -49,7 +49,7 @@ export function Avatar({ m, size = 40, showDot = false, meId, role }: { m: Pick<
       )}
       {frame && size >= 24 && (
         <span
-          className="absolute -bottom-1 -left-1 z-[2] grid place-items-center rounded-full bg-white shadow ring-1 ring-black/10"
+          className="absolute -bottom-1 -left-1 z-[2] grid place-items-center rounded-full bg-white shadow ring-1 ring-white/10"
           style={{ width: size * 0.42, height: size * 0.42, fontSize: size * 0.24 }}
           title={frame.label}
         >

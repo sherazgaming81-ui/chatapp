@@ -71,7 +71,7 @@ export default function ProfileCard({
 
   return (
     <div
-      className="overflow-hidden rounded-3xl border border-black/10 bg-white"
+      className="overflow-hidden rounded-3xl border border-white/10 bg-[#241a4d]"
       style={{ boxShadow: `0 20px 50px -20px ${st.accent}66` }}
     >
       {/* Banner */}
@@ -96,7 +96,7 @@ export default function ProfileCard({
               {st.badges.slice(0, 4).map((b) => {
                 const info = badgeInfo(b);
                 return (
-                  <span key={b} title={info.name} className="grid h-8 w-8 place-items-center rounded-full bg-black/[0.05] text-base shadow">
+                  <span key={b} title={info.name} className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.05] text-base shadow">
                     {info.icon}
                   </span>
                 );
@@ -114,14 +114,14 @@ export default function ProfileCard({
           <Badge role={m.role} />
           {m.role === "owner" && <Crown size={16} className="text-[#e8bd57]" />}
         </div>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-[#80848e]">
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-[#9a94bd]">
           <span className={`h-2 w-2 rounded-full ${online ? "bg-[#23a55a]" : "bg-[#80848e]/50"}`} />
           {online ? "Online hai" : lastSeen > 0 ? fmtLastSeen(lastSeen) : "Offline"}
         </p>
         {aboutText ? (
-          <div className="mt-3 rounded-2xl bg-black/[0.04] p-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#80848e]">About</p>
-            <p className="mt-0.5 text-[15px] text-[#2f3035]">{aboutText}</p>
+          <div className="mt-3 rounded-2xl bg-white/[0.04] p-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#9a94bd]">About</p>
+            <p className="mt-0.5 text-[15px] text-[#f2eefc]">{aboutText}</p>
           </div>
         ) : null}
         {children}

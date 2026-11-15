@@ -7,7 +7,7 @@ import Explainer from "@/components/Explainer";
 const SLIDES = [
   {
     icon: MessagesSquare,
-    color: "from-[#5865f2] to-[#9b7bff]",
+    color: "from-[#b026ff] to-[#7b2ff7]",
     title: "Madrasa Group",
     body: "Apne madrasa doston se juro — elaan, baatein aur yaadein, sab ek jagah. Bina WhatsApp ke!",
   },
@@ -33,13 +33,13 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
 
   if (video) {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col bg-[#f4f5fa]">
+      <div className="fixed inset-0 z-[100] flex flex-col bg-[#19103b]">
         <div className="flex items-center justify-between px-5 pt-5">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-xl font-bold text-white soft-shadow">م</span>
-            <span className="text-lg font-extrabold tracking-tight text-[#2f3035]">Ye app kya hai? 🎬</span>
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] text-xl font-bold text-white soft-shadow">م</span>
+            <span className="text-lg font-extrabold tracking-tight text-[#f2eefc]">Ye app kya hai? 🎬</span>
           </div>
-          <button onClick={() => setVideo(false)} className="rounded-lg px-3 py-1.5 text-sm font-bold text-[#80848e] hover:bg-black/5">
+          <button onClick={() => setVideo(false)} className="rounded-lg px-3 py-1.5 text-sm font-bold text-[#9a94bd] hover:bg-white/[0.06]">
             Band karo
           </button>
         </div>
@@ -56,29 +56,29 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#f4f5fa]">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#19103b]">
       {/* top bar */}
       <div className="flex items-center justify-between px-5 pt-5">
         <div className="flex items-center gap-2.5">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#5865f2] to-[#9b7bff] text-xl font-bold text-white soft-shadow">م</span>
-          <span className="text-lg font-extrabold tracking-tight text-[#2f3035]">ChatsApp</span>
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] text-xl font-bold text-white soft-shadow">م</span>
+          <span className="text-lg font-extrabold tracking-tight text-[#f2eefc]">ChatsApp</span>
         </div>
-        <button onClick={onDone} className="rounded-lg px-3 py-1.5 text-sm font-bold text-[#80848e] hover:bg-black/5">
+        <button onClick={onDone} className="rounded-lg px-3 py-1.5 text-sm font-bold text-[#9a94bd] hover:bg-white/[0.06]">
           Skip
         </button>
       </div>
 
       {/* slides */}
       <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-        <h1 className="mb-8 text-3xl font-extrabold tracking-tight text-[#2f3035] sm:text-4xl">
+        <h1 className="mb-8 text-3xl font-extrabold tracking-tight text-[#f2eefc] sm:text-4xl">
           Assalam-o-Alaikum! 🌙
         </h1>
         <div key={idx} className="pop-in">
           <div className={`mx-auto mb-6 grid h-24 w-24 place-items-center rounded-[28px] bg-gradient-to-br ${S.color} text-white soft-shadow`}>
             <Icon size={44} />
           </div>
-          <h2 className="mb-3 text-2xl font-extrabold text-[#2f3035]">{S.title}</h2>
-          <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-[#5c5e66]">{S.body}</p>
+          <h2 className="mb-3 text-2xl font-extrabold text-[#f2eefc]">{S.title}</h2>
+          <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-[#b8b3d9]">{S.body}</p>
         </div>
 
         {/* dots */}
@@ -88,7 +88,7 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
               key={i}
               onClick={() => setIdx(i)}
               aria-label={`Slide ${i + 1}`}
-              className={`h-2 rounded-full transition-all ${i === idx ? "w-7 bg-[#5865f2]" : "w-2 bg-black/15 hover:bg-black/25"}`}
+              className={`h-2 rounded-full transition-all ${i === idx ? "w-7 bg-[#b026ff]" : "w-2 bg-white/15 hover:bg-black/25"}`}
             />
           ))}
         </div>
@@ -98,7 +98,7 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
       <div className="flex flex-col gap-3 px-6 pb-10">
         <button
           onClick={() => setVideo(true)}
-          className="flex items-center justify-center gap-2 rounded-xl border border-[#5865f2]/25 bg-white px-6 py-3 text-[15px] font-bold text-[#5865f2] transition hover:border-[#5865f2]/50 active:scale-[0.99] soft-shadow"
+          className="flex items-center justify-center gap-2 rounded-xl border border-[#b026ff]/25 bg-white px-6 py-3 text-[15px] font-bold text-[#d08cff] transition hover:border-[#b026ff]/50 active:scale-[0.99] soft-shadow"
         >
           <Clapperboard size={18} /> App ka video tour dekho (30s)
         </button>
@@ -106,7 +106,7 @@ export default function WelcomeSplash({ onDone }: { onDone: () => void }) {
         <button
           onClick={() => setIdx((i) => Math.max(0, i - 1))}
           disabled={idx === 0}
-          className="grid h-12 w-12 place-items-center rounded-full border border-black/10 bg-white text-[#5c5e66] disabled:opacity-30"
+          className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-[#241a4d] text-[#b8b3d9] disabled:opacity-30"
           aria-label="Pichla"
         >
           <ChevronLeft size={22} />

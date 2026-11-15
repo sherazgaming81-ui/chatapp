@@ -13,10 +13,10 @@ export default function GumnamMessage({ m }: { m: Message }) {
 
   return (
     <div className="mt-1 max-w-sm">
-      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#2f3035]">{m.text}</p>
+      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#f2eefc]">{m.text}</p>
       <p className="mt-1.5">
         {mine ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#5865f2]/10 px-2.5 py-1 text-xs font-semibold text-[#5865f2]">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#b026ff]/15 px-2.5 py-1 text-xs font-semibold text-[#d08cff]">
             🕵️ Ye aapka gumnam paigham hai — dusron ko aapka naam nahi dikh raha
           </span>
         ) : iAmOwner ? (
@@ -24,7 +24,7 @@ export default function GumnamMessage({ m }: { m: Message }) {
             👁 Owner view — asal sender: {senderName}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold text-[#5c5e66]">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2.5 py-1 text-xs font-semibold text-[#b8b3d9]">
             🕵️ Gumnam Dost
           </span>
         )}

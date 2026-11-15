@@ -54,15 +54,15 @@ export default function ProfileWizard({ onDone }: { onDone: () => void }) {
         {/* progress */}
         <div className="mb-6 flex gap-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-[#5865f2]" : "bg-black/10"}`} />
+            <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-[#b026ff]" : "bg-white/10"}`} />
           ))}
         </div>
 
         {step === 0 && (
           <div>
             <p className="text-3xl">👋</p>
-            <h2 className="mt-3 text-2xl font-extrabold text-[#2f3035]">Aapka naam?</h2>
-            <p className="mt-1 text-sm text-[#80848e]">Dost aapko isi naam se pehchanenge</p>
+            <h2 className="mt-3 text-2xl font-extrabold text-[#f2eefc]">Aapka naam?</h2>
+            <p className="mt-1 text-sm text-[#9a94bd]">Dost aapko isi naam se pehchanenge</p>
             <input
               value={name} onChange={(e) => setName(e.target.value)} maxLength={32}
               placeholder="Jaise: Muhammad Ahmed" autoFocus
@@ -74,8 +74,8 @@ export default function ProfileWizard({ onDone }: { onDone: () => void }) {
         {step === 1 && (
           <div className="text-center">
             <p className="text-3xl">📸</p>
-            <h2 className="mt-3 text-2xl font-extrabold text-[#2f3035]">Profile photo</h2>
-            <p className="mt-1 text-sm text-[#80848e]">Apni pehchan lagao (optional)</p>
+            <h2 className="mt-3 text-2xl font-extrabold text-[#f2eefc]">Profile photo</h2>
+            <p className="mt-1 text-sm text-[#9a94bd]">Apni pehchan lagao (optional)</p>
             <button onClick={() => file.current?.click()} className="group relative mx-auto mt-6 block" title="Photo lagao">
               <Avatar m={{ id: meId, name: name || "?", avatar: photo, online: true }} size={110} />
               <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 opacity-0 transition group-hover:opacity-100">
@@ -83,15 +83,15 @@ export default function ProfileWizard({ onDone }: { onDone: () => void }) {
               </span>
             </button>
             <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
-            <p className="mt-3 text-xs text-[#80848e]">Tap karke photo chuno</p>
+            <p className="mt-3 text-xs text-[#9a94bd]">Tap karke photo chuno</p>
           </div>
         )}
 
         {step === 2 && (
           <div>
             <p className="text-3xl">✍️</p>
-            <h2 className="mt-3 text-2xl font-extrabold text-[#2f3035]">Apne baare me</h2>
-            <p className="mt-1 text-sm text-[#80848e]">Ek line apne baare me (optional)</p>
+            <h2 className="mt-3 text-2xl font-extrabold text-[#f2eefc]">Apne baare me</h2>
+            <p className="mt-1 text-sm text-[#9a94bd]">Ek line apne baare me (optional)</p>
             <textarea
               value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={3}
               placeholder="Jaise: Madrasa-e-Tahfeez-ul-Quran ka talib-e-ilm 🌙"
@@ -103,7 +103,7 @@ export default function ProfileWizard({ onDone }: { onDone: () => void }) {
         {/* nav */}
         <div className="mt-8 flex items-center gap-3">
           {step > 0 && (
-            <button onClick={() => setStep((s) => s - 1)} className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-black/10 text-[#5c5e66]" aria-label="Pichla">
+            <button onClick={() => setStep((s) => s - 1)} className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 text-[#b8b3d9]" aria-label="Pichla">
               <ChevronLeft size={22} />
             </button>
           )}
@@ -121,7 +121,7 @@ export default function ProfileWizard({ onDone }: { onDone: () => void }) {
             </button>
           )}
         </div>
-        {step === 0 && <p className="mt-3 text-center text-xs text-[#80848e]">Kam se kam 2 harf likho</p>}
+        {step === 0 && <p className="mt-3 text-center text-xs text-[#9a94bd]">Kam se kam 2 harf likho</p>}
       </div>
     </div>
   );

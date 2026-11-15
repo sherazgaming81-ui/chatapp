@@ -125,7 +125,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }
     <div className="flex h-full min-h-0 flex-col">
       {/* WhatsApp-style icon categories */}
       {!searching && (
-        <div className="thin-scroll flex shrink-0 items-center gap-1 overflow-x-auto border-b border-black/10 px-2 py-2">
+        <div className="thin-scroll flex shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-2 py-2">
           {CATS.map((c) => {
             const active = cat.id === c.id;
             return (
@@ -135,8 +135,8 @@ export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }
                 title={c.label}
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
                   active
-                    ? "bg-[#5865f2] text-white"
-                    : "text-[#80848e] hover:bg-black/5"
+                    ? "bg-[#b026ff] text-white"
+                    : "text-[#9a94bd] hover:bg-white/[0.06]"
                 }`}
               >
                 {c.icon}
@@ -147,18 +147,18 @@ export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }
       )}
 
       {/* Search */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-black/10 px-3 py-2">
-        <Search size={15} className="shrink-0 text-[#80848e]" />
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
+        <Search size={15} className="shrink-0 text-[#9a94bd]" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="GIF dhoondo…"
-          className="min-w-0 flex-1 bg-transparent text-sm text-[#2f3035] outline-none placeholder:text-[#80848e]"
+          className="min-w-0 flex-1 bg-transparent text-sm text-[#f2eefc] outline-none placeholder:text-[#9a94bd]"
         />
         {q && (
           <button
             onClick={() => setQ("")}
-            className="shrink-0 text-xs font-bold text-[#5865f2]"
+            className="shrink-0 text-xs font-bold text-[#d08cff]"
           >
             Saaf
           </button>
@@ -168,21 +168,21 @@ export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }
       {/* Content */}
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 size={28} className="animate-spin text-[#5865f2]" />
+          <Loader2 size={28} className="animate-spin text-[#d08cff]" />
         </div>
       ) : error ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-sm text-[#80848e]">{error}</p>
+          <p className="text-sm text-[#9a94bd]">{error}</p>
           <button
             onClick={() => load(0, false)}
-            className="rounded-full bg-[#5865f2] px-5 py-2 text-sm font-bold text-white active:scale-95"
+            className="rounded-full bg-[#b026ff] px-5 py-2 text-sm font-bold text-white active:scale-95"
           >
             Dobara try karo
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-6 text-center">
-          <p className="text-sm text-[#80848e]">
+          <p className="text-sm text-[#9a94bd]">
             {searching ? "Kuch nahi mila — aur likho!" : "Koi GIF nahi mili."}
           </p>
         </div>
@@ -201,7 +201,7 @@ export default function GifPicker({ onPick }: { onPick: (g: GiphyItem) => void }
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="flex items-center gap-2 rounded-full bg-[#5865f2] px-6 py-2.5 text-sm font-bold text-white shadow transition hover:bg-[#4752c4] active:scale-95 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-full bg-[#b026ff] px-6 py-2.5 text-sm font-bold text-white shadow transition hover:bg-[#8a1bd6] active:scale-95 disabled:opacity-60"
               >
                 {loadingMore ? (
                   <>

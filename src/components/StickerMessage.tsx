@@ -8,12 +8,12 @@ function UrlSticker({ url }: { url: string }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   if (failed) {
-    return <p className="mt-1 text-sm italic text-[#80848e]">Sticker load nahi hua</p>;
+    return <p className="mt-1 text-sm italic text-[#9a94bd]">Sticker load nahi hua</p>;
   }
   return (
     <span className="relative mt-1 inline-block">
       {!loaded && (
-        <span className="block h-28 w-28 animate-pulse rounded-xl bg-black/5" aria-hidden />
+        <span className="block h-28 w-28 animate-pulse rounded-xl bg-white/[0.06]" aria-hidden />
       )}
       <img
         src={url}
@@ -37,14 +37,14 @@ export default function StickerMessage({ m }: { m: Message }) {
   }
   // Emoji sticker — bubble-less, bada emoji
   const st = getSticker(m.text);
-  if (!st) return <p className="text-sm italic text-[#80848e]">Sticker load nahi hua</p>;
+  if (!st) return <p className="text-sm italic text-[#9a94bd]">Sticker load nahi hua</p>;
   return (
     <div
       className="mt-1 inline-flex select-none flex-col items-center text-center transition hover:scale-[1.04] active:scale-95"
       style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18))" }}
     >
       <span className="text-7xl leading-none">{st.emoji}</span>
-      {st.text && <span className="mt-1 text-[13px] font-bold leading-tight text-[#2f3035]">{st.text}</span>}
+      {st.text && <span className="mt-1 text-[13px] font-bold leading-tight text-[#f2eefc]">{st.text}</span>}
     </div>
   );
 }

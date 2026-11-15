@@ -1225,7 +1225,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m.id]);
 
-  if (!st) return <p className="text-sm italic text-[#80848e]">Game load nahi hua</p>;
+  if (!st) return <p className="text-sm italic text-[#9a94bd]">Game load nahi hua</p>;
 
   const myEntry = st.scores[me];
   const myBest = myEntry?.best || 0;
@@ -1235,8 +1235,8 @@ export default function StarfallMessage({ m }: { m: Message }) {
   const btnMain = "rounded-full bg-[#38e1ff] px-6 py-2.5 text-sm font-extrabold text-[#06222b] soft-shadow transition hover:brightness-105 active:scale-95";
 
   return (
-    <div className="mt-1.5 w-full max-w-[540px] rounded-xl border border-black/10 bg-white p-3.5 soft-shadow">
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#5865f2]">
+    <div className="mt-1.5 w-full max-w-[540px] rounded-xl border border-white/10 bg-[#241a4d] p-3.5 soft-shadow">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#d08cff]">
         🚀 Starfall — Galaxy Defender
         {myBest > 0 && (
           <span className="ml-auto rounded-full bg-[#38e1ff]/10 px-2 py-0.5 text-[10px] font-extrabold normal-case tracking-normal text-[#0e7ea3]">
@@ -1263,7 +1263,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.mode === "paused" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">⏸ Ruka hua</p>
             <button onClick={() => act(() => engRef.current?.togglePause())} className={btnMain}>
               ▶ Jari rakho
@@ -1305,7 +1305,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.mode === "victory" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">🏆 Galaxy bach gaya! Score {hud.score.toLocaleString()}</p>
             <div className="flex items-center gap-2">
               <button onClick={() => act(() => engRef.current?.continueEndless())} className={btnMain}>
@@ -1318,7 +1318,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           </div>
         )}
         {hud.mode === "over" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/[0.06]5">
             <p className="text-sm font-bold text-white">🏁 Game Over — Score {hud.score.toLocaleString()} · Wave {hud.wave}</p>
             <button onClick={() => act(() => engRef.current?.start())} className={btnMain}>
               🔁 Phir se khelo
@@ -1327,13 +1327,13 @@ export default function StarfallMessage({ m }: { m: Message }) {
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-[#2f3035]">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-[#f2eefc]">
         <span>Score <b className="tabular-nums">{hud.score.toLocaleString()}</b></span>
-        <span className="text-[#80848e]">Wave <b className="text-[#2f3035] tabular-nums">{hud.wave || "—"}</b></span>
+        <span className="text-[#9a94bd]">Wave <b className="text-[#f2eefc] tabular-nums">{hud.wave || "—"}</b></span>
         <span aria-label="lives">❤️ ×{hud.lives}</span>
         <span className="flex items-center gap-1.5" aria-label="hull">
-          <span className="text-[#80848e]">HP</span>
-          <span className="h-2 w-14 overflow-hidden rounded-full bg-black/10">
+          <span className="text-[#9a94bd]">HP</span>
+          <span className="h-2 w-14 overflow-hidden rounded-full bg-white/10">
             <span className="block h-full rounded-full bg-[#34d399]" style={{ width: Math.max(0, Math.min(100, (hud.hp / Math.max(1, hud.maxHp)) * 100)) + "%" }} />
           </span>
           <b className="tabular-nums">{hud.hp}</b>
@@ -1343,7 +1343,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           <button
             onClick={() => act(() => engRef.current?.dash())}
             disabled={!inGame || !hud.dashReady}
-            className="grid h-8 w-8 place-items-center rounded-full text-[15px] transition hover:bg-black/5 disabled:opacity-30"
+            className="grid h-8 w-8 place-items-center rounded-full text-[15px] transition hover:bg-white/[0.06] disabled:opacity-30"
             title="Dash (Shift)"
           >
             💨
@@ -1351,7 +1351,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           <button
             onClick={() => act(() => engRef.current?.nova())}
             disabled={!inGame || !hud.novaReady}
-            className={`grid h-8 w-8 place-items-center rounded-full text-[15px] transition hover:bg-black/5 disabled:opacity-30 ${hud.novaReady ? "text-[#b97e10]" : ""}`}
+            className={`grid h-8 w-8 place-items-center rounded-full text-[15px] transition hover:bg-white/[0.06] disabled:opacity-30 ${hud.novaReady ? "text-[#b97e10]" : ""}`}
             title={`Nova Bomb — charge ${hud.special}%`}
           >
             ✸
@@ -1359,7 +1359,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           <button
             onClick={() => act(() => engRef.current?.togglePause())}
             disabled={!inGame && hud.mode !== "paused"}
-            className="grid h-8 w-8 place-items-center rounded-full text-[#5c5e66] transition hover:bg-black/5 disabled:opacity-30"
+            className="grid h-8 w-8 place-items-center rounded-full text-[#b8b3d9] transition hover:bg-white/[0.06] disabled:opacity-30"
             title={hud.mode === "paused" ? "Jari rakho" : "Pause"}
           >
             {hud.mode === "paused" ? <Play size={16} /> : <Pause size={16} />}
@@ -1367,7 +1367,7 @@ export default function StarfallMessage({ m }: { m: Message }) {
           <button
             onClick={() => act(() => engRef.current?.restart())}
             disabled={hud.mode === "menu"}
-            className="grid h-8 w-8 place-items-center rounded-full text-[#5c5e66] transition hover:bg-black/5 disabled:opacity-30"
+            className="grid h-8 w-8 place-items-center rounded-full text-[#b8b3d9] transition hover:bg-white/[0.06] disabled:opacity-30"
             title="Phir se shuru"
           >
             <RotateCcw size={16} />
@@ -1378,11 +1378,11 @@ export default function StarfallMessage({ m }: { m: Message }) {
       {top.length > 0 && (
         <div className="mt-2 border-t border-black/5 pt-2">
           {top.map(([id, e], i) => (
-            <p key={id} className="flex items-center gap-1.5 py-0.5 text-xs text-[#5c5e66]">
+            <p key={id} className="flex items-center gap-1.5 py-0.5 text-xs text-[#b8b3d9]">
               <span>{["🥇", "🥈", "🥉", "4.", "5."][i]}</span>
-              <span className={`font-semibold ${id === me ? "text-[#5865f2]" : "text-[#2f3035]"}`}>{e.name}</span>
-              {e.wave > 0 && <span className="rounded-full bg-black/5 px-1.5 py-px text-[10px] font-bold text-[#80848e]">Wave {e.wave}</span>}
-              <span className="ml-auto font-bold tabular-nums text-[#2f3035]">{e.best.toLocaleString()}</span>
+              <span className={`font-semibold ${id === me ? "text-[#d08cff]" : "text-[#f2eefc]"}`}>{e.name}</span>
+              {e.wave > 0 && <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] font-bold text-[#9a94bd]">Wave {e.wave}</span>}
+              <span className="ml-auto font-bold tabular-nums text-[#f2eefc]">{e.best.toLocaleString()}</span>
             </p>
           ))}
         </div>

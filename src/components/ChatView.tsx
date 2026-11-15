@@ -69,7 +69,7 @@ function SelectActionBar({ activeChatId }: { activeChatId: string | undefined })
     clear();
   };
   return (
-    <div className="pop-in flex shrink-0 items-center gap-1 border-b border-black/10 bg-[#5865f2] px-3 py-2 text-white">
+    <div className="pop-in flex shrink-0 items-center gap-1 border-b border-white/10 bg-[#b026ff] px-3 py-2 text-white">
       <button onClick={clear} className="rounded-md p-2 hover:bg-white/15" aria-label="Cancel"><X size={18} /></button>
       <span className="min-w-0 flex-1 text-sm font-bold">{selected.length} selected</span>
       <button onClick={doForward} title="Forward" className="rounded-md p-2 hover:bg-white/15"><Forward size={18} /></button>
@@ -332,27 +332,27 @@ export default function ChatView() {
 
   return (
     <div className="panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-black/10 px-3 sm:px-4">
-        <button onClick={() => patchUI({ mobileDrawer: "channels" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Channels">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-3 sm:px-4">
+        <button onClick={() => patchUI({ mobileDrawer: "channels" })} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] md:hidden" aria-label="Channels">
           <Menu size={20} />
         </button>
         {isDM ? (
           <>
-            {dmOther ? <Avatar m={dmOther} size={28} showDot role={dmOther.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#5865f2] text-sm font-bold text-white">@</span>}
+            {dmOther ? <Avatar m={dmOther} size={28} showDot role={dmOther.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-[#b026ff] text-sm font-bold text-white">@</span>}
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{dmOther?.name || activeChat?.name}</h1>
+              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f2eefc]">{dmOther?.name || activeChat?.name}</h1>
             </div>
           </>
         ) : (
           <button
             onClick={() => activeChatId && patchUI({ groupInfo: { chatId: activeChatId, view: "info" } })}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-black/[0.04] active:scale-[0.99]"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-white/[0.05] active:scale-[0.99]"
             aria-label="Group info kholo"
           >
-            <Hash size={20} className="shrink-0 text-[#80848e]" />
+            <Hash size={20} className="shrink-0 text-[#9a94bd]" />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#2f3035]">{activeChat?.name || "Chat"}</h1>
-              <p className="truncate text-xs text-[#80848e]">Group info ke liye tap karo 👆</p>
+              <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f2eefc]">{activeChat?.name || "Chat"}</h1>
+              <p className="truncate text-xs text-[#9a94bd]">Group info ke liye tap karo 👆</p>
             </div>
           </button>
         )}
@@ -362,22 +362,22 @@ export default function ChatView() {
             {typer.name.split(" ")[0]} likh raha hai…
           </span>
         )}
-        <button onClick={() => patchUI({ globalSearchOpen: true })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5" aria-label="Global search" title="Poori app me talash">
+        <button onClick={() => patchUI({ globalSearchOpen: true })} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]" aria-label="Global search" title="Poori app me talash">
           <Globe size={20} />
         </button>
-        <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-black/5 ${searchOn ? "text-[#5865f2]" : "text-[#5c5e66]"}`} aria-label="Search">
+        <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-white/[0.06] ${searchOn ? "text-[#d08cff]" : "text-[#b8b3d9]"}`} aria-label="Search">
           <Search size={20} />
         </button>
-        <button onClick={() => patchUI({ mobileDrawer: "members" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:hidden" aria-label="Members">
+        <button onClick={() => patchUI({ mobileDrawer: "members" })} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] md:hidden" aria-label="Members">
           <Users size={20} />
         </button>
-        <button onClick={() => { const s = getState(); patchUI({ showMembers: !s.ui.showMembers }); }} className="hidden rounded-md p-2 text-[#5c5e66] hover:bg-black/5 md:block" aria-label="Members">
+        <button onClick={() => { const s = getState(); patchUI({ showMembers: !s.ui.showMembers }); }} className="hidden rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] md:block" aria-label="Members">
           <Users size={20} />
         </button>
       </header>
 
       {searchOn && (
-        <div className="flex shrink-0 items-center gap-1 border-b border-black/10 px-3 py-2">
+        <div className="flex shrink-0 items-center gap-1 border-b border-white/10 px-3 py-2">
           <input
             autoFocus
             value={q}
@@ -389,12 +389,12 @@ export default function ChatView() {
             placeholder="Is chat me dhoondo…"
             className="field min-w-0 flex-1 px-3 py-1.5 text-sm"
           />
-          <span className="w-12 shrink-0 text-center text-xs tabular-nums text-[#80848e]">
+          <span className="w-12 shrink-0 text-center text-xs tabular-nums text-[#9a94bd]">
             {matchIds.length > 0 ? `${qIdx + 1}/${matchIds.length}` : q ? "0" : ""}
           </span>
-          <button onClick={() => jumpMatch(-1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#5c5e66] hover:bg-black/5 disabled:opacity-30" aria-label="Pichla"><ChevronUp size={18} /></button>
-          <button onClick={() => jumpMatch(1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#5c5e66] hover:bg-black/5 disabled:opacity-30" aria-label="Agla"><ChevronDown size={18} /></button>
-          <button onClick={() => { setSearchOn(false); setQ(""); }} className="rounded-md p-1.5 text-[#5c5e66] hover:bg-black/5" aria-label="Band"><X size={18} /></button>
+          <button onClick={() => jumpMatch(-1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b8b3d9] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Pichla"><ChevronUp size={18} /></button>
+          <button onClick={() => jumpMatch(1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b8b3d9] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Agla"><ChevronDown size={18} /></button>
+          <button onClick={() => { setSearchOn(false); setQ(""); }} className="rounded-md p-1.5 text-[#b8b3d9] hover:bg-white/[0.06]" aria-label="Band"><X size={18} /></button>
         </div>
       )}
 
@@ -403,14 +403,14 @@ export default function ChatView() {
       {pinnedMsgs.length > 0 && (
         <button
           onClick={() => { const p = pinnedMsgs[pinIdx % pinnedMsgs.length]; if (p) { jumpTo(p.id); setPinIdx((i) => i + 1); } }}
-          className="flex shrink-0 items-center gap-2 border-b border-black/10 bg-[#5865f2]/[0.06] px-4 py-1.5 text-left text-[13px] transition hover:bg-[#5865f2]/[0.1]"
+          className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-[#b026ff]/10 px-4 py-1.5 text-left text-[13px] transition hover:bg-[#b026ff]/[0.16]"
           title="Pin par jao"
         >
-          <Pin size={14} className="shrink-0 text-[#5865f2]" />
-          <span className="min-w-0 flex-1 truncate text-[#5c5e66]">
+          <Pin size={14} className="shrink-0 text-[#d08cff]" />
+          <span className="min-w-0 flex-1 truncate text-[#b8b3d9]">
             {pinnedMsgs[pinIdx % pinnedMsgs.length]?.text?.slice(0, 80) || "📌"}
           </span>
-          {pinnedMsgs.length > 1 && <span className="shrink-0 text-xs font-bold text-[#5865f2]">{(pinIdx % pinnedMsgs.length) + 1}/{pinnedMsgs.length}</span>}
+          {pinnedMsgs.length > 1 && <span className="shrink-0 text-xs font-bold text-[#d08cff]">{(pinIdx % pinnedMsgs.length) + 1}/{pinnedMsgs.length}</span>}
         </button>
       )}
 
@@ -428,7 +428,7 @@ export default function ChatView() {
         {(ptrPull > 10 || ptrBusy) && (
           <div className="flex justify-center py-1" style={{ height: ptrBusy ? 36 : undefined, opacity: Math.min(1, ptrPull / 70) }}>
             <span className={`grid h-8 w-8 place-items-center rounded-full bg-white soft-shadow ${ptrBusy ? "ptr-spinner" : ""}`} style={{ transform: ptrBusy ? undefined : `rotate(${ptrPull * 2.4}deg)` }}>
-              <ChevronDown size={18} className="text-[#5865f2]" />
+              <ChevronDown size={18} className="text-[#d08cff]" />
             </span>
           </div>
         )}
@@ -444,17 +444,17 @@ export default function ChatView() {
           <ChatSkeleton />
         ) : msgs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-            <div className="grid h-16 w-16 place-items-center rounded-full bg-[#5865f2]/10">
-              {isDM ? <span className="text-2xl">👋</span> : <Hash size={28} className="text-[#5865f2]" />}
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-[#b026ff]/15">
+              {isDM ? <span className="text-2xl">👋</span> : <Hash size={28} className="text-[#d08cff]" />}
             </div>
-            <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#2f3035]">{isDM ? `Ye ${dmOther?.name || "dost"} se baat ki shuruaat hai` : `Welcome to ${activeChat?.name || "group"}!`}</h3>
-            <p className="mt-1.5 max-w-xs text-sm text-[#80848e]">Pehla message bhejo — salaam se shuruaat karo 🌙</p>
+            <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#f2eefc]">{isDM ? `Ye ${dmOther?.name || "dost"} se baat ki shuruaat hai` : `Welcome to ${activeChat?.name || "group"}!`}</h3>
+            <p className="mt-1.5 max-w-xs text-sm text-[#9a94bd]">Pehla message bhejo — salaam se shuruaat karo 🌙</p>
           </div>
         ) : (
           sections.map((sec) => (
             <div key={sec.key}>
               <div className="sticky top-0 z-[5] flex justify-center py-1.5">
-                <span key={sec.key} className="date-pill rounded-full border border-black/10 bg-white/95 px-3 py-1 text-[11px] font-bold text-[#5c5e66] shadow-sm">{sec.label}</span>
+                <span key={sec.key} className="date-pill rounded-full border border-white/10 bg-[#241a4d]/95 px-3 py-1 text-[11px] font-bold text-[#b8b3d9] shadow-sm">{sec.label}</span>
               </div>
               {sec.msgs.map((m, i) => {
                 const prev = sec.msgs[i - 1];
@@ -464,7 +464,7 @@ export default function ChatView() {
                 if (m.type === "system" && !m.deleted) {
                   return (
                     <div key={m.id} className="flex justify-center px-4 py-1.5">
-                      <span className="max-w-[85%] rounded-full border border-black/10 bg-black/[0.05] px-3.5 py-1.5 text-center text-xs font-semibold text-[#5c5e66]">
+                      <span className="max-w-[85%] rounded-full border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-center text-xs font-semibold text-[#b8b3d9]">
                         {m.text}
                       </span>
                     </div>
@@ -476,7 +476,7 @@ export default function ChatView() {
                       <div className="flex justify-center py-2">
                         <button
                           onClick={() => jumpTo(m.id)}
-                          className="unread-glow rounded-full bg-[#5865f2] px-3.5 py-1.5 text-xs font-bold text-white shadow transition hover:bg-[#4752c4]"
+                          className="unread-glow rounded-full bg-[#b026ff] px-3.5 py-1.5 text-xs font-bold text-white shadow transition hover:bg-[#8a1bd6]"
                         >
                           {unreadInfo.count} unread messages
                         </button>
@@ -492,8 +492,8 @@ export default function ChatView() {
         {typer && (
           <div className="flex items-center gap-3 px-4 pt-2">
             <Avatar m={typer} size={28} role={typer.role} />
-            <span className="text-xs font-semibold text-[#80848e]">{typer.name} likh raha hai…</span>
-            <span className="flex gap-1 rounded-xl bg-black/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
+            <span className="text-xs font-semibold text-[#9a94bd]">{typer.name} likh raha hai…</span>
+            <span className="flex gap-1 rounded-xl bg-white/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
           </div>
         )}
       </div>
@@ -507,7 +507,7 @@ export default function ChatView() {
             setNewCount(0);
             seenOthersRef.current = othersCount;
           }}
-          className="absolute bottom-3 right-3 z-20 grid h-10 w-10 place-items-center rounded-full bg-white text-[#2f3035] soft-shadow transition hover:bg-black/[0.03] active:scale-95"
+          className="absolute bottom-3 right-3 z-20 grid h-10 w-10 place-items-center rounded-full bg-white text-[#f2eefc] soft-shadow transition hover:bg-white/[0.05] active:scale-95"
           aria-label="Neeche jao"
           title="Neeche jao"
         >

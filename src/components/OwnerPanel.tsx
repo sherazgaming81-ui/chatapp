@@ -36,14 +36,14 @@ function Stat({ icon, label, value, color }: { icon: React.ReactNode; label: str
     <div className="card relative overflow-hidden bg-white/80 p-4 backdrop-blur">
       <span className="absolute -right-4 -top-4 h-20 w-20 rounded-full opacity-15" style={{ background: color }} />
       <span className="mb-2 grid h-10 w-10 place-items-center rounded-lg" style={{ background: color + "1f", color }}>{icon}</span>
-      <p className="text-3xl font-extrabold tabular-nums text-[#2f3035]">{value}</p>
-      <p className="text-xs font-semibold text-[#80848e]">{label}</p>
+      <p className="text-3xl font-extrabold tabular-nums text-[#f2eefc]">{value}</p>
+      <p className="text-xs font-semibold text-[#9a94bd]">{label}</p>
     </div>
   );
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="mb-2 text-sm font-extrabold uppercase tracking-[0.08em] text-[#2f3035]">{children}</h2>;
+  return <h2 className="mb-2 text-sm font-extrabold uppercase tracking-[0.08em] text-[#f2eefc]">{children}</h2>;
 }
 
 /* ───────── H2 — Overview + 7-day chart ───────── */
@@ -76,22 +76,22 @@ function OverviewTab() {
       <div className="card bg-white/80 p-4">
         <SectionTitle>📊 Aakhri 7 din — messages</SectionTitle>
         {weekMsgs === 0 ? (
-          <p className="py-4 text-center text-sm text-[#80848e]">📊 Abhi data jama ho raha hai</p>
+          <p className="py-4 text-center text-sm text-[#9a94bd]">📊 Abhi data jama ho raha hai</p>
         ) : (
           <div className="flex h-32 items-end gap-2">
             {days.map((d, i) => (
               <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                <span className="text-[11px] font-bold tabular-nums text-[#5c5e66]">{d.count}</span>
+                <span className="text-[11px] font-bold tabular-nums text-[#b8b3d9]">{d.count}</span>
                 <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-[#5865f2] to-[#9b7bff]"
+                  className="w-full rounded-t-md bg-gradient-to-t from-[#b026ff] to-[#7b2ff7]"
                   style={{ height: `${Math.max(4, (d.count / maxDay) * 90)}px` }}
                 />
-                <span className="text-[10px] font-semibold text-[#80848e]">{d.label}</span>
+                <span className="text-[10px] font-semibold text-[#9a94bd]">{d.label}</span>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-xs text-[#80848e]">7 din me <b className="text-[#2f3035]">{weekMsgs}</b> messages · <b className="text-[#2f3035]">{active}</b> active members</p>
+        <p className="mt-2 text-xs text-[#9a94bd]">7 din me <b className="text-[#f2eefc]">{weekMsgs}</b> messages · <b className="text-[#f2eefc]">{active}</b> active members</p>
       </div>
 
       {top.length > 0 && (
@@ -103,15 +103,15 @@ function OverviewTab() {
               const max = top[0]?.count || 1;
               return (
                 <div key={t.id} className="flex items-center gap-3">
-                  <span className="w-6 text-sm font-extrabold text-[#80848e]">{i + 1}</span>
+                  <span className="w-6 text-sm font-extrabold text-[#9a94bd]">{i + 1}</span>
                   <Avatar m={m} size={32} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-[#2f3035]">{t.name}</span>
+                    <span className="block truncate text-sm font-bold text-[#f2eefc]">{t.name}</span>
                     <span className="block h-1.5 overflow-hidden rounded-full bg-black/[0.06]">
-                      <span className="block h-full rounded-full bg-[#5865f2]" style={{ width: `${(t.count / max) * 100}%` }} />
+                      <span className="block h-full rounded-full bg-[#b026ff]" style={{ width: `${(t.count / max) * 100}%` }} />
                     </span>
                   </span>
-                  <span className="text-xs font-bold tabular-nums text-[#5c5e66]">{t.count}</span>
+                  <span className="text-xs font-bold tabular-nums text-[#b8b3d9]">{t.count}</span>
                 </div>
               );
             })}
@@ -126,21 +126,21 @@ function OverviewTab() {
         </div>
         <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
           {list.map((m) => (
-            <button key={m.id} onClick={() => patchUI({ profileId: m.id })} className="card flex w-full items-center gap-3 bg-white/70 px-3 py-2.5 text-left hover:border-[#5865f2]/40">
+            <button key={m.id} onClick={() => patchUI({ profileId: m.id })} className="card flex w-full items-center gap-3 bg-white/70 px-3 py-2.5 text-left hover:border-[#b026ff]/40">
               <Avatar m={m} size={38} showDot />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold text-[#2f3035]">{m.name}<Badge role={m.role} /></span>
-                <span className="block text-xs text-[#80848e]">
+                <span className="block truncate text-sm font-bold text-[#f2eefc]">{m.name}<Badge role={m.role} /></span>
+                <span className="block text-xs text-[#9a94bd]">
                   {m.mutedUntil !== undefined ? "🔇 muted" : m.online ? "Online" : "Offline"}
                   {m.warns.length > 0 && ` · ⚠️ ${m.warns.length}`}
                 </span>
               </span>
-              <span className="text-xs font-semibold text-[#5865f2]">Manage →</span>
+              <span className="text-xs font-semibold text-[#d08cff]">Manage →</span>
             </button>
           ))}
         </div>
       </div>
-      <p className="pb-4 text-center text-xs text-[#80848e]">Sab numbers 100% real hain — Supabase se 🌱</p>
+      <p className="pb-4 text-center text-xs text-[#9a94bd]">Sab numbers 100% real hain — Supabase se 🌱</p>
     </div>
   );
 }
@@ -175,16 +175,16 @@ function BroadcastTab() {
 
   return (
     <div className="space-y-5">
-      <div className="card bg-gradient-to-r from-[#5865f2]/[0.06] to-[#9b7bff]/[0.06] p-4">
-        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#5865f2]"><Megaphone size={16} /> Elaan bhejo (foran)</p>
+      <div className="card bg-gradient-to-r from-[#b026ff]/[0.06] to-[#7b2ff7]/[0.06] p-4">
+        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#d08cff]"><Megaphone size={16} /> Elaan bhejo (foran)</p>
         <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Sab ko kya batana hai…" className="field w-full resize-none px-3.5 py-3 text-[15px]" />
-        <p className="mb-1.5 mt-2 text-xs font-bold text-[#5c5e66]">Kahan bhejna hai:</p>
+        <p className="mb-1.5 mt-2 text-xs font-bold text-[#b8b3d9]">Kahan bhejna hai:</p>
         <div className="mb-2 flex flex-wrap gap-1.5">
           {chats.map((c) => (
             <button
               key={c.id}
               onClick={() => toggle(c.id, sel, setSel)}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${sel.includes(c.id) ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${sel.includes(c.id) ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}
             >
               {c.type === "group" ? "👥" : "💬"} {c.name}
             </button>
@@ -207,7 +207,7 @@ function BroadcastTab() {
             <button
               key={c.id}
               onClick={() => toggle(c.id, schedChats, setSchedChats)}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${schedChats.includes(c.id) ? "bg-[#9b7bff] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${schedChats.includes(c.id) ? "bg-[#9b7bff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}
             >
               {c.type === "group" ? "👥" : "💬"} {c.name}
             </button>
@@ -215,20 +215,20 @@ function BroadcastTab() {
         </div>
         {scheduled.length > 0 && (
           <div className="mt-3 space-y-1.5">
-            <p className="text-xs font-bold text-[#5c5e66]">Scheduled ({scheduled.length}):</p>
+            <p className="text-xs font-bold text-[#b8b3d9]">Scheduled ({scheduled.length}):</p>
             {scheduled.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 rounded-xl bg-black/[0.04] px-3 py-2">
+              <div key={s.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2">
                 <Clock size={14} className="shrink-0 text-[#9b7bff]" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-[#2f3035]">{s.text}</span>
-                  <span className="block text-[11px] text-[#80848e]">{new Date(s.at).toLocaleString()} · {s.chatIds.length} chats</span>
+                  <span className="block truncate text-sm font-bold text-[#f2eefc]">{s.text}</span>
+                  <span className="block text-[11px] text-[#9a94bd]">{new Date(s.at).toLocaleString()} · {s.chatIds.length} chats</span>
                 </span>
                 <button onClick={() => { cancelScheduled(s.id); toast("Cancel ho gaya", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-[11px] text-[#80848e]">App khuli ho to us waqt auto-post hoga ⏰</p>
+        <p className="mt-2 text-[11px] text-[#9a94bd]">App khuli ho to us waqt auto-post hoga ⏰</p>
       </div>
     </div>
   );
@@ -254,24 +254,24 @@ function PinsTab() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
-        <button onClick={() => setFilter("all")} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === "all" ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}>
+        <button onClick={() => setFilter("all")} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === "all" ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}>
           Sab ({entries.length})
         </button>
         {Object.keys(pins).map((cid) => (
-          <button key={cid} onClick={() => setFilter(cid)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === cid ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}>
+          <button key={cid} onClick={() => setFilter(cid)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === cid ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}>
             {chatName(cid)} ({pins[cid].length})
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#80848e]">Koi pinned message nahi 📌</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#9a94bd]">Koi pinned message nahi 📌</p>}
       {shown.map((e) => (
         <div key={e.id} className="card flex items-center gap-3 bg-white/80 px-3 py-2.5">
-          <Pin size={16} className="shrink-0 text-[#5865f2]" />
+          <Pin size={16} className="shrink-0 text-[#d08cff]" />
           <button onClick={() => jump(e.chatId, e.id)} className="min-w-0 flex-1 text-left">
-            <span className="block truncate text-sm font-bold text-[#2f3035]">{e.msg?.text?.slice(0, 80) || "(media)"}</span>
-            <span className="block text-[11px] text-[#80848e]">{chatName(e.chatId)}</span>
+            <span className="block truncate text-sm font-bold text-[#f2eefc]">{e.msg?.text?.slice(0, 80) || "(media)"}</span>
+            <span className="block text-[11px] text-[#9a94bd]">{chatName(e.chatId)}</span>
           </button>
-          <button onClick={() => jump(e.chatId, e.id)} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#5865f2] hover:bg-[#5865f2]/10">Jump →</button>
+          <button onClick={() => jump(e.chatId, e.id)} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#d08cff] hover:bg-[#b026ff]/15">Jump →</button>
           <button onClick={() => { togglePin(e.chatId, e.id); toast("Unpin ho gaya", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
         </div>
       ))}
@@ -301,16 +301,16 @@ function SlowModeTab() {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[#5c5e66]">Har member kitne waqfe se 1 message bhej sake. Owner/Admin/Mod par lagoo nahi hota. 🐢</p>
+      <p className="text-sm text-[#b8b3d9]">Har member kitne waqfe se 1 message bhej sake. Owner/Admin/Mod par lagoo nahi hota. 🐢</p>
       {chats.map((c) => (
         <div key={c.id} className="card bg-white/80 p-4">
-          <p className="mb-2 text-sm font-extrabold text-[#2f3035]">👥 {c.name}</p>
+          <p className="mb-2 text-sm font-extrabold text-[#f2eefc]">👥 {c.name}</p>
           <div className="flex flex-wrap gap-1.5">
             {SLOW_OPTS.map((sec) => (
               <button
                 key={sec}
                 onClick={() => set(c.id, sec)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${(vals[c.id] || 0) === sec ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${(vals[c.id] || 0) === sec ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}
               >
                 {sec === 0 ? "Off" : sec < 60 ? `${sec}s` : `${sec / 60}min`}
               </button>
@@ -331,9 +331,9 @@ function RolesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="card bg-[#5865f2]/[0.05] p-3">
+      <div className="card bg-[#b026ff]/[0.05] p-3">
         {ROLES.map((r) => (
-          <p key={r.id} className="py-0.5 text-xs text-[#5c5e66]"><b className="text-[#2f3035]">{r.label}</b> — {r.desc}</p>
+          <p key={r.id} className="py-0.5 text-xs text-[#b8b3d9]"><b className="text-[#f2eefc]">{r.label}</b> — {r.desc}</p>
         ))}
       </div>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Member dhoondo…" className="field w-full px-3 py-2 text-sm" />
@@ -341,7 +341,7 @@ function RolesTab() {
         {list.map((m) => (
           <div key={m.id} className="card flex items-center gap-3 bg-white/70 px-3 py-2.5">
             <Avatar m={m} size={36} />
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#2f3035]">{m.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f2eefc]">{m.name}</span>
             <select
               value={m.role}
               onChange={(e) => changeRole(m.id, e.target.value as Role)}
@@ -384,7 +384,7 @@ function AutoModTab() {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
         {chats.map((c) => (
-          <button key={c.id} onClick={() => setChatId(c.id)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${chatId === c.id ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}>
+          <button key={c.id} onClick={() => setChatId(c.id)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${chatId === c.id ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}>
             👥 {c.name}
           </button>
         ))}
@@ -392,21 +392,21 @@ function AutoModTab() {
       {loaded && chatId && (
         <div className="card space-y-3 bg-white/80 p-4">
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#5c5e66]">Banned lafz (comma se alag karo):</p>
+            <p className="mb-1.5 text-xs font-bold text-[#b8b3d9]">Banned lafz (comma se alag karo):</p>
             <textarea rows={3} value={words} onChange={(e) => setWords(e.target.value)} placeholder="lafz1, lafz2, lafz3…" className="field w-full resize-none px-3 py-2.5 text-sm" />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#5c5e66]">Koi banned lafz bheje to:</p>
+            <p className="mb-1.5 text-xs font-bold text-[#b8b3d9]">Koi banned lafz bheje to:</p>
             <div className="flex gap-1.5">
               {(["warn", "delete", "both"] as const).map((a) => (
-                <button key={a} onClick={() => setAction(a)} className={`rounded-full px-4 py-1.5 text-xs font-bold ${action === a ? "bg-[#ed4245] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}>
+                <button key={a} onClick={() => setAction(a)} className={`rounded-full px-4 py-1.5 text-xs font-bold ${action === a ? "bg-[#ed4245] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}>
                   {a === "warn" ? "⚠️ Warn karo" : a === "delete" ? "🗑️ Delete karo" : "⚠️🗑️ Dono"}
                 </button>
               ))}
             </div>
           </div>
           <button onClick={save} className="btn btn-blurple px-5 py-2.5 text-sm">Save karo</button>
-          <p className="text-[11px] text-[#80848e]">Staff (owner/admin/mod) par auto-mod lagoo nahi hota.</p>
+          <p className="text-[11px] text-[#9a94bd]">Staff (owner/admin/mod) par auto-mod lagoo nahi hota.</p>
         </div>
       )}
     </div>
@@ -433,12 +433,12 @@ function AuditTab() {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
         {actions.map((a) => (
-          <button key={a} onClick={() => setFilter(a)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === a ? "bg-[#5865f2] text-white" : "bg-black/[0.06] text-[#5c5e66]"}`}>
+          <button key={a} onClick={() => setFilter(a)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === a ? "bg-[#b026ff] text-white" : "bg-black/[0.06] text-[#b8b3d9]"}`}>
             {a === "all" ? `Sab (${log.length})` : `${ACTION_META[a]?.icon || "•"} ${a}`}
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#80848e]">Koi action abhi tak nahi 📋</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#9a94bd]">Koi action abhi tak nahi 📋</p>}
       <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1">
         {shown.map((e) => {
           const meta = ACTION_META[e.action] || { icon: "•", color: "#80848e" };
@@ -446,11 +446,11 @@ function AuditTab() {
             <div key={e.id} className="card flex items-start gap-2.5 bg-white/70 px-3 py-2.5">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm" style={{ background: meta.color + "1f" }}>{meta.icon}</span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm text-[#2f3035]">
+                <span className="block text-sm text-[#f2eefc]">
                   <b>{e.byName}</b> ne <b style={{ color: meta.color }}>{e.action}</b>
                   {e.targetName && <> → <b>{e.targetName}</b></>}
                 </span>
-                {e.reason && <span className="block truncate text-xs text-[#80848e]">{e.reason}</span>}
+                {e.reason && <span className="block truncate text-xs text-[#9a94bd]">{e.reason}</span>}
                 <span className="block text-[10px] text-[#a0a3ab]">{new Date(e.at).toLocaleString()}</span>
               </span>
             </div>
@@ -468,12 +468,12 @@ function WhatsNewTab() {
       {CHANGELOG.map((c) => (
         <div key={c.v} className="card bg-white/80 p-4">
           <p className="flex items-center justify-between">
-            <span className="text-sm font-extrabold text-[#5865f2]">{c.v}</span>
-            <span className="text-[11px] text-[#80848e]">{c.date}</span>
+            <span className="text-sm font-extrabold text-[#d08cff]">{c.v}</span>
+            <span className="text-[11px] text-[#9a94bd]">{c.date}</span>
           </p>
           <ul className="mt-1.5 space-y-1">
             {c.items.map((it, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-[#2f3035]">
+              <li key={i} className="flex items-start gap-2 text-sm text-[#f2eefc]">
                 <Sparkles size={13} className="mt-0.5 shrink-0 text-[#d4af37]" />{it}
               </li>
             ))}
@@ -490,17 +490,17 @@ export default function OwnerPanel() {
 
   return (
     <div className="glass thin-scroll min-w-0 flex-1 overflow-y-auto rounded-2xl">
-      <div className="sticky top-0 z-10 border-b border-black/10 bg-white/70 backdrop-blur">
+      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#241a4d]/70 backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-4">
-          <button onClick={() => patchUI({ tab: "chat" })} className="rounded-md p-2 text-[#5c5e66] hover:bg-black/5"><ArrowLeft size={20} /></button>
-          <h1 className="text-[16px] font-extrabold tracking-tight text-[#2f3035]">Owner dashboard 👑</h1>
+          <button onClick={() => patchUI({ tab: "chat" })} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]"><ArrowLeft size={20} /></button>
+          <h1 className="text-[16px] font-extrabold tracking-tight text-[#f2eefc]">Owner dashboard 👑</h1>
         </div>
         <div className="thin-scroll flex gap-1 overflow-x-auto px-3 pb-2">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition ${tab === t.id ? "bg-[#5865f2] text-white" : "bg-black/[0.05] text-[#5c5e66] hover:bg-black/[0.08]"}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition ${tab === t.id ? "bg-[#b026ff] text-white" : "bg-white/[0.05] text-[#b8b3d9] hover:bg-black/[0.08]"}`}
             >
               {t.icon}{t.label}
             </button>
@@ -518,8 +518,8 @@ export default function OwnerPanel() {
         {tab === "audit" && <AuditTab />}
         {tab === "new" && <WhatsNewTab />}
         {tab === "broadcast" && (
-          <div className="card bg-gradient-to-r from-[#5865f2]/[0.06] to-[#9b7bff]/[0.06] p-4">
-            <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#5865f2]"><Megaphone size={16} /> Quick elaan (main group)</p>
+          <div className="card bg-gradient-to-r from-[#b026ff]/[0.06] to-[#7b2ff7]/[0.06] p-4">
+            <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#d08cff]"><Megaphone size={16} /> Quick elaan (main group)</p>
             <QuickElaan />
           </div>
         )}

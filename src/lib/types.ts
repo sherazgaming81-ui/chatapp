@@ -84,7 +84,7 @@ export interface ChatMeta {
 }
 
 export interface UIState {
-  tab: "chat" | "owner";
+  tab: "chat" | "owner" | "hq"; // hq = Business HQ (sirf owner ko dikhta hai)
   activeChatId: string | null;
   toasts: { id: string; title: string; body: string }[];
   typing: { id: string; chatId: string }[]; // AUDIT FIX: per-chat typing (pehle kisi bhi chat ki typing sab jagah dikhti thi)
