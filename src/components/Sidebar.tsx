@@ -30,12 +30,12 @@ export default function Sidebar() {
   return (
     <aside className="panel flex w-60 shrink-0 flex-col rounded-2xl">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4">
-        <h2 className="truncate text-[15px] font-extrabold tracking-tight text-[#f2eefc]">{group?.name || "ChatsApp"}</h2>
+        <h2 className="truncate text-[15px] font-extrabold tracking-tight text-[#f4f6f8]">{group?.name || "ChatsApp"}</h2>
         <div className="flex shrink-0 items-center">
-          <button onClick={() => patchUI({ starredOpen: true })} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06] hover:text-[#f5a623]" title="Starred messages">
+          <button onClick={() => patchUI({ starredOpen: true })} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f5a623]" title="Starred messages">
             <Star size={17} />
           </button>
-          <ChevronDown size={18} className="text-[#9a94bd]" />
+          <ChevronDown size={18} className="text-[#8b93a1]" />
         </div>
       </div>
 
@@ -43,10 +43,10 @@ export default function Sidebar() {
         {groups.length > 0 && (
           <>
             <div className="flex items-center justify-between px-2 pb-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Groups</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Groups</p>
               <button
                 onClick={() => patchUI({ createGroupOpen: true })}
-                className="rounded-md p-1 text-[#9a94bd] hover:bg-white/[0.06] hover:text-[#d08cff]"
+                className="rounded-md p-1 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#8dbcff]"
                 title="Naya group banao"
                 aria-label="Naya group banao"
               >
@@ -58,7 +58,7 @@ export default function Sidebar() {
                 key={g.id}
                 onClick={() => pick(g.id)}
                 className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium ${
-                  activeChatId === g.id ? "bg-[#b026ff] text-white soft-shadow" : "text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]"
+                  activeChatId === g.id ? "bg-[#4f8cff] text-white soft-shadow" : "text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]"
                 }`}
               >
                 <Hash size={18} className="shrink-0 opacity-70" />
@@ -68,7 +68,7 @@ export default function Sidebar() {
                 <UnreadBadge count={unread[g.id] || 0} />
               </button>
             ))}
-            <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#9a94bd]/50" title="Jald aa raha hai">
+            <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#8b93a1]/50" title="Jald aa raha hai">
               <Volume2 size={18} className="shrink-0 opacity-70" />
               <span className="truncate">elaan-voice</span>
             </button>
@@ -76,7 +76,7 @@ export default function Sidebar() {
         )}
         {dms.length > 0 && (
           <>
-            <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Direct messages</p>
+            <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Direct messages</p>
             {dms.map((dm) => {
               const other = members.find((m) => m.id === dm.otherId);
               const lm = lastMsg(dm.id);
@@ -85,7 +85,7 @@ export default function Sidebar() {
                 <button
                   key={dm.id}
                   onClick={() => pick(dm.id)}
-                  className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${active ? "bg-[#b026ff] soft-shadow" : "hover:bg-white/[0.06]"}`}
+                  className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${active ? "bg-[#4f8cff] soft-shadow" : "hover:bg-white/[0.06]"}`}
                 >
                   <span className="shrink-0 rounded-full p-[2.5px]">
                     <Avatar
@@ -96,8 +96,8 @@ export default function Sidebar() {
                     />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#f2eefc]"}`}>{other?.name || dm.name}</span>
-                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#9a94bd]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
+                    <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#f4f6f8]"}`}>{other?.name || dm.name}</span>
+                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#8b93a1]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
                   </span>
                   {isChatPinned(dm.id) && <Pin size={13} className="shrink-0 opacity-60" />}
                   {isChatMuted(dm.id) && <VolumeX size={13} className="shrink-0 opacity-60" />}
@@ -114,12 +114,12 @@ export default function Sidebar() {
           <button onClick={() => setMenu((v) => !v)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 text-left hover:bg-white/[0.06]">
             {me && <Avatar m={me} size={36} showDot role={me.role} />}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold text-[#f2eefc]">{me?.name || "…"}{me && <Badge role={me.role} />}</span>
-              <span className="block truncate text-xs text-[#9a94bd]">{me?.online ? "Online" : "Offline"}</span>
+              <span className="block truncate text-sm font-bold text-[#f4f6f8]">{me?.name || "…"}{me && <Badge role={me.role} />}</span>
+              <span className="block truncate text-xs text-[#8b93a1]">{me?.online ? "Online" : "Offline"}</span>
             </span>
           </button>
-          <button className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]" title="Mic"><Mic size={18} /></button>
-          <button onClick={() => setSettingsOpen(true)} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] hover:text-[#f2eefc]" title="Settings"><Settings size={18} /></button>
+          <button className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]" title="Mic"><Mic size={18} /></button>
+          <button onClick={() => setSettingsOpen(true)} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]" title="Settings"><Settings size={18} /></button>
         </div>
         {settingsOpen && <ProfileSettings onClose={() => setSettingsOpen(false)} />}
         {menu && (
@@ -127,7 +127,7 @@ export default function Sidebar() {
             <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
             <div className="pop-in glass-strong absolute bottom-full left-2 z-50 mb-2 w-52 overflow-hidden rounded-xl p-1.5">
               {me && isStaff(me) && (
-                <button onClick={() => { setMenu(false); patchUI({ tab: "owner" }); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#f2eefc] hover:bg-[#b026ff] hover:text-white">
+                <button onClick={() => { setMenu(false); patchUI({ tab: "owner" }); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#f4f6f8] hover:bg-[#4f8cff] hover:text-white">
                   <Settings size={16} /> Owner dashboard
                 </button>
               )}

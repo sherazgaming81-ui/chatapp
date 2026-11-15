@@ -75,12 +75,12 @@ export function setCompact(v: boolean) {
 export interface WallpaperDef { id: string; name: string; css: string; dark?: boolean }
 export const WALLPAPERS: WallpaperDef[] = [
   { id: "default", name: "Default", css: "transparent" },
-  { id: "blurple", name: "Blurple Haze", css: "linear-gradient(135deg, #5865f210 0%, #9b7bff14 50%, #5865f20d 100%)" },
+  { id: "blurple", name: "Blurple Haze", css: "linear-gradient(135deg, #4f8cff10 0%, #8dbcff14 50%, #4f8cff0d 100%)" },
   { id: "mint", name: "Mint Fresh", css: "linear-gradient(135deg, #23a55a10 0%, #57f28712 100%)" },
-  { id: "sunset", name: "Sunset", css: "linear-gradient(160deg, #f5a6230f 0%, #ed42450d 55%, #9b7bff0d 100%)" },
-  { id: "ocean", name: "Ocean", css: "linear-gradient(135deg, #00a8fc12 0%, #5865f20e 100%)" },
-  { id: "dots", name: "Dots", css: "radial-gradient(#5865f214 1.5px, transparent 1.5px)", dark: false },
-  { id: "grid", name: "Grid", css: "linear-gradient(#5865f20d 1px, transparent 1px), linear-gradient(90deg, #5865f20d 1px, transparent 1px)", dark: false },
+  { id: "sunset", name: "Sunset", css: "linear-gradient(160deg, #f5a6230f 0%, #ed42450d 55%, #8dbcff0d 100%)" },
+  { id: "ocean", name: "Ocean", css: "linear-gradient(135deg, #00a8fc12 0%, #4f8cff0e 100%)" },
+  { id: "dots", name: "Dots", css: "radial-gradient(#4f8cff14 1.5px, transparent 1.5px)", dark: false },
+  { id: "grid", name: "Grid", css: "linear-gradient(#4f8cff0d 1px, transparent 1px), linear-gradient(90deg, #4f8cff0d 1px, transparent 1px)", dark: false },
   { id: "night", name: "Night Sky", css: "linear-gradient(180deg, #2b2d3112 0%, #1e1f2214 100%)" },
   { id: "doodle", name: "Doodle 🎨", css: "doodle" },
 ];

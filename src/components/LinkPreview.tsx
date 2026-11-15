@@ -25,7 +25,7 @@ export function LinkedText({ text, query = "" }: { text: string; query?: string 
     if (m.index > last) parts.push(<span key={k++}>{text.slice(last, m.index)}</span>);
     const raw = m[1].replace(/[.,;:!?)\]]+$/, "");
     parts.push(
-      <a key={k++} href={raw} target="_blank" rel="noopener noreferrer" className="text-[#d08cff] underline decoration-[#5865f2]/40 underline-offset-2 hover:decoration-[#5865f2]" onClick={(e) => e.stopPropagation()}>
+      <a key={k++} href={raw} target="_blank" rel="noopener noreferrer" className="text-[#8dbcff] underline decoration-[#4f8cff]/40 underline-offset-2 hover:decoration-[#4f8cff]" onClick={(e) => e.stopPropagation()}>
         {raw}
       </a>
     );
@@ -81,20 +81,20 @@ export function LinkPreviewCard({ url, mine = false }: { url: string; mine?: boo
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`mt-2 flex gap-3 overflow-hidden rounded-xl border transition soft-shadow ${mine ? "border-white/20 bg-[#075e54] hover:border-white/40" : "border-white/10 bg-[#241a4d] hover:border-[#b026ff]/50"}`}
+      className={`mt-2 flex gap-3 overflow-hidden rounded-xl border transition soft-shadow ${mine ? "border-white/20 bg-[#075e54] hover:border-white/40" : "border-white/10 bg-[#111114] hover:border-[#4f8cff]/50"}`}
       onClick={(e) => e.stopPropagation()}
     >
       {og.img ? (
         <img src={og.img} alt="" className="h-20 w-24 shrink-0 object-cover" loading="lazy" />
       ) : (
-        <span className={`grid h-20 w-24 shrink-0 place-items-center ${mine ? "bg-white/10 text-white" : "bg-[#b026ff]/15 text-[#d08cff]"}`}>
+        <span className={`grid h-20 w-24 shrink-0 place-items-center ${mine ? "bg-white/10 text-white" : "bg-[#4f8cff]/15 text-[#8dbcff]"}`}>
           <ExternalLink size={20} />
         </span>
       )}
       <span className="min-w-0 flex-1 py-2 pr-3">
-        <span className={`block text-xs font-bold uppercase tracking-wide ${mine ? "text-white/70" : "text-[#9a94bd]"}`}>{og.domain}</span>
-        <span className={`block truncate text-sm font-bold ${mine ? "text-white" : "text-[#f2eefc]"}`}>{og.title}</span>
-        {og.desc && <span className={`block truncate text-xs ${mine ? "text-white/70" : "text-[#b8b3d9]"}`}>{og.desc}</span>}
+        <span className={`block text-xs font-bold uppercase tracking-wide ${mine ? "text-white/70" : "text-[#8b93a1]"}`}>{og.domain}</span>
+        <span className={`block truncate text-sm font-bold ${mine ? "text-white" : "text-[#f4f6f8]"}`}>{og.title}</span>
+        {og.desc && <span className={`block truncate text-xs ${mine ? "text-white/70" : "text-[#b6bcc7]"}`}>{og.desc}</span>}
       </span>
     </a>
   );

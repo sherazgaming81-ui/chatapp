@@ -55,7 +55,7 @@ const COLORS: [string, string, string][] = [
   ["c-blush", "Blush", "#ffd6e0"],
   ["c-rose", "Gulab", "#ffc2d1"],
   ["c-pink", "Gulabi", "#f9a8d4"],
-  ["c-lavender", "Lavender", "#e9d5ff"],
+  ["c-lavender", "Lavender", "#cfe2ff"],
   ["c-lilac", "Lilac", "#ddd6fe"],
   ["c-sky", "Aasman", "#bae6fd"],
   ["c-ice", "Barf", "#e0f2fe"],

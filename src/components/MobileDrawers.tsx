@@ -23,11 +23,11 @@ function SwipeRow({ children, onMute, muted, onPin, pinned, onDelete, canDelete 
     <div className="relative overflow-hidden rounded-lg">
       {/* actions behind */}
       <div className="absolute inset-y-0 right-0 flex items-stretch" style={{ width: W }}>
-        <button onClick={() => { onMute(); setOpen(false); setDx(0); }} className="flex w-14 flex-col items-center justify-center gap-0.5 bg-[#80848e]/15 text-[#b8b3d9]" title={muted ? "Unmute" : "Mute"}>
+        <button onClick={() => { onMute(); setOpen(false); setDx(0); }} className="flex w-14 flex-col items-center justify-center gap-0.5 bg-[#80848e]/15 text-[#b6bcc7]" title={muted ? "Unmute" : "Mute"}>
           {muted ? <Volume2 size={17} /> : <VolumeX size={17} />}
           <span className="text-[9px] font-bold">{muted ? "Unmute" : "Mute"}</span>
         </button>
-        <button onClick={() => { onPin(); setOpen(false); setDx(0); }} className="flex w-14 flex-col items-center justify-center gap-0.5 bg-[#b026ff]/15 text-[#d08cff]" title={pinned ? "Unpin" : "Pin"}>
+        <button onClick={() => { onPin(); setOpen(false); setDx(0); }} className="flex w-14 flex-col items-center justify-center gap-0.5 bg-[#4f8cff]/15 text-[#8dbcff]" title={pinned ? "Unpin" : "Pin"}>
           {pinned ? <PinOff size={17} /> : <Pin size={17} />}
           <span className="text-[9px] font-bold">{pinned ? "Unpin" : "Pin"}</span>
         </button>
@@ -83,8 +83,8 @@ function Drawer({ side, onClose, children, title }: { side: "left" | "right"; on
       <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} />
       <div className={`glass-strong fixed top-0 z-50 flex h-full w-[300px] flex-col shadow-2xl md:hidden ${side === "left" ? "left-0 rounded-r-2xl" : "right-0 rounded-l-2xl"}`}>
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4">
-          <h2 className="text-[15px] font-extrabold tracking-tight text-[#f2eefc]">{title}</h2>
-          <button onClick={onClose} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]"><X size={18} /></button>
+          <h2 className="text-[15px] font-extrabold tracking-tight text-[#f4f6f8]">{title}</h2>
+          <button onClick={onClose} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
       </div>
@@ -113,7 +113,7 @@ export default function MobileDrawers() {
       <Drawer side="left" onClose={close} title="Chats">
         <button
           onClick={() => { close(); patchUI({ createGroupOpen: true }); }}
-          className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#b026ff]/15 px-3 py-2.5 text-sm font-extrabold text-[#d08cff] transition active:scale-[0.98]"
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#4f8cff]/15 px-3 py-2.5 text-sm font-extrabold text-[#8dbcff] transition active:scale-[0.98]"
         >
           <Plus size={16} strokeWidth={2.5} /> Naya Group
         </button>
@@ -129,19 +129,19 @@ export default function MobileDrawers() {
             canDelete={isOwner}
             onDelete={() => deleteGroup(group.id)}
           >
-          <button onClick={() => pick(group.id)} className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left ${activeChatId === group.id ? "bg-[#b026ff] soft-shadow" : "hover:bg-white/[0.06]"}`}>
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] text-lg font-bold text-white">{(group.name || "G")[0]?.toUpperCase()}</span>
+          <button onClick={() => pick(group.id)} className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left ${activeChatId === group.id ? "bg-[#4f8cff] soft-shadow" : "hover:bg-white/[0.06]"}`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-lg font-bold text-white">{(group.name || "G")[0]?.toUpperCase()}</span>
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-sm font-bold ${activeChatId === group.id ? "text-white" : "text-[#f2eefc]"}`}>{group.name}</span>
-              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#9a94bd]"}`}>group</span>
+              <span className={`block truncate text-sm font-bold ${activeChatId === group.id ? "text-white" : "text-[#f4f6f8]"}`}>{group.name}</span>
+              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#8b93a1]"}`}>group</span>
             </span>
-            {isChatMuted(group.id) && <VolumeX size={14} className="shrink-0 text-[#9a94bd]" />}
+            {isChatMuted(group.id) && <VolumeX size={14} className="shrink-0 text-[#8b93a1]" />}
             <UnreadBadge count={unread[group.id] || 0} />
           </button>
           </SwipeRow>
           );
         })}
-        {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Direct messages</p>}
+        {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Direct messages</p>}
         {dms.map((dm) => {
           const other = members.find((m) => m.id === dm.otherId);
           const lm = lastMsg(dm.id);
@@ -156,13 +156,13 @@ export default function MobileDrawers() {
               canDelete
               onDelete={() => deleteDM(dm.id)}
             >
-            <button onClick={() => pick(dm.id)} className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left ${active ? "bg-[#b026ff] soft-shadow" : "hover:bg-white/[0.06]"}`}>
+            <button onClick={() => pick(dm.id)} className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left ${active ? "bg-[#4f8cff] soft-shadow" : "hover:bg-white/[0.06]"}`}>
               <Avatar m={{ id: other?.id || dm.id, name: other?.name || dm.name, avatar: other?.avatar || dm.photo, online: !!other?.online }} size={36} showDot />
               <span className="min-w-0 flex-1">
-                <span className={`block truncate text-sm font-bold ${active ? "text-white" : "text-[#f2eefc]"}`}>{other?.name || dm.name}</span>
-                {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#9a94bd]"}`}>{lm.text?.slice(0, 30) || "media"} · {fmtTime(lm.at)}</span>}
+                <span className={`block truncate text-sm font-bold ${active ? "text-white" : "text-[#f4f6f8]"}`}>{other?.name || dm.name}</span>
+                {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#8b93a1]"}`}>{lm.text?.slice(0, 30) || "media"} · {fmtTime(lm.at)}</span>}
               </span>
-              {isChatMuted(dm.id) && <VolumeX size={14} className="shrink-0 text-[#9a94bd]" />}
+              {isChatMuted(dm.id) && <VolumeX size={14} className="shrink-0 text-[#8b93a1]" />}
               <UnreadBadge count={unread[dm.id] || 0} />
             </button>
             </SwipeRow>
@@ -179,16 +179,16 @@ export default function MobileDrawers() {
     <button key={m.id} onClick={() => patchUI({ profileId: m.id, mobileDrawer: "none" })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/[0.06]">
       <Avatar m={m} size={36} showDot />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-[#f2eefc]">{m.id === meId ? "Aap" : m.name}<Badge role={m.role} /></span>
-        <span className="block text-xs text-[#9a94bd]">{m.online ? "Online" : "Offline"}</span>
+        <span className="block truncate text-sm font-semibold text-[#f4f6f8]">{m.id === meId ? "Aap" : m.name}<Badge role={m.role} /></span>
+        <span className="block text-xs text-[#8b93a1]">{m.online ? "Online" : "Offline"}</span>
       </span>
     </button>
   );
   return (
     <Drawer side="right" onClose={close} title={`Members · ${visible.length}`}>
-      <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Online — {online.length}</p>
+      <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Online — {online.length}</p>
       {online.map((m) => <Row key={m.id} m={m} />)}
-      <p className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Offline — {offline.length}</p>
+      <p className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Offline — {offline.length}</p>
       {offline.map((m) => <Row key={m.id} m={m} />)}
     </Drawer>
   );

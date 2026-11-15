@@ -17,7 +17,7 @@ function Hi({ text, q }: { text: string; q: string }) {
   return (
     <>
       {(s > 0 ? "…" : "") + t.slice(s, i)}
-      <mark className="rounded bg-[#b026ff]/25 px-0.5 font-bold text-inherit">{t.slice(i, i + needle.length)}</mark>
+      <mark className="rounded bg-[#4f8cff]/25 px-0.5 font-bold text-inherit">{t.slice(i, i + needle.length)}</mark>
       {t.slice(i + needle.length, e) + (e < t.length ? "…" : "")}
     </>
   );
@@ -72,15 +72,15 @@ export default function GlobalSearch() {
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" onClick={close} />
       <div className="pop-in fixed left-1/2 top-[8%] z-50 w-[560px] max-w-[94vw] -translate-x-1/2 overflow-hidden rounded-2xl bg-white soft-shadow">
         <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-          <Search size={18} className="shrink-0 text-[#d08cff]" />
+          <Search size={18} className="shrink-0 text-[#8dbcff]" />
           <input
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Messages aur members talash karo…"
-            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#f2eefc] outline-none placeholder:text-[#a0a3ab]"
+            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#f4f6f8] outline-none placeholder:text-[#a0a3ab]"
           />
-          <button onClick={close} className="rounded-lg p-1.5 text-[#9a94bd] hover:bg-white/[0.06]" aria-label="Band karo">
+          <button onClick={close} className="rounded-lg p-1.5 text-[#8b93a1] hover:bg-white/[0.06]" aria-label="Band karo">
             <X size={18} />
           </button>
         </div>
@@ -92,7 +92,7 @@ export default function GlobalSearch() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 rounded-t-xl px-3.5 py-2 text-[13px] font-extrabold transition ${tab === t.id ? "bg-[#b026ff]/[0.08] text-[#d08cff]" : "text-[#9a94bd] hover:bg-white/[0.05]"}`}
+              className={`flex items-center gap-1.5 rounded-t-xl px-3.5 py-2 text-[13px] font-extrabold transition ${tab === t.id ? "bg-[#4f8cff]/[0.08] text-[#8dbcff]" : "text-[#8b93a1] hover:bg-white/[0.05]"}`}
             >
               <t.icon size={15} /> {t.label}
               {q.trim().length >= 2 && <span className="rounded-full bg-black/[0.07] px-1.5 text-[11px] tabular-nums">{t.n}</span>}
@@ -121,10 +121,10 @@ export default function GlobalSearch() {
                         <span className="truncate text-[13px] font-extrabold" style={{ color: s ? nameColor(s) : "#2f3035" }}>
                           {s?.name || "Member"}
                         </span>
-                        <span className="shrink-0 text-[11px] font-bold text-[#9a94bd]">{chatName(m.chatId)}</span>
+                        <span className="shrink-0 text-[11px] font-bold text-[#8b93a1]">{chatName(m.chatId)}</span>
                         <span className="ml-auto shrink-0 text-[11px] text-[#a0a3ab]">{fmtFull(m.at)}</span>
                       </span>
-                      <span className="mt-0.5 block text-[13px] leading-snug text-[#b8b3d9]">
+                      <span className="mt-0.5 block text-[13px] leading-snug text-[#b6bcc7]">
                         <Hi text={m.text || m.caption || (m.type === "image" ? "📷 Photo" : m.type === "voice" ? "🎤 Voice" : m.type)} q={q} />
                       </span>
                     </span>
@@ -144,7 +144,7 @@ export default function GlobalSearch() {
                 <Avatar m={m} size={38} showDot />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
-                  <span className="block truncate text-xs text-[#9a94bd]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
+                  <span className="block truncate text-xs text-[#8b93a1]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
                 </span>
               </button>
             ))

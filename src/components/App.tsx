@@ -5,19 +5,14 @@ import { getSession, onAuthChange, load, startRealtime, touchPresence } from "@/
 import VersionBanner from "@/components/VersionBanner";
 import { useStore, patchUI, toast, update, getState } from "@/lib/store";
 import { isStaff } from "@/lib/types";
-import { trackActiveDay } from "@/lib/achievements";
 import Login from "@/components/Login";
 import Loader from "@/components/Loader";
-import WelcomeSplash from "@/components/WelcomeSplash";
-import ProfileWizard from "@/components/ProfileWizard";
-import SetupChecklist, { isChecklistDone } from "@/components/SetupChecklist";
-import AchievementToasts from "@/components/AchievementToasts";
+import ProfileSetup from "@/components/ProfileSetup";
 import ServerRail from "@/components/ServerRail";
 import Sidebar from "@/components/Sidebar";
 import ChatView from "@/components/ChatView";
 import MemberList from "@/components/MemberList";
 import ProfileModal from "@/components/ProfileModal";
-import ProfileStudio from "@/components/ProfileStudio";
 import OwnerPanel from "@/components/OwnerPanel";
 import HqPage from "@/components/HqPage";
 import StarredView from "@/components/StarredView";
@@ -58,18 +53,9 @@ export default function App() {
     } catch { /* ignore */ }
   }, [totalUnread]);
 
-  // Phase 6 — onboarding state
-  const [welcomeSeen, setWelcomeSeen] = useState(() => {
-    try { return localStorage.getItem("chatsapp:welcome:seen") === "1"; } catch { return true; }
-  });
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [checklistOpen, setChecklistOpen] = useState(false);
+  // First-login minimal setup (naam + photo) — naye user ke liye
+  const [setupOpen, setSetupOpen] = useState(false);
   const onboardChecked = useRef(false);
-
-  const dismissWelcome = () => {
-    try { localStorage.setItem("chatsapp:welcome:seen", "1"); } catch { /* ignore */ }
-    setWelcomeSeen(true);
-  };
 
   /* 20 — offline indicator */
   const [isOnline, setIsOnline] = useState(true);
@@ -178,10 +164,9 @@ export default function App() {
         started.current = false;
         rt?.stop();
         rt = null;
-        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], hiddenForMe: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false, studioOpen: false, selectedMsgs: [] } });
+        update({ session: false, loading: false, me: "", members: [], messages: [], chats: [], starred: [], hiddenForMe: [], groupRules: {}, groupDescs: {}, unread: {}, ui: { ...getState().ui, activeChatId: null, profileId: null, viewer: null, starredOpen: false, groupInfo: null, globalSearchOpen: false, jumpToMsg: null, settingsOpen: false, createGroupOpen: false, selectedMsgs: [] } });
         onboardChecked.current = false;
-        setWizardOpen(false);
-        setChecklistOpen(false);
+        setSetupOpen(false);
       }
       // initial null (login page) → do nothing, just show Login
     });
@@ -196,39 +181,28 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ───────── Phase 6 — onboarding flow ───────── */
+  /* ───────── First-login minimal setup ───────── */
   useEffect(() => {
     if (!session || loading || onboardChecked.current) return;
     onboardChecked.current = true;
-    trackActiveDay(); // F6 sathi badge
     try {
-      const wizDone = localStorage.getItem(`chatsapp:wizard:done:${meId}`) === "1";
+      const done = localStorage.getItem(`chatsapp:wizard:done:${meId}`) === "1";
       const isNew = localStorage.getItem(`chatsapp:newuser:${meId}`) === "1";
-      if (isNew && !wizDone) {
-        setWizardOpen(true);
-        return;
-      }
-      if (!isChecklistDone()) setChecklistOpen(true);
+      if (isNew && !done) setSetupOpen(true);
     } catch { /* ignore */ }
   }, [session, loading, meId]);
 
-  const finishWizard = () => {
+  const finishSetup = () => {
     try {
       localStorage.setItem(`chatsapp:wizard:done:${meId}`, "1");
       localStorage.removeItem(`chatsapp:newuser:${meId}`);
     } catch { /* ignore */ }
-    setWizardOpen(false);
-    if (!isChecklistDone()) setChecklistOpen(true);
+    setSetupOpen(false);
   };
 
   // TASK 4: white-screen gap fix — main UI hamesha render ho (Loader overlay ke neeche),
   // taake loader hatne par foran website dikhe, koi white flash nahi
-  if (!session && !loading) return (
-    <>
-      {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
-      <Login />
-    </>
-  );
+  if (!session && !loading) return <Login />;
 
   const owner = isStaff(me);
   const showOwner = tab === "owner" && owner;
@@ -269,7 +243,7 @@ export default function App() {
         <nav className={`mobile-nav grid shrink-0 ${isOwnerUser ? "grid-cols-3" : "grid-cols-2"}`} aria-label="Navigation">
           <button
             onClick={() => patchUI({ tab: "chat" })}
-            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#d08cff]" : "text-[#9a94bd]"}`}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#8dbcff]" : "text-[#8b93a1]"}`}
           >
             <MessageCircle size={21} />
             Chats
@@ -277,7 +251,7 @@ export default function App() {
           {isOwnerUser && (
             <button
               onClick={() => patchUI({ tab: "hq" })}
-              className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showHq ? "text-[#d08cff]" : "text-[#9a94bd]"}`}
+              className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showHq ? "text-[#8dbcff]" : "text-[#8b93a1]"}`}
             >
               <Briefcase size={21} />
               HQ
@@ -285,7 +259,7 @@ export default function App() {
           )}
           <button
             onClick={() => patchUI({ settingsOpen: true })}
-            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#9a94bd] transition active:text-[#d08cff]"
+            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#8b93a1] transition active:text-[#8dbcff]"
           >
             <User size={21} />
             Profile
@@ -293,7 +267,6 @@ export default function App() {
         </nav>
       </div>
       <ProfileModal />
-      <ProfileStudio />
       <MediaViewer />
       <GroupInfo />
       <GlobalSearch />
@@ -301,17 +274,12 @@ export default function App() {
       <Toasts />
       {/* ★ E6 — App Lock */}
       <AppLock />
-      {/* ★ Phase 6 — onboarding */}
-      <AchievementToasts />
-      {!welcomeSeen && <WelcomeSplash onDone={dismissWelcome} />}
-      {wizardOpen && <ProfileWizard onDone={finishWizard} />}
-      {checklistOpen && !wizardOpen && (
-        <SetupChecklist onDone={() => setChecklistOpen(false)} onOpenProfile={() => patchUI({ settingsOpen: true })} />
-      )}
+      {/* First-login minimal setup (naam + photo) */}
+      {setupOpen && <ProfileSetup onDone={finishSetup} />}
       </div>
     </div>
     ) : (
-      <div className="flex h-full w-full bg-[#19103b]" />
+      <div className="flex h-full w-full bg-[#050505]" />
     )}
     {/* TASK 4: Loader overlay — main UI pehle se rendered, hatne par foran dikhe */}
     {loading && <Loader />}

@@ -16,18 +16,18 @@ export default function Login() {
     <div className="flex h-full w-full items-center justify-center px-6">
       <div className="pop-in glass-strong w-full max-w-md rounded-3xl p-8 text-center sm:p-10">
         <div
-          className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] soft-shadow"
+          className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] soft-shadow"
           style={{ animation: "floaty 4s ease-in-out infinite" }}
         >
           <span className="text-4xl font-bold text-white">م</span>
         </div>
-        <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.14em] text-[#d08cff]">Madrasa doston ke liye</p>
-        <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight text-[#f2eefc] sm:text-5xl">
+        <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.14em] text-[#8dbcff]">Madrasa doston ke liye</p>
+        <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight text-[#f4f6f8] sm:text-5xl">
           Baatein,
           <br />
-          <span className="bg-gradient-to-r from-[#b026ff] to-[#7b2ff7] bg-clip-text text-transparent">ab aur qareeb</span>
+          <span className="bg-gradient-to-r from-[#4f8cff] to-[#3b76d6] bg-clip-text text-transparent">ab aur qareeb</span>
         </h1>
-        <p className="mx-auto mt-4 max-w-xs text-[15px] leading-relaxed text-[#b8b3d9]">
+        <p className="mx-auto mt-4 max-w-xs text-[15px] leading-relaxed text-[#b6bcc7]">
           Apne madrasa group se juro — elaan, baatein aur dost, sab ek jagah.
         </p>
         <button
@@ -43,7 +43,7 @@ export default function Login() {
           </svg>
           {busy ? "Khul raha hai…" : "Google se login"}
         </button>
-        <p className="mt-5 text-xs text-[#9a94bd]">Sirf Google account se — koi password yaad rakhne ki zaroorat nahi.</p>
+        <p className="mt-5 text-xs text-[#8b93a1]">Sirf Google account se — koi password yaad rakhne ki zaroorat nahi.</p>
       </div>
     </div>
   );

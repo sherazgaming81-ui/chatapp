@@ -32,7 +32,7 @@ export const DEFAULT_PROFILE_STYLE: ProfileStyle = {
   effect: "none",
   frame: "none",
   nameStyle: "plain",
-  accent: "#5865f2",
+  accent: "#4f8cff",
   badges: [],
 };
 
@@ -51,7 +51,7 @@ export interface Member {
   style?: ProfileStyle; // Nitro-style profile customization
 }
 
-export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "quiz" | "tictactoe" | "sticker" | "gif" | "riddle" | "file" | "spin" | "truthdare" | "gumnam" | "super" | "hisaab" | "emojipaheli" | "sachjhoot" | "numguess" | "kainchi" | "pasa" | "tourney" | "brick" | "starfall";
+export type MsgType = "text" | "image" | "voice" | "announcement" | "system" | "poll" | "location" | "contact" | "file";
 
 export interface Message {
   id: string;
@@ -102,7 +102,6 @@ export interface UIState {
   jumpToMsg: string | null; // I15 — message id to scroll to after search jump
   settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
   createGroupOpen: boolean; // CreateGroup modal
-  studioOpen: boolean; // ProfileStudio modal (Nitro-style customization)
   selectedMsgs: string[]; // multi-select mode (WhatsApp jaisa)
 }
 

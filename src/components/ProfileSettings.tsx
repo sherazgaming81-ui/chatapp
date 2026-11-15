@@ -1,16 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  X, Camera, LogOut, Check, Shield, Lock, Palette, Database, Trophy, Sparkles, Play,
+  X, Camera, LogOut, Check, Shield, Lock, Palette, Database,
   User as UserIcon, Eye, EyeOff, Download, KeyRound, Trash2, Upload,
 } from "lucide-react";
 import { getState, useStore, toast, update } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { signOut, savePrivacyServer } from "@/lib/db";
 import { Avatar } from "@/components/ui";
-import Explainer from "@/components/Explainer";
 import type { PrivacyAudience, PrivacySettings } from "@/lib/types";
-import { BADGES, getBadges } from "@/lib/achievements";
 import {
   getPrivacy, setPrivacy, getCompact, setCompact,
   getSound, setSound,
@@ -31,15 +29,13 @@ async function resizePhoto(file: File, max = 512): Promise<string> {
   return cv.toDataURL("image/jpeg", 0.85);
 }
 
-type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup" | "badges" | "tour";
+type Tab = "profile" | "privacy" | "lock" | "appearance" | "backup";
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "profile", label: "Profile", icon: UserIcon },
   { id: "privacy", label: "Privacy", icon: Shield },
   { id: "lock", label: "App Lock", icon: Lock },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "backup", label: "Backup", icon: Database },
-  { id: "badges", label: "Badges", icon: Trophy },
-  { id: "tour", label: "Tour", icon: Play },
 ];
 
 const AUDIENCE_LABELS: Record<PrivacyAudience, string> = {
@@ -87,17 +83,10 @@ function ProfileTab({ onClose }: { onClose: () => void }) {
         </button>
         <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
       </div>
-      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#9a94bd]">Naam</label>
+      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Naam</label>
       <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="Aapka naam" className="field mb-3 w-full px-3 py-2.5 text-[15px]" />
-      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#9a94bd]">About</label>
+      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">About</label>
       <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={2} placeholder="Apne baare me kuch…" className="field mb-4 w-full resize-none px-3 py-2.5 text-[15px]" />
-      {/* ✨ Nitro Profile Studio */}
-      <button
-        onClick={() => { onClose(); update({ ui: { ...getState().ui, studioOpen: true } }); }}
-        className="btn mb-2 flex w-full items-center justify-center gap-2 bg-gradient-to-r from-[#b026ff] to-[#7b2ff7] px-4 py-3 text-[15px] text-white"
-      >
-        <Sparkles size={17} /> Profile Studio — banner, effects, badges
-      </button>
       <button onClick={save} disabled={saving} className="btn btn-blurple flex w-full items-center justify-center gap-2 px-4 py-3 text-[15px] disabled:opacity-60">
         <Check size={17} /> {saving ? "Save ho raha…" : "Save karo"}
       </button>
@@ -113,15 +102,15 @@ function AudienceRow({ label, desc, value, onChange }: { label: string; desc: st
   return (
     <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-[#f2eefc]">{label}</p>
-        <p className="text-xs text-[#9a94bd]">{desc}</p>
+        <p className="text-sm font-bold text-[#f4f6f8]">{label}</p>
+        <p className="text-xs text-[#8b93a1]">{desc}</p>
       </div>
       <div className="flex shrink-0 overflow-hidden rounded-lg border border-white/10">
         {(Object.keys(AUDIENCE_LABELS) as PrivacyAudience[]).map((a) => (
           <button
             key={a}
             onClick={() => onChange(a)}
-            className={`px-2.5 py-1.5 text-xs font-bold transition ${value === a ? "bg-[#b026ff] text-white" : "bg-white text-[#b8b3d9] hover:bg-white/[0.06]"}`}
+            className={`px-2.5 py-1.5 text-xs font-bold transition ${value === a ? "bg-[#4f8cff] text-white" : "bg-white text-[#b6bcc7] hover:bg-white/[0.06]"}`}
           >
             {AUDIENCE_LABELS[a]}
           </button>
@@ -145,12 +134,12 @@ function PrivacyTab() {
 
   return (
     <div className="space-y-2.5">
-      <p className="flex items-center gap-2 text-xs text-[#9a94bd]"><Eye size={14} /> Kaun kya dekh sakta hai — ye control karo {saving && "· saving…"}</p>
+      <p className="flex items-center gap-2 text-xs text-[#8b93a1]"><Eye size={14} /> Kaun kya dekh sakta hai — ye control karo {saving && "· saving…"}</p>
       <AudienceRow label="Last seen" desc="Aap kab online thay" value={pr.lastSeen} onChange={(v) => change("lastSeen", v)} />
       <AudienceRow label="Profile photo" desc="Aapki photo kaun dekhe" value={pr.photo} onChange={(v) => change("photo", v)} />
       <AudienceRow label="About" desc="Aapka about kaun parhe" value={pr.about} onChange={(v) => change("about", v)} />
       <AudienceRow label="Online status" desc="Online dot kaun dekhe" value={pr.online} onChange={(v) => change("online", v)} />
-      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#9a94bd]"><EyeOff size={12} /> "Nobody" par koi nahi dekh payega — aapko bhi unka nahi dikhega jinhon ne nobody kiya</p>
+      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#8b93a1]"><EyeOff size={12} /> "Nobody" par koi nahi dekh payega — aapko bhi unka nahi dikhega jinhon ne nobody kiya</p>
     </div>
   );
 }
@@ -194,9 +183,9 @@ function LockTab() {
   if (!locked && step === "idle") {
     return (
       <div className="py-6 text-center">
-        <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#b026ff]/15"><Lock size={28} className="text-[#d08cff]" /></span>
-        <h4 className="mt-3 text-base font-extrabold text-[#f2eefc]">App Lock</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#9a94bd]">4-digit PIN lagao — app khulne par ya 5 min inactive ke baad PIN mangega</p>
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Lock size={28} className="text-[#8dbcff]" /></span>
+        <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock</h4>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">4-digit PIN lagao — app khulne par ya 5 min inactive ke baad PIN mangega</p>
         <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn btn-blurple mt-4 px-6 py-2.5 text-sm">
           <KeyRound size={15} /> PIN set karo
         </button>
@@ -208,8 +197,8 @@ function LockTab() {
     return (
       <div className="py-6 text-center">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#23a55a]/10"><Shield size={28} className="text-[#23a55a]" /></span>
-        <h4 className="mt-3 text-base font-extrabold text-[#f2eefc]">App Lock ON hai</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#9a94bd]">PIN bhool gaye? Logout karke Google se dobara login karo — PIN reset ho jayega</p>
+        <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock ON hai</h4>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">PIN bhool gaye? Logout karke Google se dobara login karo — PIN reset ho jayega</p>
         <div className="mt-4 flex justify-center gap-2">
           <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn px-4 py-2 text-sm">PIN badlo</button>
           <button onClick={remove} className="btn flex items-center gap-1.5 px-4 py-2 text-sm text-[#ed4245] hover:bg-[#ed4245]/10"><Trash2 size={14} /> Hatao</button>
@@ -220,10 +209,10 @@ function LockTab() {
 
   return (
     <div className="py-2 text-center">
-      <p className="text-sm font-bold text-[#f2eefc]">{step === "set1" ? "Naya 4-digit PIN dalo" : "PIN dobara dalo (confirm)"}</p>
+      <p className="text-sm font-bold text-[#f4f6f8]">{step === "set1" ? "Naya 4-digit PIN dalo" : "PIN dobara dalo (confirm)"}</p>
       <div className="mt-3 flex justify-center gap-2.5">
         {[0, 1, 2, 3].map((i) => (
-          <span key={i} className={`grid h-12 w-12 place-items-center rounded-xl border-2 text-xl font-extrabold ${phase[i] ? "border-[#b026ff] bg-[#b026ff]/5 text-[#f2eefc]" : "border-white/10 bg-white/[0.04] text-transparent"}`}>•</span>
+          <span key={i} className={`grid h-12 w-12 place-items-center rounded-xl border-2 text-xl font-extrabold ${phase[i] ? "border-[#4f8cff] bg-[#4f8cff]/5 text-[#f4f6f8]" : "border-white/10 bg-white/[0.04] text-transparent"}`}>•</span>
         ))}
       </div>
       {err && <p className="mt-2 text-xs font-bold text-[#ed4245]">{err}</p>}
@@ -231,13 +220,13 @@ function LockTab() {
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"].map((k, i) => (
           k === "" ? <span key={i} /> :
           k === "back" ? (
-            <button key={i} onClick={onBack} className="grid h-12 place-items-center rounded-xl bg-white/[0.04] text-sm font-bold text-[#b8b3d9] hover:bg-black/[0.08]">⌫</button>
+            <button key={i} onClick={onBack} className="grid h-12 place-items-center rounded-xl bg-white/[0.04] text-sm font-bold text-[#b6bcc7] hover:bg-black/[0.08]">⌫</button>
           ) : (
-            <button key={i} onClick={() => onDigit(k)} disabled={busy} className="grid h-12 place-items-center rounded-xl bg-white/[0.04] text-lg font-extrabold text-[#f2eefc] transition hover:bg-[#b026ff]/15 active:scale-95 disabled:opacity-50">{k}</button>
+            <button key={i} onClick={() => onDigit(k)} disabled={busy} className="grid h-12 place-items-center rounded-xl bg-white/[0.04] text-lg font-extrabold text-[#f4f6f8] transition hover:bg-[#4f8cff]/15 active:scale-95 disabled:opacity-50">{k}</button>
           )
         ))}
       </div>
-      <button onClick={() => { setStep("idle"); setLocked(hasPin()); }} className="mt-3 text-xs font-bold text-[#9a94bd] hover:text-[#f2eefc]">Cancel</button>
+      <button onClick={() => { setStep("idle"); setLocked(hasPin()); }} className="mt-3 text-xs font-bold text-[#8b93a1] hover:text-[#f4f6f8]">Cancel</button>
     </div>
   );
 }
@@ -270,10 +259,10 @@ function AppearanceTab() {
 
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
-          <p className="text-sm font-bold text-[#f2eefc]">Compact mode</p>
-          <p className="text-xs text-[#9a94bd]">Chhoti bubbles, zyada messages</p>
+          <p className="text-sm font-bold text-[#f4f6f8]">Compact mode</p>
+          <p className="text-xs text-[#8b93a1]">Chhoti bubbles, zyada messages</p>
         </div>
-        <button onClick={toggleCompact} className={`relative h-7 w-12 shrink-0 rounded-full transition ${compact ? "bg-[#b026ff]" : "bg-white/15"}`}>
+        <button onClick={toggleCompact} className={`relative h-7 w-12 shrink-0 rounded-full transition ${compact ? "bg-[#4f8cff]" : "bg-white/15"}`}>
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${compact ? "left-6" : "left-1"}`} />
         </button>
       </div>
@@ -281,10 +270,10 @@ function AppearanceTab() {
       {/* 1 — notification sound 🔊 */}
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
-          <p className="text-sm font-bold text-[#f2eefc]">Notification sound 🔊</p>
-          <p className="text-xs text-[#9a94bd]">Naya message aye to pop sound</p>
+          <p className="text-sm font-bold text-[#f4f6f8]">Notification sound 🔊</p>
+          <p className="text-xs text-[#8b93a1]">Naya message aye to pop sound</p>
         </div>
-        <button onClick={toggleSound} className={`relative h-7 w-12 shrink-0 rounded-full transition ${sound ? "bg-[#b026ff]" : "bg-white/15"}`} aria-label="Notification sound">
+        <button onClick={toggleSound} className={`relative h-7 w-12 shrink-0 rounded-full transition ${sound ? "bg-[#4f8cff]" : "bg-white/15"}`} aria-label="Notification sound">
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${sound ? "left-6" : "left-1"}`} />
         </button>
       </div>
@@ -341,9 +330,9 @@ function BackupTab() {
 
   return (
     <div className="py-4 text-center">
-      <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#b026ff]/15"><Database size={28} className="text-[#d08cff]" /></span>
-      <h4 className="mt-3 text-base font-extrabold text-[#f2eefc]">Chat Backup</h4>
-      <p className="mx-auto mt-1 max-w-[280px] text-xs text-[#9a94bd]">
+      <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Database size={28} className="text-[#8dbcff]" /></span>
+      <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">Chat Backup</h4>
+      <p className="mx-auto mt-1 max-w-[280px] text-xs text-[#8b93a1]">
         Sari chats ka JSON backup download karo. Sirf aapke device par save hoga — server par kuch upload nahi hota.
       </p>
       {last > 0 && (
@@ -358,34 +347,6 @@ function BackupTab() {
   );
 }
 
-/* ───────── F6 — Badges gallery ───────── */
-function BadgesTab() {
-  const [mine, setMine] = useState<string[]>([]);
-  useEffect(() => { setMine(getBadges()); }, []);
-  return (
-    <div>
-      <h4 className="mb-1 text-base font-extrabold text-[#f2eefc]">Mere Badges 🏆</h4>
-      <p className="mb-4 text-xs text-[#9a94bd]">{mine.length}/{BADGES.length} hasil kiye</p>
-      <div className="grid grid-cols-2 gap-2.5">
-        {BADGES.map((b) => {
-          const got = mine.includes(b.id);
-          return (
-            <div
-              key={b.id}
-              className={`rounded-2xl border p-4 text-center ${got ? "border-[#d4af37]/50 bg-gradient-to-br from-[#d4af37]/15 to-[#d4af37]/5" : "border-white/10 bg-black/[0.02] opacity-60"}`}
-            >
-              <p className={`text-3xl ${got ? "" : "grayscale"}`}>{b.icon}</p>
-              <p className="mt-2 text-sm font-extrabold text-[#f2eefc]">{b.title}</p>
-              <p className="mt-0.5 text-[11px] leading-snug text-[#9a94bd]">{b.desc}</p>
-              {got && <p className="mt-2 inline-block rounded-full bg-[#d4af37]/20 px-2 py-0.5 text-[10px] font-bold text-[#8a6d1a]">✓ Hasil</p>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /* ───────── Main settings modal ───────── */
 export default function ProfileSettings({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("profile");
@@ -393,17 +354,17 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-[96] bg-black/40" onClick={onClose} />
-      <div className={`pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#241a4d] soft-shadow ${tab === "tour" ? "w-[560px] max-w-[96vw]" : "w-[380px] max-w-[94vw]"}`}>
+      <div className={`pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111114] soft-shadow w-[380px] max-w-[94vw]`}>
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-          <h3 className="text-lg font-extrabold tracking-tight text-[#f2eefc]">Settings</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06]"><X size={18} /></button>
+          <h3 className="text-lg font-extrabold tracking-tight text-[#f4f6f8]">Settings</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 px-3 py-2">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${tab === t.id ? "bg-[#b026ff] text-white" : "text-[#b8b3d9] hover:bg-white/[0.06]"}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${tab === t.id ? "bg-[#4f8cff] text-white" : "text-[#b6bcc7] hover:bg-white/[0.06]"}`}
             >
               <t.icon size={14} /> {t.label}
             </button>
@@ -415,13 +376,6 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
           {tab === "lock" && <LockTab />}
           {tab === "appearance" && <AppearanceTab />}
           {tab === "backup" && <BackupTab />}
-          {tab === "badges" && <BadgesTab />}
-          {tab === "tour" && (
-            <div>
-              <p className="mb-3 text-center text-sm font-bold text-[#f2eefc]">App ka video tour 🎬</p>
-              <Explainer />
-            </div>
-          )}
         </div>
       </div>
     </>

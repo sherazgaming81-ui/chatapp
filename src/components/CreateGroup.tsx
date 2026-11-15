@@ -38,44 +38,44 @@ export default function CreateGroup() {
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" onClick={close} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[380px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white soft-shadow">
         <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#b026ff]/15 text-[#d08cff]"><Users size={18} /></span>
-          <h3 className="flex-1 text-[16px] font-extrabold tracking-tight text-[#f2eefc]">Naya Group</h3>
-          <button onClick={close} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]" aria-label="Band karo"><X size={18} /></button>
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#4f8cff]/15 text-[#8dbcff]"><Users size={18} /></span>
+          <h3 className="flex-1 text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Naya Group</h3>
+          <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Band karo"><X size={18} /></button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto thin-scroll p-4">
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Group ka naam *</label>
+          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Group ka naam *</label>
           <input
             autoFocus
             value={name} onChange={(e) => setName(e.target.value)} maxLength={60}
             placeholder="jaise: Madrasa Dost 🕌"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
-          <label className="mb-1 mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Description (optional)</label>
+          <label className="mb-1 mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Description (optional)</label>
           <textarea
             value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} rows={2}
             placeholder="Group kis liye hai…"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
           <div className="mb-1 mt-3 flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-[0.08em] text-[#9a94bd]">Members</label>
-            <span className="text-xs font-bold text-[#d08cff]">{sel.length} selected</span>
+            <label className="text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Members</label>
+            <span className="text-xs font-bold text-[#8dbcff]">{sel.length} selected</span>
           </div>
           <div className="max-h-52 space-y-0.5 overflow-y-auto thin-scroll rounded-xl border border-black/[0.07] bg-black/[0.02] p-1.5">
-            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#9a94bd]">Koi member nahi mila</p>}
+            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#8b93a1]">Koi member nahi mila</p>}
             {sorted.map((m) => {
               const on = sel.includes(m.id);
               return (
                 <button
                   key={m.id}
                   onClick={() => toggle(m.id)}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition ${on ? "bg-[#b026ff]/15" : "hover:bg-white/[0.05]"}`}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition ${on ? "bg-[#4f8cff]/15" : "hover:bg-white/[0.05]"}`}
                 >
                   <Avatar m={m} size={34} showDot />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
-                    <span className="block text-[11px] text-[#9a94bd]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : "offline"}</span>
+                    <span className="block text-[11px] text-[#8b93a1]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : "offline"}</span>
                   </span>
-                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition ${on ? "border-[#b026ff] bg-[#b026ff] text-white" : "border-white/25 text-transparent"}`}>
+                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition ${on ? "border-[#4f8cff] bg-[#4f8cff] text-white" : "border-white/25 text-transparent"}`}>
                     <Check size={14} strokeWidth={3} />
                   </span>
                 </button>

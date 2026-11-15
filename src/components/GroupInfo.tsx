@@ -57,46 +57,46 @@ function Insights({ chatId }: { chatId: string }) {
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">
-      <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f2eefc]">
-        <BarChart3 size={16} className="text-[#d08cff]" /> Insights
+      <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f4f6f8]">
+        <BarChart3 size={16} className="text-[#8dbcff]" /> Insights
         <span className="badge-pill" style={{ background: "#23a55a22", color: "#1a7a55" }}>live</span>
       </h3>
-      {loading && <p className="mt-3 text-xs text-[#9a94bd]">Gin raha hoon… ⏳</p>}
+      {loading && <p className="mt-3 text-xs text-[#8b93a1]">Gin raha hoon… ⏳</p>}
       {!loading && (!ins || ins.total < 10) && (
-        <p className="mt-3 text-xs leading-relaxed text-[#9a94bd]">📊 Abhi data jama ho raha hai — kuch din baad yahan insights dikhenge.</p>
+        <p className="mt-3 text-xs leading-relaxed text-[#8b93a1]">📊 Abhi data jama ho raha hai — kuch din baad yahan insights dikhenge.</p>
       )}
       {!loading && ins && ins.total >= 10 && (
         <div className="mt-3 space-y-4">
           <div>
-            <p className="mb-2 text-xs font-bold text-[#9a94bd]">Messages / din (aakhri 7 din)</p>
+            <p className="mb-2 text-xs font-bold text-[#8b93a1]">Messages / din (aakhri 7 din)</p>
             <div className="flex h-28 items-end gap-1.5">
               {ins.perDay.map((d) => {
                 const max = Math.max(1, ...ins.perDay.map((x) => x.count));
                 return (
                   <div key={d.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                    <span className="text-[10px] font-extrabold tabular-nums text-[#d08cff]">{d.count > 0 ? d.count : ""}</span>
+                    <span className="text-[10px] font-extrabold tabular-nums text-[#8dbcff]">{d.count > 0 ? d.count : ""}</span>
                     <div
-                      className="w-full rounded-t-md bg-gradient-to-t from-[#b026ff] to-[#7b2ff7]"
+                      className="w-full rounded-t-md bg-gradient-to-t from-[#4f8cff] to-[#3b76d6]"
                       style={{ height: `${Math.max(5, (d.count / max) * 88)}px` }}
                       title={`${d.label}: ${d.count}`}
                     />
-                    <span className="truncate text-[10px] font-semibold text-[#9a94bd]">{d.label}</span>
+                    <span className="truncate text-[10px] font-semibold text-[#8b93a1]">{d.label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#9a94bd]">Active hours ⚡</p>
+            <p className="mb-1.5 text-xs font-bold text-[#8b93a1]">Active hours ⚡</p>
             {(() => {
               const top = ins.perHour.map((c, h) => ({ h, c })).sort((a, b) => b.c - a.c).slice(0, 3).filter((x) => x.c > 0);
               return top.length === 0
-                ? <p className="text-xs text-[#9a94bd]">—</p>
-                : <p className="text-[13px] font-bold text-[#f2eefc]">{top.map((t) => fmtHour(t.h)).join(" · ")}</p>;
+                ? <p className="text-xs text-[#8b93a1]">—</p>
+                : <p className="text-[13px] font-bold text-[#f4f6f8]">{top.map((t) => fmtHour(t.h)).join(" · ")}</p>;
             })()}
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#9a94bd]">Top contributors 🏆</p>
+            <p className="mb-1.5 text-xs font-bold text-[#8b93a1]">Top contributors 🏆</p>
             <div className="space-y-1.5">
               {ins.top.map((t, i) => {
                 const m = members.find((x) => x.id === t.id);
@@ -104,19 +104,19 @@ function Insights({ chatId }: { chatId: string }) {
                 const max = Math.max(1, ins.top[0]?.count || 1);
                 return (
                   <div key={t.id} className="flex items-center gap-2">
-                    <span className="w-4 text-xs font-extrabold text-[#9a94bd]">{i + 1}</span>
+                    <span className="w-4 text-xs font-extrabold text-[#8b93a1]">{i + 1}</span>
                     <Avatar m={m} size={26} />
                     <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
                     <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/[0.07]">
-                      <div className="h-full rounded-full bg-[#b026ff]" style={{ width: `${(t.count / max) * 100}%` }} />
+                      <div className="h-full rounded-full bg-[#4f8cff]" style={{ width: `${(t.count / max) * 100}%` }} />
                     </div>
-                    <span className="w-8 text-right text-xs font-extrabold tabular-nums text-[#f2eefc]">{t.count}</span>
+                    <span className="w-8 text-right text-xs font-extrabold tabular-nums text-[#f4f6f8]">{t.count}</span>
                   </div>
                 );
               })}
             </div>
           </div>
-          <p className="text-[11px] text-[#9a94bd]">7 din me <b className="text-[#f2eefc]">{ins.total}</b> messages · <b className="text-[#f2eefc]">{ins.media}</b> media</p>
+          <p className="text-[11px] text-[#8b93a1]">7 din me <b className="text-[#f4f6f8]">{ins.total}</b> messages · <b className="text-[#f4f6f8]">{ins.media}</b> media</p>
         </div>
       )}
     </section>
@@ -142,7 +142,7 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
 
   return (
     <section className="rounded-2xl border border-[#b8860b]/25 bg-[#fffbe8] p-4">
-      <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f2eefc]">
+      <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f4f6f8]">
         <ScrollText size={16} className="text-[#b8860b]" /> Group Rules
         {canEdit && !editing && (
           <button onClick={startEdit} className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#b8860b] hover:bg-[#b8860b]/10">
@@ -161,7 +161,7 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
             className="field w-full text-sm"
           />
           <div className="mt-2 flex justify-end gap-2">
-            <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#9a94bd] hover:bg-white/[0.06]">Cancel</button>
+            <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#8b93a1] hover:bg-white/[0.06]">Cancel</button>
             <button onClick={save} disabled={saving} className="flex items-center gap-1 rounded-lg bg-[#b8860b] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50">
               <Check size={14} /> {saving ? "Save…" : "Save"}
             </button>
@@ -169,13 +169,13 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
         </div>
       ) : rules?.text ? (
         <div className="mt-2">
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#f2eefc]">{rules.text}</p>
+          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#f4f6f8]">{rules.text}</p>
           {(rules.updatedAt > 0) && (
-            <p className="mt-2 text-[11px] text-[#9a94bd]">Aakhri tabdeeli: {fmtFull(rules.updatedAt)}{byName ? ` · ${byName}` : ""}</p>
+            <p className="mt-2 text-[11px] text-[#8b93a1]">Aakhri tabdeeli: {fmtFull(rules.updatedAt)}{byName ? ` · ${byName}` : ""}</p>
           )}
         </div>
       ) : (
-        <p className="mt-2 text-xs leading-relaxed text-[#9a94bd]">
+        <p className="mt-2 text-xs leading-relaxed text-[#8b93a1]">
           {canEdit ? "Abhi koi rules nahi — Edit dabakar likho ✍️" : "Abhi koi rules nahi hain."}
         </p>
       )}
@@ -202,8 +202,8 @@ function WelcomeToggle({ chatId }: { chatId: string }) {
         <PartyPopper size={18} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-extrabold text-[#f2eefc]">Welcome message</p>
-        <p className="text-xs text-[#9a94bd]">Naye member par auto khush amdeed</p>
+        <p className="text-sm font-extrabold text-[#f4f6f8]">Welcome message</p>
+        <p className="text-xs text-[#8b93a1]">Naye member par auto khush amdeed</p>
       </div>
       <button
         onClick={toggle} disabled={busy}
@@ -235,7 +235,7 @@ function DeleteZone({ chatId, chatName }: { chatId: string; chatName: string }) 
         <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#ed4245]">
           <AlertTriangle size={16} /> Danger Zone
         </h3>
-        <p className="mt-1 text-xs leading-relaxed text-[#b8b3d9]">
+        <p className="mt-1 text-xs leading-relaxed text-[#b6bcc7]">
           Group delete karne se <b>saare messages hamesha ke liye</b> mit jayenge. Ye wapas nahi hoga.
         </p>
         <button
@@ -253,10 +253,10 @@ function DeleteZone({ chatId, chatName }: { chatId: string; chatName: string }) 
             <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#ed4245]">
               <Trash2 size={19} /> Pakka delete karein?
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#b8b3d9]">
-              <b className="text-[#f2eefc]">“{chatName}”</b> aur uske saare messages hamesha ke liye delete ho jayenge.
+            <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
+              <b className="text-[#f4f6f8]">“{chatName}”</b> aur uske saare messages hamesha ke liye delete ho jayenge.
             </p>
-            <p className="mt-3 text-xs font-bold text-[#9a94bd]">Confirm karne ke liye group ka naam likho:</p>
+            <p className="mt-3 text-xs font-bold text-[#8b93a1]">Confirm karne ke liye group ka naam likho:</p>
             <input
               autoFocus
               value={typed}
@@ -312,7 +312,7 @@ function TopReactions({ chatId }: { chatId: string }) {
     m.text ? m.text.slice(0, 60) : m.type === "image" ? "📷 Photo" : m.type === "video" ? "🎬 Video" : m.type === "voice" ? "🎤 Voice" : m.type === "gif" ? "🎞️ GIF" : m.type === "sticker" ? "✨ Sticker" : "Message";
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">
-      <h3 className="text-sm font-extrabold text-[#f2eefc]">🔥 Top reactions</h3>
+      <h3 className="text-sm font-extrabold text-[#f4f6f8]">🔥 Top reactions</h3>
       <div className="mt-2 space-y-1">
         {top.map(({ m, total, emojis }) => (
           <button
@@ -321,8 +321,8 @@ function TopReactions({ chatId }: { chatId: string }) {
             className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-white/[0.05] active:scale-[0.99]"
           >
             <span className="shrink-0 text-lg leading-none">{emojis.join(" ")}</span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-[#b8b3d9]">{label(m)}</span>
-            <span className="shrink-0 rounded-full bg-[#b026ff]/15 px-2 py-0.5 text-xs font-bold tabular-nums text-[#d08cff]">{total}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[#b6bcc7]">{label(m)}</span>
+            <span className="shrink-0 rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-xs font-bold tabular-nums text-[#8dbcff]">{total}</span>
           </button>
         ))}
       </div>
@@ -385,20 +385,20 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] sm:hidden" onClick={close} />
       <aside className="slide-in-right fixed bottom-0 right-0 top-0 z-40 flex w-full flex-col bg-[#f4f4f6] soft-shadow sm:w-[400px] sm:border-l sm:border-white/10">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#241a4d]/80 px-3 backdrop-blur">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#111114]/80 px-3 backdrop-blur">
           {view !== "info" ? (
-            <button onClick={() => setView("info")} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]" aria-label="Wapas">
+            <button onClick={() => setView("info")} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Wapas">
               <ChevronLeft size={20} />
             </button>
           ) : (
-            <button onClick={close} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06] sm:hidden" aria-label="Band karo">
+            <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06] sm:hidden" aria-label="Band karo">
               <X size={20} />
             </button>
           )}
-          <h2 className="min-w-0 flex-1 truncate text-[16px] font-extrabold tracking-tight text-[#f2eefc]">
+          <h2 className="min-w-0 flex-1 truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">
             {view === "media" ? "Media" : view === "files" ? "Files" : "Group info"}
           </h2>
-          <button onClick={close} className="rounded-md p-2 text-[#b8b3d9] hover:bg-white/[0.06]" aria-label="Band karo">
+          <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Band karo">
             <X size={20} />
           </button>
         </header>
@@ -414,14 +414,14 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                   {chat.photo ? (
                     <img src={chat.photo} alt="" className="h-20 w-20 rounded-3xl object-cover soft-shadow" draggable={false} />
                   ) : (
-                    <span className="grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] text-3xl font-extrabold text-white soft-shadow">
+                    <span className="grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-3xl font-extrabold text-white soft-shadow">
                       {(chat.name || "G")[0]?.toUpperCase()}
                     </span>
                   )}
                   {canEdit && (
                     <button
                       onClick={() => photoRef.current?.click()}
-                      className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full bg-[#b026ff] text-white soft-shadow transition active:scale-95"
+                      className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full bg-[#4f8cff] text-white soft-shadow transition active:scale-95"
                       aria-label="Photo badlo"
                     >
                       <Camera size={15} />
@@ -430,17 +430,17 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                   <input ref={photoRef} hidden type="file" accept="image/*" onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ""; }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-xl font-extrabold tracking-tight text-[#f2eefc]">{chat.name}</h3>
-                  <p className="text-xs text-[#9a94bd]">Madrasa doston ka group 🕌</p>
+                  <h3 className="truncate text-xl font-extrabold tracking-tight text-[#f4f6f8]">{chat.name}</h3>
+                  <p className="text-xs text-[#8b93a1]">Madrasa doston ka group 🕌</p>
                 </div>
               </div>
 
               {/* description */}
               <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">
-                <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f2eefc]">
+                <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#f4f6f8]">
                   About
                   {canEdit && !editDesc && (
-                    <button onClick={() => { setDescText(desc); setEditDesc(true); }} className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#d08cff] hover:bg-[#b026ff]/15">
+                    <button onClick={() => { setDescText(desc); setEditDesc(true); }} className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#8dbcff] hover:bg-[#4f8cff]/15">
                       <Pencil size={13} /> Edit
                     </button>
                   )}
@@ -449,14 +449,14 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                   <div className="mt-2">
                     <textarea autoFocus value={descText} onChange={(e) => setDescText(e.target.value)} rows={3} placeholder="Group ke baare me likho…" className="field w-full text-sm" />
                     <div className="mt-2 flex justify-end gap-2">
-                      <button onClick={() => setEditDesc(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#9a94bd] hover:bg-white/[0.06]">Cancel</button>
-                      <button onClick={saveDesc} disabled={savingDesc} className="flex items-center gap-1 rounded-lg bg-[#b026ff] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50">
+                      <button onClick={() => setEditDesc(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#8b93a1] hover:bg-white/[0.06]">Cancel</button>
+                      <button onClick={saveDesc} disabled={savingDesc} className="flex items-center gap-1 rounded-lg bg-[#4f8cff] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50">
                         <Check size={14} /> {savingDesc ? "Save…" : "Save"}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-[#b8b3d9]">{desc || <span className="text-[#a0a3ab]">Koi description nahi{canEdit ? " — Edit dabakar likho" : ""}.</span>}</p>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-[#b6bcc7]">{desc || <span className="text-[#a0a3ab]">Koi description nahi{canEdit ? " — Edit dabakar likho" : ""}.</span>}</p>
                 )}
               </section>
 
@@ -468,15 +468,15 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                   { l: "Media", v: String(counts.media) },
                 ].map((s) => (
                   <div key={s.l} className="rounded-2xl border border-black/[0.07] bg-white/60 p-3 text-center">
-                    <p className="text-lg font-extrabold tabular-nums text-[#f2eefc]">{s.v}</p>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#9a94bd]">{s.l}</p>
+                    <p className="text-lg font-extrabold tabular-nums text-[#f4f6f8]">{s.v}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8b93a1]">{s.l}</p>
                   </div>
                 ))}
               </div>
 
               {/* media + files buttons */}
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setView("media")} className="flex items-center justify-center gap-2 rounded-2xl bg-[#b026ff]/[0.08] p-3.5 text-sm font-extrabold text-[#d08cff] transition hover:bg-[#b026ff]/[0.14] active:scale-[0.98]">
+                <button onClick={() => setView("media")} className="flex items-center justify-center gap-2 rounded-2xl bg-[#4f8cff]/[0.08] p-3.5 text-sm font-extrabold text-[#8dbcff] transition hover:bg-[#4f8cff]/[0.14] active:scale-[0.98]">
                   <Images size={18} /> Media
                 </button>
                 <button onClick={() => setView("files")} className="flex items-center justify-center gap-2 rounded-2xl bg-[#23a55a]/[0.08] p-3.5 text-sm font-extrabold text-[#1a7a55] transition hover:bg-[#23a55a]/[0.14] active:scale-[0.98]">
@@ -488,8 +488,8 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
               {photos.length > 0 && (
                 <section>
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-extrabold text-[#f2eefc]">Media preview</h3>
-                    <button onClick={() => setView("media")} className="text-xs font-bold text-[#d08cff]">Sab dekho →</button>
+                    <h3 className="text-sm font-extrabold text-[#f4f6f8]">Media preview</h3>
+                    <button onClick={() => setView("media")} className="text-xs font-bold text-[#8dbcff]">Sab dekho →</button>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     {photos.map((m) => (
@@ -519,7 +519,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
 
               {/* members */}
               <section className="rounded-2xl border border-black/[0.07] bg-white/60 p-4">
-                <h3 className="text-sm font-extrabold text-[#f2eefc]">Members · {members.length}</h3>
+                <h3 className="text-sm font-extrabold text-[#f4f6f8]">Members · {members.length}</h3>
                 <div className="mt-2 max-h-72 space-y-0.5 overflow-y-auto thin-scroll">
                   {sorted.map((m) => (
                     <div
@@ -533,15 +533,15 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                             <span className="truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
                             <Badge role={m.role} />
                           </span>
-                          <span className="block text-[11px] text-[#9a94bd]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
+                          <span className="block text-[11px] text-[#8b93a1]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
                         </span>
                       </button>
                       {m.id === meId ? (
-                        <ShieldCheck size={15} className="shrink-0 text-[#d08cff]" />
+                        <ShieldCheck size={15} className="shrink-0 text-[#8dbcff]" />
                       ) : (
                         <button
                           onClick={() => openDM(m.id)}
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#9a94bd] hover:bg-[#b026ff]/15 hover:text-[#d08cff]"
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#8b93a1] hover:bg-[#4f8cff]/15 hover:text-[#8dbcff]"
                           title={`${m.name} ko DM karo`}
                           aria-label="DM karo"
                         >

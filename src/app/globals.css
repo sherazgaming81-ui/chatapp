@@ -2,20 +2,20 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-blurple: #b026ff;
-  --color-blurple-dark: #8a1bd6;
-  --color-ink: #f2eefc;
-  --color-ink-soft: #b8b3d9;
-  --color-ink-mute: #9a94bd;
+  --color-blurple: #4f8cff;
+  --color-blurple-dark: #3b76d6;
+  --color-ink: #f4f6f8;
+  --color-ink-soft: #b6bcc7;
+  --color-ink-mute: #8b93a1;
   --color-danger: #ed4245;
   --color-green: #23a55a;
-  --font-app: "gg sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-app: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ── exact component CSS from the design brief (verbatim) ── */
+/* ── base components ── */
 .button-primary { background: #97979f1f; color: #fbfbfb; border: 0.85px solid rgba(0,0,0,0.04); border-radius: 8px; font-size: 16px; }
-.card { border: 0.85px solid rgba(255,255,255,0.12); border-radius: 12px; font-size: 16px; }
-.badge-pill { background: #2a1e5c; color: #f2eefc; border-radius: 9999px; padding: 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.24px; text-transform: uppercase; }
+.card { border: 0.85px solid rgba(255,255,255,0.10); border-radius: 12px; font-size: 16px; }
+.badge-pill { background: #16161a; color: #f4f6f8; border-radius: 9999px; padding: 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.24px; text-transform: uppercase; }
 
 html, body {
   height: 100%;
@@ -23,64 +23,42 @@ html, body {
 }
 
 body {
-  font-family: "gg sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-size: 16px;
   font-weight: 400;
-  color: #f2eefc;
+  color: #f4f6f8;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
-  background: #120a2a;
+  background: #050505;
 }
 
-/* ── light gradient atmosphere with glass ── */
+/* ── app background: saaf black, koi gradient/mesh/pattern nahi ── */
 .mesh-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(44% 36% at 10% 6%, rgba(176, 38, 255, 0.20), transparent 70%),
-    radial-gradient(36% 32% at 90% 10%, rgba(123, 47, 247, 0.14), transparent 70%),
-    radial-gradient(48% 40% at 50% 110%, rgba(176, 38, 255, 0.10), transparent 70%),
-    linear-gradient(135deg, #1d133f 0%, #120a2a 45%, #19103b 100%);
-}
-.mesh-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(30% 26% at 82% 82%, rgba(176, 38, 255, 0.12), transparent 70%),
-    radial-gradient(28% 24% at 18% 88%, rgba(123, 47, 247, 0.08), transparent 70%);
-  animation: meshdrift 24s ease-in-out infinite alternate;
-}
-@keyframes meshdrift {
-  from { transform: translate3d(-2%, 1%, 0) scale(1); }
-  to { transform: translate3d(2%, -2%, 0) scale(1.05); }
+  background: #050505;
 }
 
-/* ── glass surfaces ── */
+/* ── surfaces ── */
 .glass {
-  background: rgba(34, 24, 71, 0.66);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: rgba(0,0,0,0.35) 0px 1px 4px 0px;
-}
-.glass-strong {
-  background: rgba(29, 19, 63, 0.94);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(22, 22, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: rgba(0,0,0,0.4) 0px 1px 4px 0px;
 }
-/* PERF: bare panels (chat/sidebar/members) ke liye glass jaisa look, backdrop-blur ke baghair —
-   full-screen blur scroll ke waqt mobile GPU ko maar deta tha */
-.panel {
-  background: rgba(29, 19, 63, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: rgba(0,0,0,0.35) 0px 1px 4px 0px;
+.glass-strong {
+  background: rgba(17, 17, 20, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: rgba(0,0,0,0.45) 0px 1px 4px 0px;
 }
-.soft-shadow { box-shadow: rgba(0,0,0,0.14) 0px 1px 4px 0px; }
+/* PERF: bare panels ke liye solid surface (backdrop-blur ke baghair) */
+.panel {
+  background: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: rgba(0,0,0,0.4) 0px 1px 4px 0px;
+}
+.soft-shadow { box-shadow: rgba(0,0,0,0.25) 0px 1px 4px 0px; }
 
 /* ── buttons ── */
 .btn {
@@ -88,44 +66,56 @@ body {
   font-weight: 600;
   transition: transform 150ms ease, filter 150ms ease, background 200ms ease, box-shadow 200ms ease;
   user-select: none;
-  position: relative; /* 3 — ripple */
-  overflow: hidden; /* 3 — ripple */
+  position: relative; /* ripple */
+  overflow: hidden; /* ripple */
 }
 .btn:active { transform: scale(0.97); }
-.btn-blurple { background: #b026ff; color: #fff; box-shadow: rgba(176,38,255,0.35) 0px 1px 4px 0px; }
-.btn-blurple:hover { background: #8a1bd6; }
+.btn-blurple { background: #4f8cff; color: #fff; }
+.btn-blurple:hover { background: #3b76d6; }
+.btn-primary { background: #4f8cff; color: #fff; }
+.btn-primary:hover { background: #3b76d6; }
 .btn-green { background: #23a55a; color: #fff; }
 .btn-green:hover { filter: brightness(1.05); }
-.btn-ghost { background: rgba(255,255,255,0.06); color: #f2eefc; border: 1px solid rgba(255,255,255,0.10); }
+.btn-ghost { background: rgba(255,255,255,0.06); color: #f4f6f8; border: 1px solid rgba(255,255,255,0.10); }
 .btn-ghost:hover { background: rgba(255,255,255,0.10); }
 .btn-danger { background: #ed4245; color: #fff; }
 .btn-danger:hover { filter: brightness(0.95); }
 
 /* ── transitions on all interactive elements ── */
 button, a, input, textarea, [role="button"] { transition: background 200ms ease, color 200ms ease, border-color 200ms ease, opacity 200ms ease, transform 150ms ease; }
-a { color: #d08cff; text-decoration: none; }
+a { color: #8dbcff; text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* ── scrollbars ── */
-.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
 .thin-scroll::-webkit-scrollbar-track { background: transparent; }
-.thin-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 8px; }
-.thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.28); }
+.thin-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 99px; }
+.thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.30); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.22) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.20);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.34); background-clip: content-box; border: 2px solid transparent; }
 
 /* ── message hover actions ── */
 .msg-row .msg-actions { opacity: 0; transition: opacity 150ms ease; }
 .msg-row:hover .msg-actions { opacity: 1; }
 @media (hover: none) { .msg-row .msg-actions { opacity: 1; } }
 
-/* ── A18 compact mode — chhoti spacing, zyada messages ek screen par ── */
+/* ── compact mode ── */
 .compact .msg-row { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
 .compact .msg-row.mt-\[17px\] { margin-top: 8px !important; }
 .compact .msg-row .text-\[15px\] { font-size: 13.5px !important; }
 .compact .thin-scroll { row-gap: 0 !important; }
 
-/* ── E6 app lock pop ── */
+/* ── app lock pop ── */
 @keyframes lockpop {
   0% { transform: scale(0.6); opacity: 0; }
   60% { transform: scale(1.06); opacity: 1; }
@@ -133,47 +123,15 @@ a:hover { text-decoration: underline; }
 }
 .lock-pop { animation: lockpop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 
-/* ── profile FX (Nitro-style banner effects) ── */
-@keyframes fx-twinkle { 0%, 100% { opacity: .2; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
-@keyframes fx-fall { 0% { transform: translateY(-10px); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(120px); opacity: 0; } }
-@keyframes fx-rise { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
-@keyframes fx-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
-@keyframes banner-pan { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-.banner-anim { animation: banner-pan 8s ease infinite; }
-
-/* ── loading animation ── */
-@keyframes loadpulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.85; }
-}
+/* ── loader spinner ── */
 @keyframes ringspin { to { transform: rotate(360deg); } }
-@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-/* Claude-style: slow calm breathing + gentle dots */
-@keyframes claude-breathe {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.06); opacity: 0.92; }
-}
-@keyframes claude-dot {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
-  30% { transform: translateY(-3px); opacity: 1; }
-}
-/* Claude v8 branded intro — white theme */
-.ld-draw { stroke-dasharray: 520; stroke-dashoffset: 520; animation: ld-draw 1s cubic-bezier(.65,0,.35,1) forwards; }
-@keyframes ld-draw { to { stroke-dashoffset: 0; } }
-.ld-fill { opacity: 0; animation: ld-fill .35s ease .85s forwards; }
-@keyframes ld-fill { to { opacity: 1; } }
-.ld-b { opacity: 0; transform: scale(0); animation: ld-pop .6s cubic-bezier(.2,1.9,.4,1) forwards; }
-@keyframes ld-pop { to { opacity: 1; transform: scale(1); } }
-.ld-tick1, .ld-tick2 { stroke-dasharray: 30; stroke-dashoffset: 30; animation: ld-tickdraw .35s ease forwards; }
-@keyframes ld-tickdraw { to { stroke-dashoffset: 0; } }
-@keyframes ld-blue { from { stroke: #8696a0; } to { stroke: #53bdeb; } }
-.ld-tag { opacity: 0; transform: translateY(10px); animation: ld-tag .5s ease 2.5s forwards; }
-@keyframes ld-tag { to { opacity: 1; transform: none; } }
-@keyframes ld-out { to { opacity: 0; visibility: hidden; } }
 
 /* ── typing dots ── */
-@keyframes tdot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-.tdot { animation: tdot 1.2s infinite; }
+@keyframes tdot2 {
+  0%, 60%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
+  30% { transform: translateY(-5px) scale(1.15); opacity: 1; }
+}
+.tdot { animation: tdot2 1.1s ease-in-out infinite; }
 .tdot:nth-child(2) { animation-delay: 0.15s; }
 .tdot:nth-child(3) { animation-delay: 0.3s; }
 
@@ -184,21 +142,21 @@ a:hover { text-decoration: underline; }
 .pop-in { animation: popin 0.2s ease-out; }
 
 /* message jump flash */
-@keyframes msgflash { 0% { background: rgba(176,38,255,0.25); } 100% { background: transparent; } }
+@keyframes msgflash { 0% { background: rgba(79,140,255,0.25); } 100% { background: transparent; } }
 .msg-row.flash { animation: msgflash 1.6s ease-out; border-radius: 8px; }
 
-/* D1 — group info slide-over */
+/* group info slide-over */
 @keyframes slideinright { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .slide-in-right { animation: slideinright 0.22s ease-out; }
 
-/* B15 — delete shrink+fade (200ms) */
+/* delete shrink+fade */
 .msg-row.deleting { transform: scale(0.94); opacity: 0; transition: transform 200ms ease, opacity 200ms ease; }
 
-/* A11 — animated ticks pop */
+/* animated ticks pop */
 @keyframes tickpop { 0% { transform: scale(0.5); } 55% { transform: scale(1.3); } 100% { transform: scale(1); } }
 .tick-pop { display: inline-block; animation: tickpop 0.3s ease-out; }
 
-/* A5 — search highlight */
+/* search highlight */
 mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; padding: 0 1px; color: inherit; }
 
 /* inputs */
@@ -206,65 +164,20 @@ mark.search-hl { background: rgba(250, 204, 21, 0.75); border-radius: 3px; paddi
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
-  color: #f2eefc;
+  color: #f4f6f8;
   outline: none;
 }
-.field:focus { border-color: #b026ff; box-shadow: 0 0 0 2px rgba(176,38,255,0.25); }
-.field::placeholder { color: #9a94bd; }
+.field:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.25); }
+.field::placeholder { color: #8b93a1; }
 :root { color-scheme: dark; }
-option { background: #1d133f; color: #f2eefc; }
+option { background: #111114; color: #f4f6f8; }
 
 /* ── PC web: thora zoom out (user request) ── */
 @media (min-width: 1024px) {
   html { zoom: 0.9; }
 }
 
-/* ── Quran Arabic font (Amiri Quran — Uthmani script) ── */
-.font-quran { font-family: "Amiri Quran", "Scheherazade New", "Traditional Arabic", serif; }
-.font-arabic { font-family: "Amiri Quran", "Scheherazade New", "Traditional Arabic", serif; }
-
-/* ── Azaan alert: soft breathing pulse (chime feel) ── */
-@keyframes azaanPulse { 0%,100% { transform: translateX(-50%) scale(0.9); opacity: 0.7; } 50% { transform: translateX(-50%) scale(1.25); opacity: 1; } }
-@keyframes azaanPulse2 { 0%,100% { transform: translateX(-50%) scale(1); opacity: 0.5; } 50% { transform: translateX(-50%) scale(1.4); opacity: 0.9; } }
-.azaan-pulse { animation: azaanPulse 2.6s ease-in-out infinite; }
-.azaan-pulse2 { animation: azaanPulse2 2.6s ease-in-out 0.4s infinite; }
-
-/* ── Asma-ul-Husna: golden shine sweep ── */
-@keyframes asmaShineSweep {
-  0% { transform: translateX(-130%) skewX(-18deg); }
-  100% { transform: translateX(260%) skewX(-18deg); }
-}
-.asma-shine { position: relative; overflow: hidden; }
-.asma-shine::after {
-  content: ""; position: absolute; top: -10%; bottom: -10%; width: 42%;
-  background: linear-gradient(90deg, transparent, rgba(255, 214, 120, 0.55), rgba(255, 240, 200, 0.75), rgba(255, 214, 120, 0.55), transparent);
-  animation: asmaShineSweep 2.4s ease-in-out infinite;
-  pointer-events: none;
-}
-.asma-current {
-  border-color: rgba(190, 150, 40, 0.65) !important;
-  background: linear-gradient(135deg, #fffdf3 0%, #fdf4dd 100%) !important;
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.22), 0 10px 28px rgba(190, 150, 40, 0.16) !important;
-}
-
-/* ── achievement popup (minecraft-style, slides from top) ── */
-@keyframes achSlideIn {
-  0% { transform: translate(-50%, -130%); opacity: 0; }
-  60% { transform: translate(-50%, 6%); opacity: 1; }
-  100% { transform: translate(-50%, 0); opacity: 1; }
-}
-.ach-pop { animation: achSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
-
-/* ── flashcard flip ── */
-.asma-flip { perspective: 1200px; }
-.asma-flip-inner { transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(0.3, 0.7, 0.3, 1); }
-.asma-flipped .asma-flip-inner { transform: rotateY(180deg); }
-.asma-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.asma-back { transform: rotateY(180deg); }
-
-/* ═══════════ 20 UI POLISH UPDATES ═══════════ */
-
-/* 1 — naya message slide-in (neeche se) */
+/* ── naya message slide-in ── */
 @keyframes msgslidein {
   from { opacity: 0; transform: translateY(16px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -272,7 +185,7 @@ option { background: #1d133f; color: #f2eefc; }
 .msg-slide-in { animation: msgslidein 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.08); }
 @media (prefers-reduced-motion: reduce) { .msg-slide-in { animation: none; } }
 
-/* 2 — skeleton shimmer (chat loading) */
+/* ── skeleton shimmer (chat loading) ── */
 @keyframes skelshimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .skel {
   background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0.05) 75%);
@@ -281,7 +194,7 @@ option { background: #1d133f; color: #f2eefc; }
   border-radius: 8px;
 }
 
-/* 3 — ripple effect (JS adds .ripple-ink span) */
+/* ── ripple effect (JS adds .ripple-ink span) ── */
 .btn-ripple { position: relative; overflow: hidden; }
 .ripple-ink {
   position: absolute; border-radius: 9999px; transform: scale(0);
@@ -290,71 +203,49 @@ option { background: #1d133f; color: #f2eefc; }
 }
 @keyframes ripplego { to { transform: scale(2.8); opacity: 0; } }
 
-/* 5 — custom scrollbar (global, patli + khubsurat) */
-* { scrollbar-width: thin; scrollbar-color: rgba(176,38,255,0.40) transparent; }
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(176, 38, 255, 0.32);
-  border-radius: 99px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(176, 38, 255, 0.55); background-clip: content-box; border: 2px solid transparent; }
-.thin-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
-.thin-scroll::-webkit-scrollbar-thumb { background: rgba(176,38,255,0.35); border: none; border-radius: 99px; }
-.thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(176,38,255,0.55); }
-
-/* 6 — WhatsApp-style bubbles (tails ke sath) */
-.bubble { position: relative; max-width: min(78%, 480px); padding: 8px 12px 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); word-wrap: break-word; }
+/* ── WhatsApp-style bubbles ── */
+.bubble { position: relative; max-width: min(78%, 480px); padding: 8px 12px 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.25); word-wrap: break-word; }
 .bubble-mine {
   margin-left: auto;
-  background: #3d1476;
-  color: #f5efff;
-  border: 1px solid rgba(176,38,255,0.28);
+  background: #1e2a3d;
+  color: #eef4ff;
+  border: 1px solid rgba(79,140,255,0.30);
   border-radius: 16px 6px 16px 16px;
 }
 .bubble-mine::before {
   content: ""; position: absolute; top: 0; right: -7px;
-  border: 8px solid transparent; border-top-color: #3d1476; border-right: 0;
+  border: 8px solid transparent; border-top-color: #1e2a3d; border-right: 0;
 }
 .bubble-theirs {
   margin-right: auto;
-  background: #2a2145;
-  color: #ece9fb;
+  background: #1a1a1e;
+  color: #e8ebef;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 6px 16px 16px 16px;
 }
 .bubble-theirs::before {
   content: ""; position: absolute; top: -1px; left: -8px;
-  border: 8px solid transparent; border-top-color: #2a2145; border-left: 0;
+  border: 8px solid transparent; border-top-color: #1a1a1e; border-left: 0;
   filter: drop-shadow(-1px 0 0 rgba(255,255,255,0.08));
 }
 .bubble-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
 .bubble-time { font-size: 10.5px; opacity: 0.75; font-weight: 600; white-space: nowrap; }
-.bubble-mine .bubble-time { color: rgba(245,239,255,0.62); }
-.bubble-theirs .bubble-time { color: #9a94bd; }
+.bubble-mine .bubble-time { color: rgba(238,244,255,0.62); }
+.bubble-theirs .bubble-time { color: #8b93a1; }
 
-/* 7 — chat doodle background (WhatsApp jaisa halka pattern) */
-.chat-doodle {
-  background-image: none;
+/* ── chat background: saaf black, koi pattern nahi ── */
+.chat-doodle-bg {
+  background-color: #050505;
 }
 
-/* 8 — sticky date divider smooth animation */
+/* ── sticky date divider ── */
 @keyframes datepop {
   from { opacity: 0; transform: translateY(-10px) scale(0.9); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .date-pill { animation: datepop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
 
-/* 9 — typing dots (smoother bounce) */
-@keyframes tdot2 {
-  0%, 60%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
-  30% { transform: translateY(-5px) scale(1.15); opacity: 1; }
-}
-.tdot { animation: tdot2 1.1s ease-in-out infinite; }
-
-/* 10 — hover par time tooltip (desktop) */
+/* ── hover par time tooltip (desktop) ── */
 .msg-time-tip { position: relative; }
 .msg-time-tip::after {
   content: attr(data-time);
@@ -368,69 +259,31 @@ option { background: #1d133f; color: #f2eefc; }
   .msg-time-tip:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* 11 — swipe-left actions (mobile) */
+/* ── swipe-left actions (mobile) ── */
 .swipe-actions-bar { transition: opacity 0.18s ease, transform 0.18s ease; }
 
-/* 13 — pull to refresh indicator */
+/* ── pull to refresh indicator ── */
 @keyframes ptrspin { to { transform: rotate(360deg); } }
 .ptr-spinner { animation: ptrspin 0.9s linear infinite; }
 
-/* 15 — Islamic geometric pattern (Deen page) */
-.islamic-pattern {
-  background-image: none;
-}
-
-/* 17 — Quran page-turn animation */
-@keyframes pageturn {
-  from { opacity: 0; transform: perspective(1400px) rotateY(-14deg) translateX(46px); }
-  to { opacity: 1; transform: perspective(1400px) rotateY(0) translateX(0); }
-}
-.page-turn { animation: pageturn 0.42s cubic-bezier(0.25, 0.8, 0.3, 1); transform-origin: right center; }
-@media (prefers-reduced-motion: reduce) { .page-turn { animation: none; } }
-
-/* 18 — blur-up image */
+/* ── blur-up image ── */
 .blur-up { filter: blur(14px); transform: scale(1.04); }
 .blur-up.done { filter: blur(0); transform: scale(1); transition: filter 0.45s ease, transform 0.45s ease; }
 
-/* 20 — offline banner */
+/* ── offline banner ── */
 @keyframes offlineslide { from { transform: translateY(-100%); } to { transform: translateY(0); } }
 .offline-banner { animation: offlineslide 0.25s ease-out; }
 
-/* 12 — mobile bottom nav */
+/* ── mobile bottom nav ── */
 .mobile-nav {
   position: sticky; bottom: 0; z-index: 40;
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  background: rgba(25,16,59,0.92);
+  background: rgba(10, 10, 10, 0.96);
   border-top: 1px solid rgba(255,255,255,0.10);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .mobile-nav button { -webkit-tap-highlight-color: transparent; }
 
-/* 16 — prayer progress ring */
-.prayer-ring { transform: rotate(-90deg); }
-.prayer-ring .ring-bg { stroke: rgba(255,255,255,0.25); }
-.prayer-ring .ring-fg { stroke: #fff; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
-
-/* ── video frame: golden pulse (playing) + calligraphy fade-in + seek flash ── */
-@keyframes asmaGlow {
-  0%, 100% { box-shadow: 0 0 14px rgba(212, 175, 55, 0.35), 0 8px 24px rgba(0, 0, 0, 0.12); }
-  50% { box-shadow: 0 0 34px rgba(212, 175, 55, 0.75), 0 8px 24px rgba(0, 0, 0, 0.12); }
-}
-.asma-glow { animation: asmaGlow 2.6s ease-in-out infinite; }
-@keyframes asmaFadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.asma-fadein { animation: asmaFadeUp 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
-@keyframes seekFlashPop {
-  0% { opacity: 0; transform: scale(0.7); }
-  25% { opacity: 1; transform: scale(1.06); }
-  70% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1); }
-}
-.seek-flash { animation: seekFlashPop 0.65s ease both; }
-
-/* ── unread badge: WhatsApp-style pop animation ── */
+/* ── unread badge pop ── */
 @keyframes unreadPop {
   0% { transform: scale(0.3); }
   60% { transform: scale(1.2); }
@@ -438,186 +291,42 @@ option { background: #1d133f; color: #f2eefc; }
 }
 .unread-pop { animation: unreadPop 0.28s ease-out; }
 
-/* ═══════════ 14-item polish batch ═══════════ */
-
-/* 2 — send button morph: mic ↔ send */
+/* ── send button morph: mic ↔ send ── */
 @keyframes sendmorph { 0% { transform: scale(0.6) rotate(-40deg); opacity: 0.4; } 60% { transform: scale(1.12) rotate(6deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 .send-morph { animation: sendmorph 0.22s ease-out; }
 .send-morph-wrap { display: inline-grid; place-items: center; }
 
-/* 3 — emoji burst particles */
-.emoji-burst { position: absolute; top: -6px; right: 30px; z-index: 40; pointer-events: none; width: 0; height: 0; }
-.eb-p { position: absolute; font-size: 18px; opacity: 0; animation: burstfly 0.7s ease-out forwards; }
-@keyframes burstfly {
-  0% { transform: translate(0, 0) scale(0.4); opacity: 1; }
-  100% { opacity: 0; }
-}
-.eb-p0 { animation-name: burst0; } .eb-p1 { animation-name: burst1; }
-.eb-p2 { animation-name: burst2; } .eb-p3 { animation-name: burst3; }
-.eb-p4 { animation-name: burst4; } .eb-p5 { animation-name: burst5; }
-.eb-p6 { animation-name: burst6; } .eb-p7 { animation-name: burst7; }
-@keyframes burst0 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-34px,-30px) scale(1.1); opacity: 0; } }
-@keyframes burst1 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(0,-44px) scale(1.1); opacity: 0; } }
-@keyframes burst2 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(34px,-30px) scale(1.1); opacity: 0; } }
-@keyframes burst3 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-40px,4px) scale(1.1); opacity: 0; } }
-@keyframes burst4 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(40px,4px) scale(1.1); opacity: 0; } }
-@keyframes burst5 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(-26px,30px) scale(1.1); opacity: 0; } }
-@keyframes burst6 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(0,38px) scale(1.1); opacity: 0; } }
-@keyframes burst7 { 0% { transform: translate(0,0) scale(0.4); opacity: 1; } 100% { transform: translate(26px,30px) scale(1.1); opacity: 0; } }
-
-/* 6 — online dot pulse glow */
+/* ── online dot pulse ── */
 @keyframes onlinedotpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(35,165,90,0.55); } 55% { box-shadow: 0 0 0 5px rgba(35,165,90,0); } }
 .online-dot { animation: onlinedotpulse 2.2s ease-out infinite; }
 
-/* 8 — unread divider glow */
-@keyframes unreadglow { 0%, 100% { box-shadow: 0 0 10px 1px rgba(176,38,255,0.45); } 50% { box-shadow: 0 0 20px 4px rgba(176,38,255,0.65); } }
+/* ── unread divider ── */
+@keyframes unreadglow { 0%, 100% { box-shadow: 0 0 10px 1px rgba(79,140,255,0.40); } 50% { box-shadow: 0 0 20px 4px rgba(79,140,255,0.55); } }
 .unread-glow { animation: unreadglow 2.4s ease-in-out infinite; }
 
-/* 9 — voice waveform bars (play par dance) */
+/* ── voice waveform bars ── */
 @keyframes wavebounce { 0%, 100% { transform: scaleY(0.55); } 50% { transform: scaleY(1.15); } }
 .wavebar { transform-origin: bottom; animation: wavebounce 0.9s ease-in-out infinite; }
 
-/* 10 — media viewer zoom-in */
+/* ── media viewer / photo zoom ── */
 @keyframes viewerzoomin { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .viewer-zoom-in { animation: viewerzoomin 0.25s ease-out; }
-
-/* 5 — profile photo zoom-in */
 @keyframes photozoomin { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .photo-zoom-in { animation: photozoomin 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
 
-/* 14 — glassmorphism context menu */
+/* ── context menu ── */
 .ctx-glass {
-  background: rgba(29, 19, 63, 0.88);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  background: rgba(17, 17, 20, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 .ctx-glass button { border-radius: 10px; }
 
-/* 13 — version banner slide-down */
+/* ── version banner slide-down ── */
 @keyframes versionslide { from { transform: translateY(-100%); } to { transform: translateY(0); } }
 .version-banner { animation: versionslide 0.35s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .send-morph, .emoji-burst, .online-dot, .unread-glow, .wavebar,
+  .send-morph, .online-dot, .unread-glow, .wavebar,
   .viewer-zoom-in, .photo-zoom-in, .version-banner { animation: none !important; }
 }
-
-/* ── explainer video scenes ── */
-@keyframes ex-in { from { opacity: 0; transform: translateY(24px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes ex-pop { 0% { opacity: 0; transform: scale(.3); } 70% { transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
-@keyframes ex-slide-l { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
-@keyframes ex-slide-r { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
-.ex-in { opacity: 0; animation: ex-in .6s cubic-bezier(.2,.9,.3,1) forwards; }
-.ex-pop { opacity: 0; animation: ex-pop .6s cubic-bezier(.2,1.4,.4,1) forwards; }
-.ex-l { opacity: 0; animation: ex-slide-l .6s cubic-bezier(.2,.9,.3,1) forwards; }
-.ex-r { opacity: 0; animation: ex-slide-r .6s cubic-bezier(.2,.9,.3,1) forwards; }
-@keyframes ex-float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
-.ex-float { animation: ex-float 2.2s ease-in-out infinite; }
-@keyframes ex-wiggle { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
-.ex-wiggle { animation: ex-wiggle 1.4s ease-in-out infinite; }
-@keyframes ex-spin-slow { to { transform: rotate(360deg); } }
-.ex-spin-slow { animation: ex-spin-slow 8s linear infinite; }
-@keyframes moon-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-.moon-float { animation: moon-float 3.2s ease-in-out infinite; }
-@keyframes ex-typing { 0%,60%,100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-5px); opacity: 1; } }
-.ex-typing { animation: ex-typing 1.1s infinite; }
-
-/* ═══════════════════════════════════════════════════════════
-   WHATSAPP-STYLE DOODLE — permanent chat background
-   Har chat, har group, har DM me — koi change nahi kar sakta
-   ═══════════════════════════════════════════════════════════ */
-.chat-doodle-bg {
-  background-color: #150c33;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   LUDO — Manus design port (board frame / pawn / dice)
-   Rang src/lib/boardSkin.ts ke BOARD_SKIN se match karte hain.
-   Sirf Ludo card (PasaMessage) ke andar istemal hoti hain.
-   ═══════════════════════════════════════════════════════════ */
-.ludo-scope {
-  --wood-light: #E2C58D;
-  --wood-gold: #D6A24A;
-  --wood-honey: #AE7137;
-  --wood-mid: #82512E;
-  --wood-dark: #4B2B1B;
-  --ludo-grid: #C9CDD2;
-}
-
-/* pawn svg — parent jitna bara, shadow ke liye overflow visible */
-.pawn-svg { display: block; width: 100%; height: 100%; overflow: visible; }
-
-/* movable pawn: halka bob + rang ki chamak (inner wrapper par — outer ki
-   slide/translate transform se takrao nahi hota) */
-.ludo-pawn-bob { animation: pawn-bob .8s ease-in-out infinite; filter: drop-shadow(0 0 3px var(--token-color, var(--wood-gold))); }
-.ludo-pawn-current { filter: drop-shadow(0 0 2px var(--token-color, var(--wood-gold))); }
-@keyframes pawn-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8%); } }
-
-/* board frame ke rim + shine (Manus board-frame__rim / __shine) */
-.ludo-frame__rim { position: absolute; z-index: 5; inset: 5px; border: 1px solid rgba(226,197,141,0.74); border-radius: 12px; pointer-events: none; }
-.ludo-frame__shine { position: absolute; z-index: 6; top: 7px; left: 13%; width: 34%; height: 3px; border-radius: 99px; background: rgba(255,255,255,0.58); filter: blur(.3px); pointer-events: none; }
-
-/* safe cell: sunehra sitara + dashed gol daira */
-.ludo-safe-star { position: absolute; z-index: 1; top: 1px; left: 2px; color: var(--wood-gold); font-size: clamp(6px, 1.55vw, 10px); line-height: 1; text-shadow: 0 1px 1px rgba(75,43,27,.18); pointer-events: none; }
-.ludo-safe-ring { position: absolute; inset: 12%; border: 1px dashed rgba(214,162,74,.46); border-radius: 50%; pointer-events: none; }
-.ludo-start-direction { position: absolute; z-index: 1; top: 1px; right: 2px; font-size: clamp(6px, 1.4vw, 9px); font-weight: 950; line-height: 1; pointer-events: none; }
-
-/* yard ke andar rang ka label */
-.ludo-yard-label { font-weight: 950; letter-spacing: .14em; line-height: 1; pointer-events: none; }
-/* base ki movable goti ke slot ring ki chamak */
-.ludo-yard-ring--movable { animation: legal-glow 1.1s ease-in-out infinite; }
-@keyframes legal-glow { 0%, 100% { box-shadow: inset 0 2px 5px rgba(75,43,27,.12), 0 0 0 0 rgba(214,162,74,.15); } 50% { box-shadow: inset 0 2px 5px rgba(75,43,27,.12), 0 0 0 4px rgba(214,162,74,.28); } }
-
-/* destination halo — mover ke rang ki pulse karti ring */
-.ludo-destination-halo { position: absolute; z-index: 6; border: 2px solid; border-radius: 50%; box-shadow: 0 0 0 3px rgba(214,162,74,.22); animation: destination-pulse .9s ease-in-out infinite; pointer-events: none; }
-@keyframes destination-pulse { 0%, 100% { opacity: .72; transform: translate(-50%,-50%) scale(.91); } 50% { opacity: 1; transform: translate(-50%,-50%) scale(1.04); } }
-
-/* center: finish dot, finished pawns ke stacks, finish destination ring */
-.ludo-finish-dot { position: absolute; z-index: 2; top: calc(50% - 4px); left: calc(50% - 4px); width: 8px; height: 8px; border: 2px solid #fff; border-radius: 50%; background: var(--wood-gold); box-shadow: 0 1px 4px rgba(75,43,27,.35); }
-.ludo-finish-stack { position: absolute; z-index: 3; display: grid; width: 24%; height: 24%; grid-template: repeat(2, 1fr) / repeat(2, 1fr); place-items: center; }
-.ludo-finish-stack--0 { top: 38%; left: 3%; }
-.ludo-finish-stack--1 { top: 3%; left: 38%; }
-.ludo-finish-stack--2 { top: 38%; right: 3%; }
-.ludo-finish-stack--3 { bottom: 3%; left: 38%; }
-.ludo-finish-dest { position: absolute; z-index: 4; width: 29%; height: 29%; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 3px var(--wood-gold); animation: destination-pulse-center .8s ease-in-out infinite; pointer-events: none; }
-.ludo-finish-dest--0 { top: 35%; left: 13%; }
-.ludo-finish-dest--1 { top: 13%; left: 35%; }
-.ludo-finish-dest--2 { top: 35%; right: 13%; }
-.ludo-finish-dest--3 { bottom: 13%; left: 35%; }
-@keyframes destination-pulse-center { 0%, 100% { opacity: .72; transform: scale(.91); } 50% { opacity: 1; transform: scale(1.04); } }
-
-/* capture burst (asal cell ke center par absolute) */
-.ludo-capture-burst { position: absolute; z-index: 30; display: grid; place-items: center; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(75,43,27,.35)); animation: capture-pop .72s ease-out both; }
-@keyframes capture-pop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.15) rotate(-18deg); } 30% { opacity: 1; transform: translate(-50%,-50%) scale(1.35) rotate(9deg); } 70% { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0deg); } 100% { opacity: 0; transform: translate(-50%,-58%) scale(.6); } }
-
-/* board shake (capture par) */
-.ludo-board-shake { animation: board-shake .42s ease-in-out; }
-@keyframes board-shake { 0%, 100% { transform: translateX(0); } 18% { transform: translateX(-4px) rotate(-.35deg); } 38% { transform: translateX(4px) rotate(.35deg); } 58% { transform: translateX(-3px); } 78% { transform: translateX(2px); } }
-
-/* dice (Manus) — wrap ke andar gradient button + countdown ring */
-.ludo-dice-wrap { position: relative; display: grid; width: 91px; height: 91px; place-items: center; flex-shrink: 0; }
-.ludo-dice-button { position: relative; z-index: 2; display: grid; width: 68px; height: 68px; place-items: center; padding: 5px; border: 2px solid rgba(255,255,255,.85); border-radius: 20px; cursor: pointer; transition: transform .15s ease, filter .15s ease; }
-.ludo-dice-button:not(:disabled):hover { transform: translateY(-2px) rotate(-3deg); filter: brightness(1.05); }
-.ludo-dice-button:not(:disabled):active { transform: translateY(3px) scale(.97); }
-.ludo-dice-button:disabled { cursor: default; }
-.ludo-dice-wrap--rolling .ludo-dice-button { animation: dice-tumble .6s ease-in-out; }
-@keyframes dice-tumble { 0% { transform: rotate(0) scale(1); } 25% { transform: rotate(90deg) scale(.92); } 55% { transform: rotate(205deg) scale(1.08); } 78% { transform: rotate(315deg) scale(.96); } 100% { transform: rotate(360deg) scale(1); } }
-.ludo-dice-face { display: block; width: 100%; height: 100%; filter: drop-shadow(0 1px 2px rgba(75,43,27,.15)); }
-.ludo-dice-face svg { display: block; width: 100%; height: 100%; }
-.ludo-dice-shadow { position: absolute; bottom: 1px; left: 20px; width: 52px; height: 7px; border-radius: 50%; background: rgba(75,43,27,.17); filter: blur(4px); }
-.ludo-countdown-ring { position: absolute; z-index: 1; inset: 4px; width: 83px; height: 83px; transform: rotate(-90deg); }
-.ludo-countdown-ring circle { fill: none; stroke-width: 3px; }
-.ludo-countdown-ring__track { stroke: rgba(119,115,109,.17); }
-.ludo-countdown-ring__progress { stroke-linecap: round; transition: stroke-dashoffset .1s linear; }
-
-/* dice — board ke kone par docked chhota variant (Ludo King style) */
-.ludo-dice-wrap--board { width: 62px; height: 62px; }
-.ludo-dice-wrap--board .ludo-dice-button { width: 47px; height: 47px; padding: 4px; border-radius: 15px; }
-.ludo-dice-wrap--board .ludo-countdown-ring { inset: 2px; width: 58px; height: 58px; }
-.ludo-dice-wrap--board .ludo-dice-shadow { bottom: 0; left: 13px; width: 38px; height: 6px; }
-
-/* board par aakhri event ka toast (neeche kinare par chhoti line) */
-.ludo-toast { animation: ludo-toast-in .25s ease-out; }
-@keyframes ludo-toast-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }

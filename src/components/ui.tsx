@@ -9,7 +9,7 @@ export function hueFor(id: string): number {
 }
 // darker variants for light backgrounds
 export function nameColor(m: Member): string {
-  if (m.role === "owner") return "#b4238f";
+  if (m.role === "owner") return "#f59e0b";
   if (m.role === "admin") return "#a5b4fc";
   if (m.role === "mod") return "#38bdf8";
   return `hsl(${hueFor(m.id)} 75% 72%)`;
@@ -28,7 +28,7 @@ export function Avatar({ m, size = 40, showDot = false, meId, role }: { m: Pick<
   const frame = role === "owner"
     ? { ring: "linear-gradient(135deg,#f5c542,#f59e0b,#fde68a,#d97706)", badge: "👑", label: "Owner" }
     : role === "admin"
-      ? { ring: "linear-gradient(135deg,#5865f2,#9b7bff,#5865f2)", badge: "🛡️", label: "Admin" }
+      ? { ring: "linear-gradient(135deg,#4f8cff,#8dbcff,#4f8cff)", badge: "🛡️", label: "Admin" }
       : null;
   const inner = (
     <>
@@ -122,7 +122,7 @@ export function fmtLastSeen(at: number): string {
 export function Badge({ role }: { role: Member["role"] }) {
   if (role === "member") return null;
   const label = role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Mod";
-  const bg = role === "owner" ? "#ec48bd" : role === "admin" ? "#5865f2" : "#00b0f4";
+  const bg = role === "owner" ? "#d97706" : role === "admin" ? "#4f8cff" : "#00b0f4";
   return (
     <span className="badge-pill ml-1.5 inline-block align-middle" style={{ background: bg, color: "#fff" }}>
       {label}

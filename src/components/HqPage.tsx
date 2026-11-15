@@ -22,13 +22,13 @@ type HqTab = "crm" | "outreach" | "posting" | "report";
 
 const KIND_COLOR: Record<CrmKind, string> = {
   client: "bg-[#23a55a]/20 text-[#4ade80]",
-  partner: "bg-[#b026ff]/20 text-[#d08cff]",
+  partner: "bg-[#4f8cff]/20 text-[#8dbcff]",
   affiliate: "bg-[#f5a623]/20 text-[#fbbf24]",
-  lead: "bg-white/10 text-[#b8b3d9]",
+  lead: "bg-white/10 text-[#b6bcc7]",
 };
 
 const inputCls = "field w-full px-3 py-2 text-sm";
-const labelCls = "mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]";
+const labelCls = "mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]";
 
 export default function HqPage() {
   const meId = useStore((s) => s.me);
@@ -70,7 +70,7 @@ export default function HqPage() {
   if (!isOwner) {
     return (
       <div className="panel flex flex-1 items-center justify-center rounded-2xl p-8 text-center">
-        <p className="text-sm font-semibold text-[#9a94bd]">Ye section sirf owner ke liye hai.</p>
+        <p className="text-sm font-semibold text-[#8b93a1]">Ye section sirf owner ke liye hai.</p>
       </div>
     );
   }
@@ -80,14 +80,14 @@ export default function HqPage() {
   return (
     <div className="panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-3 sm:px-4">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#b026ff] to-[#7b2ff7] text-white soft-shadow">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-white soft-shadow">
           <Briefcase size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f2eefc]">Business HQ</h1>
-          <p className="truncate text-xs text-[#9a94bd]">Symbiote Systems — CRM · Outreach · Posting · Report (sirf owner)</p>
+          <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Business HQ</h1>
+          <p className="truncate text-xs text-[#8b93a1]">Symbiote Systems — CRM · Outreach · Posting · Report (sirf owner)</p>
         </div>
-        <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b8b3d9] sm:block">
+        <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b6bcc7] sm:block">
           {contacts.length} contacts · {stats.postsQueued} posts queued
         </span>
       </header>
@@ -103,7 +103,7 @@ export default function HqPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold transition ${tab === t.id ? "bg-[#b026ff] text-white soft-shadow" : "text-[#9a94bd] hover:bg-white/[0.06] hover:text-[#f2eefc]"}`}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold transition ${tab === t.id ? "bg-[#4f8cff] text-white soft-shadow" : "text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]"}`}
           >
             <t.icon size={15} /> {t.label}
           </button>
@@ -177,7 +177,7 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[#9a94bd]">Pipeline — card par click karo, details khulengi. Repeat username/email database khud rokta hai.</p>
+        <p className="text-[13px] font-semibold text-[#8b93a1]">Pipeline — card par click karo, details khulengi. Repeat username/email database khud rokta hai.</p>
         <button onClick={() => setFormOpen((v) => !v)} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3.5 py-2 text-[13px]">
           <Plus size={15} /> Naya contact
         </button>
@@ -210,20 +210,20 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
           const list = contacts.filter((c) => c.stage === stage);
           return (
             <div key={stage} className="flex w-[240px] shrink-0 flex-col rounded-2xl border border-white/[0.07] bg-white/[0.02] p-2.5">
-              <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9a94bd]">{STAGE_LABEL[stage]} — {list.length}</p>
+              <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">{STAGE_LABEL[stage]} — {list.length}</p>
               <div className="space-y-2">
                 {list.map((c) => (
-                  <button key={c.id} onClick={() => onSelect(c)} className="w-full rounded-xl border border-white/[0.07] bg-[#221847] p-3 text-left transition hover:border-[#b026ff]/50">
+                  <button key={c.id} onClick={() => onSelect(c)} className="w-full rounded-xl border border-white/[0.07] bg-[#111114] p-3 text-left transition hover:border-[#4f8cff]/50">
                     <span className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f2eefc]">{c.name || "—"}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f4f6f8]">{c.name || "—"}</span>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
                     </span>
-                    {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#9a94bd]">@{c.instagramUsername}</span>}
-                    {c.email && <span className="block truncate text-xs text-[#9a94bd]">{c.email}</span>}
-                    {c.source && <span className="mt-1.5 block text-[11px] text-[#9a94bd]/70">via {c.source}</span>}
+                    {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#8b93a1]">@{c.instagramUsername}</span>}
+                    {c.email && <span className="block truncate text-xs text-[#8b93a1]">{c.email}</span>}
+                    {c.source && <span className="mt-1.5 block text-[11px] text-[#8b93a1]/70">via {c.source}</span>}
                   </button>
                 ))}
-                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#9a94bd]/60">Khaali</p>}
+                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#8b93a1]/60">Khaali</p>}
               </div>
             </div>
           );
@@ -257,27 +257,27 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
-      <div className="pop-in fixed inset-x-3 bottom-3 top-auto z-50 max-h-[86dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#1d133f] p-5 soft-shadow sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:w-[400px] thin-scroll">
+      <div className="pop-in fixed inset-x-3 bottom-3 top-auto z-50 max-h-[86dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-5 soft-shadow sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:w-[400px] thin-scroll">
         <div className="mb-1 flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-lg font-extrabold text-[#f2eefc]">{contact.name || "—"}</h3>
+            <h3 className="truncate text-lg font-extrabold text-[#f4f6f8]">{contact.name || "—"}</h3>
             <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[contact.kind]}`}>{KIND_LABEL[contact.kind]}</span>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06] hover:text-[#f2eefc]" aria-label="Band karo"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]" aria-label="Band karo"><X size={18} /></button>
         </div>
 
-        <div className="mt-3 space-y-1.5 text-sm text-[#b8b3d9]">
+        <div className="mt-3 space-y-1.5 text-sm text-[#b6bcc7]">
           {contact.instagramUsername && <p>📸 @{contact.instagramUsername}</p>}
           {contact.email && <p>✉️ {contact.email}</p>}
           {contact.whatsapp && <p>💬 {contact.whatsapp}</p>}
-          {contact.source && <p className="text-xs text-[#9a94bd]">Source: {contact.source}</p>}
-          <p className="text-xs text-[#9a94bd]">Add hua: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Aakhri rabta: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
+          {contact.source && <p className="text-xs text-[#8b93a1]">Source: {contact.source}</p>}
+          <p className="text-xs text-[#8b93a1]">Add hua: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Aakhri rabta: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
         </div>
 
         <label className={`${labelCls} mt-5`}>Stage</label>
         <div className="flex flex-wrap gap-1.5">
           {CRM_STAGES.map((s) => (
-            <button key={s} onClick={() => changeStage(s)} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${contact.stage === s ? "bg-[#b026ff] text-white" : "bg-white/[0.06] text-[#9a94bd] hover:text-[#f2eefc]"}`}>
+            <button key={s} onClick={() => changeStage(s)} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${contact.stage === s ? "bg-[#4f8cff] text-white" : "bg-white/[0.06] text-[#8b93a1] hover:text-[#f4f6f8]"}`}>
               {STAGE_LABEL[s]}
             </button>
           ))}
@@ -289,13 +289,13 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
 
         <label className={`${labelCls} mt-6`}>Outreach timeline (first-touch log)</label>
         {outreach.length === 0 ? (
-          <p className="text-[13px] text-[#9a94bd]">Abhi koi message nahi gaya — Outreach tab se pehla message bhejo.</p>
+          <p className="text-[13px] text-[#8b93a1]">Abhi koi message nahi gaya — Outreach tab se pehla message bhejo.</p>
         ) : (
           <div className="space-y-2">
             {outreach.map((o) => (
               <div key={o.id} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#d08cff]">{o.channel} · {new Date(o.sentAt).toLocaleString()}</p>
-                <p className="mt-1 whitespace-pre-wrap text-[13px] text-[#b8b3d9]">{o.body}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-[#8dbcff]">{o.channel} · {new Date(o.sentAt).toLocaleString()}</p>
+                <p className="mt-1 whitespace-pre-wrap text-[13px] text-[#b6bcc7]">{o.body}</p>
               </div>
             ))}
           </div>
@@ -320,7 +320,7 @@ function OutreachTab({ contacts, outreach, refresh }: { contacts: CrmContact[]; 
 
   return (
     <div className="space-y-6 p-3 sm:p-4">
-      <p className="text-[13px] font-semibold text-[#9a94bd]">
+      <p className="text-[13px] font-semibold text-[#8b93a1]">
         Aaj ki queues — jo banda aik channel par pehle hi ja chuka hai, wo queue me dobara NAHI aata (dedupe lock). "Mark sent" dabate hi log ho jata hai aur stage Contacted ho jati hai.
         <br />Note: asal bhejna Round 2 me Gmail/social connectors se lagega — abhi message tayyar + log pakka hota hai.
       </p>
@@ -347,22 +347,22 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
   };
   return (
     <section>
-      <h3 className="mb-2 text-sm font-extrabold text-[#f2eefc]">{title} <span className="text-[#9a94bd]">({list.length})</span></h3>
+      <h3 className="mb-2 text-sm font-extrabold text-[#f4f6f8]">{title} <span className="text-[#8b93a1]">({list.length})</span></h3>
       {list.length === 0 ? (
-        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#9a94bd]">Queue khaali hai — sab ko is channel par pehla message ja chuka hai, ya eligible contacts nahi hain.</p>
+        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#8b93a1]">Queue khaali hai — sab ko is channel par pehla message ja chuka hai, ya eligible contacts nahi hain.</p>
       ) : (
         <div className="space-y-2">
           {list.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-white/[0.07] bg-[#221847] p-3.5">
+            <div key={c.id} className="rounded-2xl border border-white/[0.07] bg-[#111114] p-3.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-[#f2eefc]">{c.name}</span>
+                <span className="text-sm font-bold text-[#f4f6f8]">{c.name}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
-                <span className="text-xs text-[#9a94bd]">{channel === "email" ? c.email : channel === "dm" ? `@${c.instagramUsername}` : c.whatsapp}</span>
+                <span className="text-xs text-[#8b93a1]">{channel === "email" ? c.email : channel === "dm" ? `@${c.instagramUsername}` : c.whatsapp}</span>
                 <button onClick={() => markSent(c)} disabled={busyId === c.id} className="btn btn-blurple ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:opacity-60">
                   {channel === "email" ? <Mail size={13} /> : <MessageCircle size={13} />} {busyId === c.id ? "Ho raha…" : "Mark sent"}
                 </button>
               </div>
-              <p className="mt-2 whitespace-pre-wrap rounded-xl bg-black/25 px-3 py-2 text-[13px] leading-relaxed text-[#b8b3d9]">{outreachTemplate(c, channel)}</p>
+              <p className="mt-2 whitespace-pre-wrap rounded-xl bg-black/25 px-3 py-2 text-[13px] leading-relaxed text-[#b6bcc7]">{outreachTemplate(c, channel)}</p>
             </div>
           ))}
         </div>
@@ -399,7 +399,7 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
 
   return (
     <div className="p-3 sm:p-4">
-      <div className="mb-4 rounded-xl border border-[#b026ff]/30 bg-[#b026ff]/10 px-4 py-3 text-[13px] font-bold text-[#d08cff]">
+      <div className="mb-4 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-bold text-[#8dbcff]">
         Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Asal posting Round 2 me connectors se lagegi.
       </div>
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -418,12 +418,12 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
       </div>
 
       <div className="space-y-2">
-        {posts.length === 0 && <p className="text-[13px] text-[#9a94bd]">Abhi koi post queue me nahi.</p>}
+        {posts.length === 0 && <p className="text-[13px] text-[#8b93a1]">Abhi koi post queue me nahi.</p>}
         {posts.map((p) => (
-          <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-[#221847] px-3.5 py-3">
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b8b3d9]">{p.platform}</span>
-            <span className="min-w-0 flex-1 truncate text-sm text-[#f2eefc]">{p.body}</span>
-            <span className="text-xs text-[#9a94bd]">{new Date(p.scheduledAt).toLocaleString()}</span>
+          <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-[#111114] px-3.5 py-3">
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b6bcc7]">{p.platform}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-[#f4f6f8]">{p.body}</span>
+            <span className="text-xs text-[#8b93a1]">{new Date(p.scheduledAt).toLocaleString()}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge(p.status)}`}>{p.status}</span>
             {p.status === "queued" && (
               <>
@@ -431,7 +431,7 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
                 <button onClick={async () => { await setPostStatus(p.id, "failed"); refresh(); }} className="rounded-md p-1.5 text-[#ff8589] hover:bg-white/[0.06]" title="Failed mark karo"><X size={15} /></button>
               </>
             )}
-            <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#9a94bd] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
+            <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
           </div>
         ))}
       </div>
@@ -481,12 +481,12 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
 
   return (
     <div className="p-3 sm:p-4">
-      <p className="mb-3 text-[13px] font-semibold text-[#9a94bd]">Aaj ({todayKey()}) ka hisab — data se khud gina gaya. Roz raat summary likh kar save kar do, yahi daily CRM update hai.</p>
+      <p className="mb-3 text-[13px] font-semibold text-[#8b93a1]">Aaj ({todayKey()}) ka hisab — data se khud gina gaya. Roz raat summary likh kar save kar do, yahi daily CRM update hai.</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(([label, v]) => (
-          <div key={label} className="rounded-2xl border border-white/[0.07] bg-[#221847] p-4">
-            <p className="text-3xl font-extrabold tracking-tight text-[#f2eefc]">{v}</p>
-            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#9a94bd]">{label}</p>
+          <div key={label} className="rounded-2xl border border-white/[0.07] bg-[#111114] p-4">
+            <p className="text-3xl font-extrabold tracking-tight text-[#f4f6f8]">{v}</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#8b93a1]">{label}</p>
           </div>
         ))}
       </div>

@@ -31,12 +31,12 @@ export default function VersionBanner() {
 
   if (!show) return null;
   return (
-    <div className="version-banner z-[100] flex shrink-0 items-center justify-center gap-2.5 bg-gradient-to-r from-[#b026ff] to-[#7b2ff7] px-4 py-2.5 text-sm font-bold text-white soft-shadow">
+    <div className="version-banner z-[100] flex shrink-0 items-center justify-center gap-2.5 bg-gradient-to-r from-[#4f8cff] to-[#3b76d6] px-4 py-2.5 text-sm font-bold text-white soft-shadow">
       <Sparkles size={16} className="shrink-0" />
       <span className="truncate">🎉 Naya version aaya hai!</span>
       <button
         onClick={() => window.location.reload()}
-        className="shrink-0 rounded-full bg-white px-3.5 py-1 text-xs font-extrabold text-[#d08cff] transition hover:bg-white/90 active:scale-95"
+        className="shrink-0 rounded-full bg-white px-3.5 py-1 text-xs font-extrabold text-[#8dbcff] transition hover:bg-white/90 active:scale-95"
       >
         Update karo
       </button>
