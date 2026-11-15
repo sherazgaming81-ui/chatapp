@@ -6,7 +6,7 @@
 // Keyboard: ↑/↓ navigate, Enter select, Esc close. Mouse bhi chalta hai.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, MessageSquare, Users, Hash, UserPlus, Send, BarChart3, Briefcase, CornerDownLeft, ListTodo } from "lucide-react";
+import { X, Search, MessageSquare, Users, Hash, UserPlus, Send, BarChart3, Briefcase, CornerDownLeft, ListTodo, TrendingUp } from "lucide-react";
 import { useStore, patchUI } from "@/lib/store";
 import { Avatar, fmtFull, nameColor } from "@/components/ui";
 import { listContacts, KIND_LABEL, type CrmContact } from "@/lib/crm";
@@ -83,7 +83,8 @@ export default function GlobalSearch() {
         { kind: "action", key: "a-lead", label: "Add Lead", hint: "Business HQ · CRM — new contact form", icon: UserPlus, run: () => nav({ tab: "hq", hqNav: { section: "crm", newContact: true, nonce: Date.now() } }) },
         { kind: "action", key: "a-task", label: "Add Task", hint: "Business HQ · Tasks — new task form", icon: ListTodo, run: () => nav({ tab: "hq", hqNav: { section: "tasks", newContact: true, nonce: Date.now() } }) },
         { kind: "action", key: "a-post", label: "Create Post", hint: "Business HQ · Posting — queue a post", icon: Send, run: () => nav({ tab: "hq", hqNav: { section: "posting", nonce: Date.now() } }) },
-        { kind: "action", key: "a-report", label: "Open Daily Report", hint: "Business HQ · Daily Report", icon: BarChart3, run: () => nav({ tab: "hq", hqNav: { section: "report", nonce: Date.now() } }) },
+        { kind: "action", key: "a-analytics", label: "Open Analytics", hint: "Business HQ · Analytics — KPIs & charts from real data", icon: TrendingUp, run: () => nav({ tab: "hq", hqNav: { section: "analytics", nonce: Date.now() } }) },
+        { kind: "action", key: "a-report", label: "Open Daily Report", hint: "Business HQ · Reports", icon: BarChart3, run: () => nav({ tab: "hq", hqNav: { section: "report", nonce: Date.now() } }) },
         { kind: "action", key: "a-hq", label: "Open Business HQ", hint: "CRM · Outreach · Posting · Report", icon: Briefcase, run: () => nav({ tab: "hq" }) },
       );
     }

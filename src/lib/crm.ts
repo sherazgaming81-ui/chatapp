@@ -369,6 +369,12 @@ export async function listOutreach(contactId?: string): Promise<CrmOutreach[]> {
   }
 }
 
+/** Poora outreach log — analytics/report aggregations ke liye (listOutreach
+ *  ka bina-filter roop; limit wahi 1000 hai). */
+export async function listOutreachLog(): Promise<CrmOutreach[]> {
+  return listOutreach();
+}
+
 /** Is bande ko is channel par pehla message ja sakta hai? Log ho to NAHI (repeat band). */
 export function canSendTo(contactId: string, channel: OutreachChannel, log: CrmOutreach[]): boolean {
   return !log.some((o) => o.contactId === contactId && o.channel === channel);
@@ -605,6 +611,25 @@ export async function getDailyReport(day = todayKey()): Promise<CrmDailyReport |
     };
   } catch {
     return null;
+  }
+}
+
+/** Save shuda daily reports ki history — nayi pehle (Report tab ke liye) */
+export async function listDailyReports(limitN = 30): Promise<CrmDailyReport[]> {
+  try {
+    const { data, error } = await supabase().from("crm_daily_reports").select("*").order("day", { ascending: false }).limit(limitN);
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      day: d.day,
+      leadsNew: d.leads_new || 0,
+      emailsSent: d.emails_sent || 0,
+      dmsQueued: d.dms_queued || 0,
+      replies: d.replies || 0,
+      stageMoves: d.stage_moves || 0,
+      summary: d.summary || "",
+    }));
+  } catch {
+    return [];
   }
 }
 

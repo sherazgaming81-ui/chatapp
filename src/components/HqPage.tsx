@@ -6,19 +6,19 @@
 // Members never render this page (owner check in App.tsx + guard here).
 // UI language: English only (owner rule).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, List, Trash2, Check, Copy, Link2, Download, Upload, Search, FileText, Info, ArrowLeftRight, Clock, ListTodo, CalendarDays, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, List, Trash2, Check, Copy, Link2, Download, Upload, Search, FileText, Info, ArrowLeftRight, Clock, ListTodo, CalendarDays, ChevronLeft, ChevronRight, Pencil, TrendingUp } from "lucide-react";
 import { useStore, toast } from "@/lib/store";
 import {
   CRM_KINDS, CRM_STAGES, KIND_LABEL, STAGE_LABEL, PRIORITY_LABEL,
   listContacts, createContact, updateContact, moveStage, deleteContact,
   listOutreach, canSendTo, recordOutreach, outreachTemplate,
   listPosts, queuePost, setPostStatus, deletePost,
-  getDailyReport, upsertDailyReport, computeTodayStats, todayKey, subscribeCrm, crmTablesReady,
+  getDailyReport, listDailyReports, upsertDailyReport, computeTodayStats, todayKey, subscribeCrm, crmTablesReady,
   getThreadsAccount, getThreadsAccounts, type SocialAccountStatus,
   computeLeadScore, LEAD_SCORE_RULE, addActivity, listActivities,
   exportContactsCsv, importContactsCsv,
-  type CrmContact, type CrmKind, type CrmStage, type CrmPriority, type CrmActivity, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
+  type CrmContact, type CrmKind, type CrmStage, type CrmPriority, type CrmActivity, type CrmOutreach, type CrmPost, type CrmDailyReport, type OutreachChannel, type PostPlatform,
 } from "@/lib/crm";
 import { supabase } from "@/lib/supabase";
 import NotificationsBell from "@/components/NotificationsBell";
@@ -27,7 +27,7 @@ import {
   type CrmTask, type TaskPriority,
 } from "@/lib/tasks";
 
-type HqTab = "crm" | "tasks" | "outreach" | "posting" | "report";
+type HqTab = "crm" | "tasks" | "outreach" | "posting" | "analytics" | "report";
 
 const KIND_COLOR: Record<CrmKind, string> = {
   client: "bg-[#23a55a]/20 text-[#4ade80]",
@@ -152,7 +152,7 @@ export default function HqPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Business HQ</h1>
-          <p className="truncate text-xs text-[#93A0B4]">Symbiote Systems — CRM · Tasks · Outreach · Posting · Report (owner only)</p>
+          <p className="truncate text-xs text-[#93A0B4]">Symbiote Systems — CRM · Tasks · Outreach · Posting · Analytics · Reports (owner only)</p>
         </div>
         <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b6bcc7] sm:block">
           {contacts.length} contacts · {stats.postsQueued} posts queued
@@ -167,7 +167,8 @@ export default function HqPage() {
           { id: "tasks", label: "Tasks", icon: ListTodo },
           { id: "outreach", label: "Outreach", icon: Send },
           { id: "posting", label: "Posting", icon: CalendarClock },
-          { id: "report", label: "Daily Report", icon: BarChart3 },
+          { id: "analytics", label: "Analytics", icon: TrendingUp },
+          { id: "report", label: "Reports", icon: BarChart3 },
         ] as { id: HqTab; label: string; icon: any }[]).map((t) => (
           <button
             key={t.id}
@@ -198,8 +199,10 @@ export default function HqPage() {
           <OutreachTab contacts={contacts} outreach={outreach} refresh={refresh} />
         ) : tab === "posting" ? (
           <PostingTab posts={posts} contacts={contacts} refresh={refresh} />
+        ) : tab === "analytics" ? (
+          <AnalyticsTab contacts={contacts} outreach={outreach} posts={posts} tasks={tasks} />
         ) : (
-          <ReportTab contacts={contacts} outreach={outreach} posts={posts} />
+          <ReportTab contacts={contacts} outreach={outreach} posts={posts} tasks={tasks} />
         )}
       </div>
 
@@ -1452,19 +1455,336 @@ function CalendarView({ tasks, contacts, posts, onSelectContact, onShowList }: {
 }
 
 /* ─────────────────────────── REPORT TAB ─────────────────────────── */
-function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outreach: CrmOutreach[]; posts: CrmPost[] }) {
-  const stats = useMemo(() => computeTodayStats(contacts, outreach, posts), [contacts, outreach, posts]);
+/* ─────────────────────────── ANALYTICS (Phase 4) ─────────────────────────── */
+// HARD RULE: every number here is counted from real DB rows (crm_contacts,
+// crm_outreach_log, crm_posts, crm_tasks) — no sample or estimated data.
+// Where a period has no data, the UI says so instead of inventing numbers.
+// Charts are hand-built with divs (no chart library, no new dependency).
+type AnalyticsPeriod = "7" | "30" | "90" | "all";
+const ANALYTICS_PERIODS: { id: AnalyticsPeriod; label: string }[] = [
+  { id: "7", label: "Last 7 days" },
+  { id: "30", label: "Last 30 days" },
+  { id: "90", label: "Last 90 days" },
+  { id: "all", label: "All time" },
+];
+
+interface TimeBucket { label: string; start: number; end: number }
+const DAY_MS = 86400e3;
+const startOfDayMs = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const fmtDayShort = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+/** Daily buckets for 7/30 days, weekly buckets for 90 days / all time. */
+function makeBuckets(period: AnalyticsPeriod, earliest: number): TimeBucket[] {
+  const todayStart = startOfDayMs(Date.now());
+  if (period === "7" || period === "30") {
+    const days = period === "7" ? 7 : 30;
+    const out: TimeBucket[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const s = todayStart - i * DAY_MS;
+      out.push({ label: fmtDayShort(s), start: s, end: s + DAY_MS });
+    }
+    return out;
+  }
+  const spanDays = period === "90" ? 90 : Math.max(7, Math.ceil((Date.now() - (earliest || Date.now())) / DAY_MS) + 1);
+  const weeks = Math.min(52, Math.max(1, Math.ceil(spanDays / 7)));
+  const out: TimeBucket[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const e = todayStart + DAY_MS - i * 7 * DAY_MS;
+    out.push({ label: fmtDayShort(e - 7 * DAY_MS), start: e - 7 * DAY_MS, end: e });
+  }
+  return out;
+}
+const inBucket = (t: number, b: TimeBucket) => t >= b.start && t < b.end;
+
+function ChartCard({ title, total, note, children }: { title: string; total?: string; note: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-[#27334D] bg-[#141C2B] p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-extrabold tracking-tight text-[#f4f6f8]">{title}</h3>
+        {total !== undefined && <span className="text-lg font-extrabold text-[#8dbcff]">{total}</span>}
+      </div>
+      <div className="mt-3">{children}</div>
+      <p className="mt-3 border-t border-[#27334D] pt-2 text-[11px] leading-relaxed text-[#93A0B4]">{note}</p>
+    </section>
+  );
+}
+
+const NoData = ({ text = "No data for this period yet." }: { text?: string }) => (
+  <p className="rounded-xl bg-white/[0.03] px-3 py-6 text-center text-[13px] font-semibold text-[#93A0B4]">{text}</p>
+);
+
+/** Vertical bar chart (divs only) — one or two series; two series render as grouped bars. */
+function VBarChart({ buckets, series }: { buckets: TimeBucket[]; series: { values: number[]; color: string; name: string }[] }) {
+  let max = 1;
+  for (const s of series) for (const v of s.values) if (v > max) max = v;
+  const labelEvery = Math.max(1, Math.ceil(buckets.length / 8));
+  return (
+    <div>
+      <div className="flex h-[120px] items-end gap-[3px]">
+        {buckets.map((b, i) => (
+          <div key={i} className="flex h-full min-w-0 flex-1 items-end justify-center gap-[2px]" title={`${b.label} — ${series.map((s) => `${s.name}: ${s.values[i]}`).join(" · ")}`}>
+            {series.map((s) => (
+              <div
+                key={s.name}
+                className="w-full max-w-[16px] rounded-t-[3px]"
+                style={{ height: s.values[i] > 0 ? `${Math.max(3, (s.values[i] / max) * 100)}%` : "0%", background: s.color, opacity: s.values[i] > 0 ? 1 : 0.2 }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-[3px]">
+        {buckets.map((b, i) => (
+          <div key={i} className="min-w-0 flex-1 truncate text-center text-[9px] font-semibold text-[#93A0B4]">{i % labelEvery === 0 ? b.label : ""}</div>
+        ))}
+      </div>
+      {series.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-4">
+          {series.map((s) => (
+            <span key={s.name} className="flex items-center gap-1.5 text-[11px] font-bold text-[#b6bcc7]">
+              <span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />{s.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Horizontal bar row — funnel aur channel charts ke liye */
+function HBarRow({ label, value, max, color, right }: { label: string; value: number; max: number; color: string; right: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="w-[86px] shrink-0 truncate text-xs font-bold text-[#b6bcc7]">{label}</span>
+      <div className="h-[18px] min-w-0 flex-1 overflow-hidden rounded-md bg-white/[0.04]">
+        <div className="h-full rounded-md transition-all" style={{ width: `${max > 0 ? Math.max(value > 0 ? 3 : 0, (value / max) * 100) : 0}%`, background: color }} />
+      </div>
+      <span className="w-[86px] shrink-0 text-right text-xs font-bold text-[#f4f6f8]">{right}</span>
+    </div>
+  );
+}
+
+const FUNNEL_COLOR: Record<CrmStage, string> = {
+  new: "#4F8CFF", contacted: "#4F8CFF", replied: "#4F8CFF", meeting: "#4F8CFF",
+  client: "#23a55a", done: "#23a55a", lost: "#ed4245",
+};
+const CHANNEL_META: { id: OutreachChannel; label: string; color: string }[] = [
+  { id: "email", label: "Email", color: "#4F8CFF" },
+  { id: "whatsapp", label: "WhatsApp", color: "#23a55a" },
+  { id: "dm", label: "Instagram DM", color: "#f5a623" },
+];
+
+function AnalyticsTab({ contacts, outreach, posts, tasks }: { contacts: CrmContact[]; outreach: CrmOutreach[]; posts: CrmPost[]; tasks: CrmTask[] }) {
+  const [period, setPeriod] = useState<AnalyticsPeriod>("30");
+
+  const data = useMemo(() => {
+    const times: number[] = [];
+    for (const c of contacts) if (c.createdAt > 0) times.push(c.createdAt);
+    for (const o of outreach) if (o.sentAt > 0) times.push(o.sentAt);
+    for (const p of posts) if (p.createdAt > 0) times.push(p.createdAt);
+    const earliest = times.length ? Math.min(...times) : 0;
+    const buckets = makeBuckets(period, earliest);
+    const pStart = buckets.length ? buckets[0].start : 0;
+    const inP = (t: number) => t >= pStart;
+
+    const total = contacts.length;
+    const wonCount = contacts.filter((c) => c.stage === "client" || c.stage === "done").length;
+    const kpis = {
+      totalContacts: total,
+      newInPeriod: contacts.filter((c) => inP(c.createdAt)).length,
+      conversion: total ? Math.round((wonCount / total) * 1000) / 10 : 0,
+      pipelineValue: contacts.filter((c) => c.stage !== "done" && c.stage !== "lost").reduce((s, c) => s + (c.dealValue || 0), 0),
+      wonValue: contacts.filter((c) => c.stage === "done").reduce((s, c) => s + (c.dealValue || 0), 0),
+      outreachInPeriod: outreach.filter((o) => inP(o.sentAt)).length,
+      postsInPeriod: posts.filter((p) => p.status === "posted" && !!p.postedAt && inP(p.postedAt)).length,
+      tasksInPeriod: tasks.filter((t) => t.status === "done" && !!t.completedAt && inP(t.completedAt)).length,
+    };
+
+    const growth = buckets.map((b) => contacts.filter((c) => inBucket(c.createdAt, b)).length);
+    const funnel = CRM_STAGES.map((stage) => ({ stage, count: contacts.filter((c) => c.stage === stage).length }));
+    const channels = CHANNEL_META.map((ch) => ({ ...ch, count: outreach.filter((o) => o.channel === ch.id && inP(o.sentAt)).length }));
+    const postedSeries = buckets.map((b) => posts.filter((p) => p.status === "posted" && !!p.postedAt && inBucket(p.postedAt, b)).length);
+    const failedSeries = buckets.map((b) => posts.filter((p) => p.status === "failed" && inBucket(p.createdAt, b)).length);
+
+    const partners = contacts
+      .filter((c) => c.kind === "partner" || c.kind === "affiliate")
+      .map((c) => {
+        const assigned = posts.filter((p) => p.crmContactId === c.id);
+        const posted = assigned.filter((p) => p.status === "posted").length;
+        return { contact: c, assigned: assigned.length, posted, pct: assigned.length ? Math.round((posted / assigned.length) * 100) : 0 };
+      })
+      .filter((x) => x.assigned > 0)
+      .sort((a, b) => b.pct - a.pct || b.assigned - a.assigned);
+
+    return { buckets, kpis, growth, funnel, channels, postedSeries, failedSeries, partners };
+  }, [contacts, outreach, posts, tasks, period]);
+
+  const { kpis } = data;
+  const hasAnyData = contacts.length > 0 || outreach.length > 0 || posts.length > 0 || tasks.length > 0;
+  const growthTotal = data.growth.reduce((s, v) => s + v, 0);
+  const channelMax = Math.max(0, ...data.channels.map((c) => c.count));
+  const channelTotal = data.channels.reduce((s, c) => s + c.count, 0);
+  const postingTotal = data.postedSeries.reduce((s, v) => s + v, 0) + data.failedSeries.reduce((s, v) => s + v, 0);
+  const funnelMax = Math.max(0, ...data.funnel.map((f) => f.count));
+
+  const kpiCards: { label: string; value: string; sub: string }[] = [
+    { label: "Total contacts", value: fmtNum(kpis.totalContacts), sub: "All contacts currently in the CRM" },
+    { label: "New leads in period", value: fmtNum(kpis.newInPeriod), sub: "Contacts created in the selected period" },
+    { label: "Conversion rate", value: `${kpis.conversion}%`, sub: "Client + Done stage ÷ total contacts" },
+    { label: "Pipeline value", value: fmtNum(kpis.pipelineValue), sub: "Deal values in open stages (not Done/Lost)" },
+    { label: "Won value (Done deals)", value: fmtNum(kpis.wonValue), sub: "Deal values of contacts in the Done stage" },
+    { label: "Outreach sent in period", value: fmtNum(kpis.outreachInPeriod), sub: "First messages logged, all channels" },
+    { label: "Posts published in period", value: fmtNum(kpis.postsInPeriod), sub: "Posts with status Posted in the period" },
+    { label: "Tasks completed in period", value: fmtNum(kpis.tasksInPeriod), sub: "Tasks marked Done in the period" },
+  ];
+
+  return (
+    <div className="p-3 sm:p-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-[13px] font-semibold text-[#93A0B4]">Every number below is counted live from the CRM tables — nothing is estimated or sampled.</p>
+        <div className="flex shrink-0 gap-1 rounded-xl border border-[#27334D] bg-[#141C2B] p-1">
+          {ANALYTICS_PERIODS.map((p) => (
+            <button key={p.id} onClick={() => setPeriod(p.id)} className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${period === p.id ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#f4f6f8]"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!hasAnyData ? (
+        <div className="rounded-2xl border border-[#27334D] bg-[#141C2B] px-4 py-10 text-center">
+          <TrendingUp size={26} className="mx-auto text-[#4F8CFF]" />
+          <p className="mt-3 text-sm font-extrabold text-[#f4f6f8]">No business data yet</p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] font-semibold text-[#93A0B4]">Analytics appear here as soon as contacts, outreach, posts or tasks exist. Add your first contact in the CRM tab to get started.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {kpiCards.map((k) => (
+              <div key={k.label} className="rounded-2xl border border-[#27334D] bg-[#1B2638] p-4">
+                <p className="text-3xl font-extrabold tracking-tight text-[#f4f6f8]">{k.value}</p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#93A0B4]">{k.label}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#93A0B4]/80">{k.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <ChartCard title="Lead growth" total={fmtNum(growthTotal)} note="Contacts created per day (weekly buckets on longer ranges). Counted from crm_contacts.created_at.">
+              {growthTotal > 0 ? (
+                <VBarChart buckets={data.buckets} series={[{ values: data.growth, color: "#4F8CFF", name: "New contacts" }]} />
+              ) : <NoData />}
+            </ChartCard>
+
+            <ChartCard title="CRM funnel" total={fmtNum(kpis.totalContacts)} note="Current pipeline snapshot — contacts per stage right now (the period filter does not apply). % is the share of all contacts.">
+              {kpis.totalContacts > 0 ? (
+                <div className="space-y-1.5">
+                  {data.funnel.map((f) => (
+                    <HBarRow key={f.stage} label={STAGE_LABEL[f.stage]} value={f.count} max={funnelMax} color={FUNNEL_COLOR[f.stage]} right={`${fmtNum(f.count)} · ${kpis.totalContacts ? Math.round((f.count / kpis.totalContacts) * 100) : 0}%`} />
+                  ))}
+                </div>
+              ) : <NoData text="No contacts yet — the funnel fills as leads are added." />}
+            </ChartCard>
+
+            <ChartCard title="Outreach by channel" total={fmtNum(channelTotal)} note="First messages sent in the period, per channel. Counted from crm_outreach_log.sent_at (one first message per contact per channel — repeats are blocked).">
+              {channelTotal > 0 ? (
+                <div className="space-y-1.5">
+                  {data.channels.map((ch) => (
+                    <HBarRow key={ch.id} label={ch.label} value={ch.count} max={channelMax} color={ch.color} right={fmtNum(ch.count)} />
+                  ))}
+                </div>
+              ) : <NoData />}
+            </ChartCard>
+
+            <ChartCard title="Posting activity" total={`${fmtNum(data.postedSeries.reduce((s, v) => s + v, 0))} posted`} note="Posted posts counted by crm_posts.posted_at. Failed posts are counted by the date they were queued (created_at) — no failure timestamp is stored.">
+              {postingTotal > 0 ? (
+                <VBarChart buckets={data.buckets} series={[
+                  { values: data.postedSeries, color: "#23a55a", name: "Posted" },
+                  { values: data.failedSeries, color: "#ed4245", name: "Failed" },
+                ]} />
+              ) : <NoData />}
+            </ChartCard>
+          </div>
+
+          <div className="mt-3">
+            <ChartCard title="Partner performance" note="Posts assigned to each partner/affiliate (crm_posts.crm_contact_id) and how many they marked Posted. All time — partners without any assigned post are not listed.">
+              {data.partners.length > 0 ? (
+                <div className="space-y-2">
+                  {data.partners.map(({ contact: c, assigned, posted, pct }) => (
+                    <div key={c.id} className="flex items-center gap-2.5">
+                      <span className="w-[150px] shrink-0 truncate text-xs font-bold text-[#b6bcc7]">
+                        {c.name} <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
+                      </span>
+                      <div className="h-[18px] min-w-0 flex-1 overflow-hidden rounded-md bg-white/[0.04]">
+                        <div className="h-full rounded-md bg-[#23a55a] transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-[110px] shrink-0 text-right text-xs font-bold text-[#f4f6f8]">{posted}/{assigned} · {pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <NoData text="No partner posts yet — assign a post to a partner in the Posting tab and it will show up here." />}
+            </ChartCard>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────── REPORTS (Phase 4 upgrade) ─────────────────────────── */
+type ReportPeriod = "daily" | "weekly" | "monthly";
+const REPORT_PERIODS: { id: ReportPeriod; label: string }[] = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+];
+
+function reportRange(period: ReportPeriod): { start: number; label: string } {
+  if (period === "daily") {
+    const s = new Date(); s.setHours(0, 0, 0, 0);
+    return { start: s.getTime(), label: `Today — ${todayKey()}` };
+  }
+  const days = period === "weekly" ? 7 : 30;
+  const start = startOfDayMs(Date.now() - (days - 1) * DAY_MS);
+  const fmt = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return { start, label: `Last ${days} days — ${fmt(start)} to ${fmt(Date.now())}` };
+}
+
+function ReportTab({ contacts, outreach, posts, tasks }: { contacts: CrmContact[]; outreach: CrmOutreach[]; posts: CrmPost[]; tasks: CrmTask[] }) {
+  const [period, setPeriod] = useState<ReportPeriod>("daily");
   const [summary, setSummary] = useState("");
+  const [summaryDay, setSummaryDay] = useState(todayKey());
   const [saved, setSaved] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<CrmDailyReport[]>([]);
 
+  const loadHistory = useCallback(() => { listDailyReports(14).then(setHistory).catch(() => {}); }, []);
   useEffect(() => {
     getDailyReport().then((r) => { if (r) { setSummary(r.summary); setSaved(r.day); } }).catch(() => {});
-  }, []);
+    loadHistory();
+  }, [loadHistory]);
+
+  const range = reportRange(period);
+  const rangeStart = range.start;
+  const m = useMemo(() => {
+    const s = rangeStart;
+    return {
+      contactsAdded: contacts.filter((c) => c.createdAt >= s).length,
+      emails: outreach.filter((o) => o.channel === "email" && o.sentAt >= s).length,
+      whatsapp: outreach.filter((o) => o.channel === "whatsapp" && o.sentAt >= s).length,
+      dms: outreach.filter((o) => o.channel === "dm" && o.sentAt >= s).length,
+      postsPosted: posts.filter((p) => p.status === "posted" && (p.postedAt || 0) >= s).length,
+      postsFailed: posts.filter((p) => p.status === "failed" && p.createdAt >= s).length,
+      tasksCompleted: tasks.filter((t) => t.status === "done" && (t.completedAt || 0) >= s).length,
+      clientsWon: contacts.filter((c) => (c.stage === "client" || c.stage === "done") && c.updatedAt >= s).length,
+      totalContacts: contacts.length,
+    };
+  }, [contacts, outreach, posts, tasks, rangeStart]);
 
   const save = async () => {
     setBusy(true);
     try {
+      const stats = computeTodayStats(contacts, outreach, posts);
       await upsertDailyReport({
         day: todayKey(),
         leadsNew: stats.leadsNew,
@@ -1475,25 +1795,82 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
         summary,
       });
       setSaved(todayKey());
+      setSummaryDay(todayKey());
+      loadHistory();
       toast("Daily report saved", todayKey());
     } catch (e: any) { toast("Report couldn't be saved", e?.message || ""); }
     setBusy(false);
   };
 
+  const download = () => {
+    const periodName = period === "daily" ? "Daily" : period === "weekly" ? "Weekly" : "Monthly";
+    const lines = [
+      `# ChatsApp Business Report — ${periodName}`,
+      "",
+      `Period: ${range.label}`,
+      `Generated: ${new Date().toLocaleString("en-US")}`,
+      "",
+      `- Total contacts (current): ${m.totalContacts}`,
+      `- New contacts in period: ${m.contactsAdded}`,
+      `- Emails sent: ${m.emails}`,
+      `- WhatsApp messages sent: ${m.whatsapp}`,
+      `- DMs sent: ${m.dms}`,
+      `- Posts posted: ${m.postsPosted}`,
+      `- Posts failed: ${m.postsFailed}`,
+      `- Tasks completed: ${m.tasksCompleted}`,
+      `- Contacts in Client/Done stage (updated in period): ${m.clientsWon}`,
+    ];
+    if (period === "daily" && summary.trim()) lines.push("", "## Summary", "", summary.trim());
+    lines.push("", "Counted from crm_contacts, crm_outreach_log, crm_posts and crm_tasks. Failed posts are counted by the date they were queued (no failure timestamp is stored).");
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chatsapp-report-${period}-${todayKey()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("Report downloaded", a.download);
+  };
+
+  const openHistoryDay = async (day: string) => {
+    const r = await getDailyReport(day).catch(() => null);
+    if (r) {
+      setPeriod("daily");
+      setSummary(r.summary);
+      setSummaryDay(r.day);
+      setSaved(r.day);
+    }
+  };
+
   const cards: [string, number][] = [
-    ["New leads/contacts today", stats.leadsNew],
-    ["Emails sent today", stats.emailsSent],
-    ["DMs sent today", stats.dmsQueued],
-    ["WhatsApp sent today", stats.whatsappSent],
-    ["Posts queued", stats.postsQueued],
-    ["Posts posted today", stats.postsPosted],
-    ["Stage: Replied (today)", stats.replies],
-    ["Total contacts", stats.totalContacts],
+    ["New contacts", m.contactsAdded],
+    ["Emails sent", m.emails],
+    ["WhatsApp sent", m.whatsapp],
+    ["DMs sent", m.dms],
+    ["Posts posted", m.postsPosted],
+    ["Posts failed", m.postsFailed],
+    ["Tasks completed", m.tasksCompleted],
+    ["Moved to Client / Done", m.clientsWon],
   ];
 
   return (
     <div className="p-3 sm:p-4">
-      <p className="mb-3 text-[13px] font-semibold text-[#93A0B4]">Today ({todayKey()}) — counted from the data itself. Write the summary and save it each night; this is the daily CRM update.</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 gap-1 rounded-xl border border-[#27334D] bg-[#141C2B] p-1">
+          {REPORT_PERIODS.map((p) => (
+            <button key={p.id} onClick={() => setPeriod(p.id)} className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${period === p.id ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#f4f6f8]"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="min-w-0 flex-1 text-[13px] font-semibold text-[#93A0B4]">{range.label} — counted from the data itself, never typed in by hand.</p>
+        <button onClick={download} className="btn flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.06] px-3 py-2 text-[13px] font-bold text-[#f4f6f8] transition hover:bg-white/[0.1]">
+          <Download size={14} /> Download .md
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(([label, v]) => (
           <div key={label} className="rounded-2xl border border-[#27334D] bg-[#1B2638] p-4">
@@ -1502,12 +1879,39 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
           </div>
         ))}
       </div>
-      <label className={`${labelCls} mt-5`}>Today's summary</label>
-      <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} className={inputCls} placeholder="What happened today, what's next tomorrow…" />
-      <div className="mt-2 flex items-center gap-3">
-        <button onClick={save} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Saving…" : "Save report"}</button>
-        {saved && <span className="text-xs font-semibold text-[#4ade80]">Last saved: {saved}</span>}
-      </div>
+      <p className="mt-2 text-[11px] font-semibold text-[#93A0B4]">Total contacts (current): {m.totalContacts}. "Moved to Client / Done" counts contacts now in the Client or Done stage whose record was updated in the period. Failed posts are counted by the date they were queued — no failure timestamp is stored.</p>
+
+      {period === "daily" ? (
+        <>
+          <label className={`${labelCls} mt-5`}>Summary — {summaryDay === todayKey() ? "today" : summaryDay}</label>
+          <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} className={inputCls} placeholder="What happened today, what's next tomorrow…" />
+          <div className="mt-2 flex items-center gap-3">
+            <button onClick={save} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Saving…" : summaryDay === todayKey() ? "Save today's report" : "Save as today's report"}</button>
+            {saved && <span className="text-xs font-semibold text-[#4ade80]">Last saved: {saved}</span>}
+          </div>
+        </>
+      ) : (
+        <p className="mt-5 rounded-xl border border-[#27334D] bg-[#141C2B] px-4 py-3 text-[13px] font-semibold text-[#93A0B4]">
+          Weekly and monthly reports are computed live from the tables and can be downloaded — only daily reports are saved (with the summary) into the history below.
+        </p>
+      )}
+
+      <h3 className="mt-6 text-sm font-extrabold tracking-tight text-[#f4f6f8]">Saved daily reports</h3>
+      {history.length === 0 ? (
+        <p className="mt-2 rounded-xl bg-white/[0.03] px-3 py-5 text-center text-[13px] font-semibold text-[#93A0B4]">No saved daily reports yet — save today's report above and it will appear here.</p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {history.map((r) => (
+            <button key={r.day} onClick={() => openHistoryDay(r.day)} className="block w-full rounded-2xl border border-[#27334D] bg-[#141C2B] px-4 py-3 text-left transition hover:border-[#4f8cff]/50">
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-[13px] font-extrabold text-[#f4f6f8]">{r.day}</span>
+                <span className="text-xs font-bold text-[#93A0B4]">{r.leadsNew} new · {r.emailsSent} emails · {r.dmsQueued} DMs · {r.replies} replied · {r.stageMoves} stage moves</span>
+              </span>
+              {r.summary && <span className="mt-1 block truncate text-[13px] font-semibold text-[#b6bcc7]">{r.summary}</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

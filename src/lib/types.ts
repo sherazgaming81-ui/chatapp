@@ -107,7 +107,7 @@ export interface UIState {
    *  HqPage nonce change par apply karta hai: tab switch, contact drawer,
    *  ya add form (contact / task — section ke hisab se). */
   hqNav: {
-    section: "crm" | "tasks" | "outreach" | "posting" | "report";
+    section: "crm" | "tasks" | "outreach" | "posting" | "analytics" | "report";
     contactId?: string;
     newContact?: boolean;
     nonce: number;
