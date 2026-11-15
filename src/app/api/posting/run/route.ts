@@ -4,10 +4,24 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // POST /api/posting/run — due Threads posts publish karo (cron se chalta hai).
 // Guard: header `x-cron-secret` == env POSTING_CRON_SECRET ho tab hi chale ga.
 // Kaam: crm_posts se due threads posts (queued, scheduled_at <= now, limit 5)
-// uthao → connected Threads account ke token se Threads API par publish →
-// status posted/failed update. Account connected na ho to posts queued hi
-// rehti hain (failed NAHI karte) aur summary me "no_account" ata hai.
+// uthao → har post ke account ke token se Threads API par publish →
+// status posted/failed update.
+//
+// ACCOUNT SELECTION (partners system): post.social_account_id ho to post
+// USI account se jati hai (partner ki post partner ke account se); na ho
+// to default = sab se pehla connected account (created_at sab se pehla —
+// aam tor par owner ka account). Koi account hi connected na ho to posts
+// queued hi rehti hain (failed NAHI karte), summary me "no_account".
 // Token expiry 7 din se kam ho to pehle refresh karte hain.
+
+type AccountRow = {
+  id: string;
+  threads_user_id: string | null;
+  username: string | null;
+  access_token: string | null;
+  token_expires_at: string | null;
+};
+
 export async function POST(req: Request) {
   const secret = process.env.POSTING_CRON_SECRET;
   const given = req.headers.get("x-cron-secret");
@@ -22,47 +36,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "not_configured" }, { status: 500 });
   }
 
-  // 1) connected Threads account (sab se taza)
+  // 1) saare connected Threads accounts (created_at asc — pehla = default)
   const { data: accounts, error: accErr } = await admin
     .from("social_accounts")
     .select("id, threads_user_id, username, access_token, token_expires_at")
     .eq("platform", "threads")
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("created_at", { ascending: true });
   if (accErr) return NextResponse.json({ ok: false, error: "db_error" }, { status: 500 });
 
-  const account = accounts?.[0];
-  if (!account?.access_token || !account?.threads_user_id) {
+  const usable = (accounts || []).filter((a: AccountRow) => a.access_token && a.threads_user_id) as AccountRow[];
+  if (usable.length === 0) {
     return NextResponse.json({ ok: true, processed: 0, posted: 0, failed: 0, note: "no_account" });
   }
+  const defaultAccount = usable[0];
+  const byId = new Map(usable.map((a) => [a.id, a]));
 
-  let accessToken: string = account.access_token;
-  const userId: string = account.threads_user_id;
-
-  // 2) token expiry qareeb (< 7 din) ho to refresh
-  const expiresAt = account.token_expires_at ? Date.parse(account.token_expires_at) : 0;
-  if (expiresAt && expiresAt - Date.now() < 7 * 86400e3) {
-    try {
-      const url = new URL("https://graph.threads.net/refresh_access_token");
-      url.searchParams.set("grant_type", "th_refresh_token");
-      url.searchParams.set("access_token", accessToken);
-      const r = await fetch(url.toString());
-      const j: any = await r.json().catch(() => null);
-      if (r.ok && j?.access_token) {
-        accessToken = String(j.access_token);
-        const newExpiry = j.expires_in ? new Date(Date.now() + Number(j.expires_in) * 1000).toISOString() : account.token_expires_at;
-        await admin
-          .from("social_accounts")
-          .update({ access_token: accessToken, token_expires_at: newExpiry, updated_at: new Date().toISOString() })
-          .eq("id", account.id);
-      }
-    } catch { /* refresh fail — purane token se try karo */ }
-  }
-
-  // 3) due posts
+  // 2) due posts
   const { data: posts, error: postErr } = await admin
     .from("crm_posts")
-    .select("id, body")
+    .select("id, body, social_account_id")
     .eq("platform", "threads")
     .eq("status", "queued")
     .lte("scheduled_at", new Date().toISOString())
@@ -70,11 +62,44 @@ export async function POST(req: Request) {
     .limit(5);
   if (postErr) return NextResponse.json({ ok: false, error: "db_error" }, { status: 500 });
 
+  // 3) har account ka token zaroorat par refresh (aik dafa per account)
+  const tokenByAccount = new Map<string, string>();
+  const freshToken = async (account: AccountRow): Promise<string> => {
+    const cached = tokenByAccount.get(account.id);
+    if (cached) return cached;
+    let token: string = account.access_token!;
+    const expiresAt = account.token_expires_at ? Date.parse(account.token_expires_at) : 0;
+    if (expiresAt && expiresAt - Date.now() < 7 * 86400e3) {
+      try {
+        const url = new URL("https://graph.threads.net/refresh_access_token");
+        url.searchParams.set("grant_type", "th_refresh_token");
+        url.searchParams.set("access_token", token);
+        const r = await fetch(url.toString());
+        const j: any = await r.json().catch(() => null);
+        if (r.ok && j?.access_token) {
+          token = String(j.access_token);
+          const newExpiry = j.expires_in ? new Date(Date.now() + Number(j.expires_in) * 1000).toISOString() : account.token_expires_at;
+          await admin
+            .from("social_accounts")
+            .update({ access_token: token, token_expires_at: newExpiry, updated_at: new Date().toISOString() })
+            .eq("id", account.id);
+        }
+      } catch { /* refresh fail — purane token se try karo */ }
+    }
+    tokenByAccount.set(account.id, token);
+    return token;
+  };
+
   let posted = 0;
   let failed = 0;
 
   for (const post of posts || []) {
+    // post ka account: social_account_id wala, warna default (pehla connected)
+    const account = (post.social_account_id && byId.get(post.social_account_id)) || defaultAccount;
     try {
+      const accessToken = await freshToken(account);
+      const userId = account.threads_user_id!;
+
       // container banao
       const createForm = new URLSearchParams({
         media_type: "TEXT",
@@ -119,6 +144,6 @@ export async function POST(req: Request) {
     processed: (posts || []).length,
     posted,
     failed,
-    account: account.username || undefined,
+    accounts: usable.length,
   });
 }

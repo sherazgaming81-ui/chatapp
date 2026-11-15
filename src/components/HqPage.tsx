@@ -7,7 +7,7 @@
 // yahan bhi guard hai).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, Trash2, Check } from "lucide-react";
+import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, Trash2, Check, Copy, Link2 } from "lucide-react";
 import { useStore, toast } from "@/lib/store";
 import {
   CRM_KINDS, CRM_STAGES, KIND_LABEL, STAGE_LABEL,
@@ -15,7 +15,7 @@ import {
   listOutreach, canSendTo, recordOutreach, outreachTemplate,
   listPosts, queuePost, setPostStatus, deletePost,
   getDailyReport, upsertDailyReport, computeTodayStats, todayKey, subscribeCrm, crmTablesReady,
-  getThreadsAccount, type SocialAccountStatus,
+  getThreadsAccount, getThreadsAccounts, type SocialAccountStatus,
   type CrmContact, type CrmKind, type CrmStage, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
 } from "@/lib/crm";
 import { supabase } from "@/lib/supabase";
@@ -128,7 +128,7 @@ export default function HqPage() {
         ) : tab === "outreach" ? (
           <OutreachTab contacts={contacts} outreach={outreach} refresh={refresh} />
         ) : tab === "posting" ? (
-          <PostingTab posts={posts} refresh={refresh} />
+          <PostingTab posts={posts} contacts={contacts} refresh={refresh} />
         ) : (
           <ReportTab contacts={contacts} outreach={outreach} posts={posts} />
         )}
@@ -235,6 +235,70 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   );
 }
 
+/* ─────────── Partner Threads connect link ───────────
+   Sirf partner/affiliate contacts ke liye. Signed link SERVER route se
+   ata hai (HMAC secret client par kabhi nahi ata) — owner ye link copy
+   karke partner ko bhejta hai, partner us se apna Threads jodta hai. */
+function PartnerThreadsLink({ contactId }: { contactId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    setUrl(null); setErr("");
+    (async () => {
+      try {
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) { if (live) setErr("Session nahi mila — dobara login karo."); return; }
+        const r = await fetch("/api/partners/connect-link", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId }),
+        });
+        const j: any = await r.json().catch(() => null);
+        if (!live) return;
+        if (r.ok && j?.url) setUrl(j.url);
+        else if (j?.error === "not_configured") setErr("Server par setup abhi baqi hai (POSTING_CRON_SECRET) — pehle THREADS-SETUP.md mukammal karo.");
+        else setErr("Link nahi bana — dobara try karo.");
+      } catch { if (live) setErr("Link nahi bana — network check karo."); }
+    })();
+    return () => { live = false; };
+  }, [contactId]);
+
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast("Link copy ho gaya", "Partner ko WhatsApp par bhej do");
+      setTimeout(() => setCopied(false), 2000);
+    } catch { toast("Copy nahi hua", "Link select karke haath se copy karo"); }
+  };
+
+  return (
+    <div className="mt-6">
+      <label className={labelCls}>Threads connect link (partner ke liye)</label>
+      <p className="mb-2 text-xs leading-relaxed text-[#8b93a1]">
+        Ye signed link partner ko bhejo — wo is se apna Threads account connect karega, phir us ki posts usi ke account se jayengi. (Ye feature sirf partners/affiliates ke liye hai.)
+      </p>
+      {err ? (
+        <p className="rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">{err}</p>
+      ) : url ? (
+        <div className="flex items-center gap-2">
+          <input readOnly value={url} onFocus={(e) => e.target.select()} className={`${inputCls} flex-1 font-mono text-xs`} />
+          <button onClick={copy} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3 py-2 text-[13px]">
+            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copy!" : "Copy"}
+          </button>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 text-[13px] text-[#8b93a1]"><Link2 size={14} /> Link ban raha hai…</p>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────────── CONTACT DRAWER ─────────────────────────── */
 function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmContact; outreach: CrmOutreach[]; onClose: () => void; refresh: () => Promise<void> }) {
   const [notes, setNotes] = useState(contact.notes);
@@ -288,6 +352,10 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
         <label className={`${labelCls} mt-5`}>Notes</label>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={inputCls} placeholder="Is bande ke baare me notes…" />
         <button onClick={saveNotes} disabled={busy} className="btn btn-blurple mt-2 px-4 py-2 text-sm disabled:opacity-60">Notes save karo</button>
+
+        {(contact.kind === "partner" || contact.kind === "affiliate") && (
+          <PartnerThreadsLink contactId={contact.id} />
+        )}
 
         <label className={`${labelCls} mt-6`}>Outreach timeline (first-touch log)</label>
         {outreach.length === 0 ? (
@@ -461,9 +529,11 @@ function ThreadsCard() {
   );
 }
 
-function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promise<void> }) {
+function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: CrmContact[]; refresh: () => Promise<void> }) {
   const [platform, setPlatform] = useState<PostPlatform>("threads");
   const [body, setBody] = useState("");
+  const [accountId, setAccountId] = useState(""); // "" = default (pehla connected)
+  const [accounts, setAccounts] = useState<SocialAccountStatus[]>([]);
   const [when, setWhen] = useState(() => {
     const d = new Date(Date.now() + 3600e3);
     const p = (n: number) => String(n).padStart(2, "0");
@@ -471,11 +541,16 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
   });
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => { getThreadsAccounts().then(setAccounts).catch(() => {}); }, []);
+
+  const accountName = (a: SocialAccountStatus) => a.label || (a.username ? `@${a.username}` : "Threads account");
+  const accountOf = (id: string | null) => (id ? accounts.find((a) => a.id === id) || null : null);
+
   const add = async () => {
     if (!body.trim()) return;
     setBusy(true);
     try {
-      await queuePost(platform, body, new Date(when).getTime() || Date.now());
+      await queuePost(platform, body, new Date(when).getTime() || Date.now(), platform === "threads" ? accountId || null : null);
       setBody("");
       toast("Post queue ho gayi", platform);
       refresh();
@@ -489,11 +564,32 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-4 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-bold text-[#8dbcff]">
-        Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Threads posts neeche connect kiye hue account se Threads API se publish hoti hain.
+        Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Threads posts select kiye hue account se Threads API se publish hoti hain (Default = sab se pehla connected account — owner ka ya partner ka).
       </div>
       <ThreadsCard />
+      {accounts.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="mb-2 text-sm font-extrabold text-[#f4f6f8]">Connected Threads accounts ({accounts.length})</p>
+          <div className="space-y-1.5">
+            {accounts.map((a) => {
+              const linked = a.crmContactId ? contacts.find((ct) => ct.id === a.crmContactId) : null;
+              return (
+                <p key={a.id} className="flex flex-wrap items-center gap-2 text-[13px] text-[#b6bcc7]">
+                  <span className="font-bold text-[#4ade80]">●</span>
+                  <span className="font-bold text-[#f4f6f8]">{accountName(a)}</span>
+                  {a.username && a.label && <span className="text-[#8b93a1]">@{a.username}</span>}
+                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8b93a1]">
+                    {linked ? `${KIND_LABEL[linked.kind]}: ${linked.name}` : a.crmContactId ? "Partner" : "Owner (default)"}
+                  </span>
+                </p>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-[#8b93a1]">Partner ko jorna ho to CRM me us ka contact kholo — wahan us ka signed connect link milega.</p>
+        </div>
+      )}
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr_220px]">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[150px_1fr_200px_190px]">
           <div><label className={labelCls}>Platform</label>
             <select value={platform} onChange={(e) => setPlatform(e.target.value as PostPlatform)} className={inputCls}>
               <option value="threads">Threads</option>
@@ -503,6 +599,14 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
           </div>
           <div><label className={labelCls}>Post text</label><input value={body} onChange={(e) => setBody(e.target.value)} className={inputCls} placeholder="Post ka text…" /></div>
           <div><label className={labelCls}>Schedule</label><input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Threads account</label>
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputCls} disabled={platform !== "threads"}>
+              <option value="">Default (pehla connected)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{accountName(a)}{a.username && a.label ? ` (@${a.username})` : ""}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <button onClick={add} disabled={busy || !body.trim()} className="btn btn-blurple mt-3 px-4 py-2 text-sm disabled:opacity-60">{busy ? "Queue ho rahi…" : "Queue me dalo"}</button>
       </div>
@@ -512,6 +616,9 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
         {posts.map((p) => (
           <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-[#111114] px-3.5 py-3">
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b6bcc7]">{p.platform}</span>
+            {p.socialAccountId && accountOf(p.socialAccountId) && (
+              <span className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8dbcff]">{accountName(accountOf(p.socialAccountId)!)}</span>
+            )}
             <span className="min-w-0 flex-1 truncate text-sm text-[#f4f6f8]">{p.body}</span>
             <span className="text-xs text-[#8b93a1]">{new Date(p.scheduledAt).toLocaleString()}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge(p.status)}`}>{p.status}</span>

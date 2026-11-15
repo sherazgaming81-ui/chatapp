@@ -6,11 +6,20 @@
 -- karke Run. (crm-upgrade.sql ke BAAD chalana — wahi RLS pattern hai.)
 --
 -- Kya banta hai:
---   public.social_accounts — owner ke connected social accounts.
+--   public.social_accounts — connected social accounts (owner + PARTNERS).
 --   Threads OAuth se mila long-lived access token yahan store hota hai.
 --   Posting runner (server, service role) isi token se Threads API par
 --   queue ki posts publish karta hai — bina approval, kyunke publish ki
 --   permission banda connect karte waqt khud deta hai.
+--
+-- PARTNERS-ONLY (owner ki shart): ye feature tamam clients/public ke liye
+-- NAHI hai. Sirf owner ke partners/affiliates (crm_contacts me kind =
+-- 'partner' ya 'affiliate') apna Threads jodte hain — owner CRM se un ko
+-- aik signed connect link bhejta hai, partner us link se connect karta hai
+-- (ChatsApp login ki zaroorat NAHI). Har partner ki posts USI ke account
+-- se jati hain — crm_posts.social_account_id se account select hota hai.
+-- Owner ka apna account bhi connect ho sakta hai (default account —
+-- crm_contact_id NULL wali row).
 --
 -- SECURITY: access_token SIRF server (service role) parh sakta hai.
 -- Client (HQ page) sirf username / platform / token_expires_at dekhta hai —
@@ -37,10 +46,28 @@ create table if not exists public.social_accounts (
   username         text,
   access_token     text,
   token_expires_at timestamptz,
+  -- user_id: agar kabhi ChatsApp-login wala user khud connect kare (filhal null)
+  user_id          uuid null,
+  -- crm_contact_id: ye account kis CRM contact (partner/affiliate) ka hai.
+  -- Owner ke apne default account par NULL rehta hai.
+  crm_contact_id   uuid null references public.crm_contacts(id) on delete set null,
+  -- label: dikhane ke liye naam (masalan partner ka naam)
+  label            text,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
   unique (platform, threads_user_id)
 );
+
+-- Agar table pehle wale version se bani ho to naye columns idempotent add
+alter table public.social_accounts add column if not exists user_id uuid null;
+alter table public.social_accounts
+  add column if not exists crm_contact_id uuid null references public.crm_contacts(id) on delete set null;
+alter table public.social_accounts add column if not exists label text;
+
+-- Har post kis account se jayegi — Posting tab me select hota hai.
+-- NULL = default (sab se pehla connected account).
+alter table public.crm_posts
+  add column if not exists social_account_id uuid references public.social_accounts(id) on delete set null;
 
 drop trigger if exists social_accounts_touch on public.social_accounts;
 create trigger social_accounts_touch
@@ -60,3 +87,9 @@ create policy "social_accounts owner all" on public.social_accounts
 -- istemal karte hain jo RLS bypass karti hai — wo routes khud owner/session
 -- ya cron-secret check karte hain. Client hamesha anon key + owner JWT se
 -- ata hai, is liye policy zaroori hai.
+--
+-- NOTE (partners): partner ka connect bhi SERVER routes (service role) se
+-- hota hai — signed link verify hone ke baad. Partner ke paas ChatsApp
+-- login hi nahi hota, is liye partner ke liye koi alag client RLS policy
+-- NAHI chahiye aur NAHI banayi gayi. Client-side sirf owner (upar wali
+-- policy) social_accounts parh sakta hai.

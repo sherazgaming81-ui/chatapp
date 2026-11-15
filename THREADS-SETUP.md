@@ -105,9 +105,38 @@ fail hoga.
   baghair nahi chalta (ye main agent setup karega).
 - Account badalna ho to **Disconnect** karke dobara Connect kar do.
 
+## Partners ko connect karwana
+
+Ye feature **tamam clients/public ke liye NAHI hai — sirf tumhare partners
+aur affiliates ke liye hai** (owner ki shart). Partner ko ChatsApp account
+bhi NAHI chahiye — wo sirf aik signed link se apna Threads jodta hai:
+
+1. ChatsApp me **HQ → CRM** kholo aur partner ka contact kholo (contact ka
+   type **Partner** ya **Affiliate** hona chahiye — sirf inhi par link
+   banta hai).
+2. Drawer me **"Threads connect link (partner ke liye)"** wala section
+   hoga — wahan link khud ban jata hai. **Copy** dabao.
+3. Wo link partner ko bhej do (masalan WhatsApp par).
+4. Partner link kholega — use apna naam ke sath salaam aur bara
+   **Connect Threads** button milega. Button dabate hi Threads ki official
+   screen khulegi → wo apne Threads account se login karke **Allow**
+   karega → "Ho gaya!" wala page aa jayega. Khatam — us ka account us ke
+   CRM contact ke sath jud gaya.
+5. Ab **HQ → Posting** me us partner ki post queue karte waqt
+   **Threads account** wale dropdown se **us partner ka account** select
+   karna — post usi ke account se jayegi. "Default" rehne do to post sab
+   se pehle connected account (aam tor par tumhare apne) se jayegi.
+   Connected accounts ki poori list bhi Posting tab me dikhti hai.
+
+**Dev mode ki note:** jab tak Meta app Development mode me hai, partner
+ko bhi pehle Step 4 ki tarah **Threads Tester** add karke invite accept
+karwana hoga, warna Meta connect rok dega. Har partner ke liye ye aik
+dafa ka kaam hai. (App Review ke baad ye shart khatam ho jati hai.)
+
 ## Public clients ke liye (baad ka marhala)
 
-Abhi app Development mode me hai — sirf tester accounts (tumhare apne)
-connect honge. Jab ChatsApp clients ko dena ho to Meta **App Review** ke
-liye submit karna hoga taake har banda apna Threads jod sake. Wo marhala
-alag hai — filhal apne account par poora system test kar lo.
+Abhi app Development mode me hai — sirf tester accounts (tumhare apne +
+partners jin ko tester banaya ho) connect honge. Jab ChatsApp aam clients
+ko dena ho to Meta **App Review** ke liye submit karna hoga taake har
+banda apna Threads jod sake. Wo marhala alag hai — filhal apne aur
+partners ke accounts par poora system test kar lo.

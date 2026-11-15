@@ -70,6 +70,8 @@ export interface CrmPost {
   status: PostStatus;
   postedAt: number | null;
   createdAt: number;
+  /** Kis connected account se jayegi — null = default (pehla connected) */
+  socialAccountId: string | null;
 }
 
 export interface CrmDailyReport {
@@ -132,6 +134,7 @@ function rowToPost(r: any): CrmPost {
     status: (r.status || "queued") as PostStatus,
     postedAt: r.posted_at ? toMs(r.posted_at) : null,
     createdAt: toMs(r.created_at),
+    socialAccountId: r.social_account_id || null,
   };
 }
 
@@ -281,10 +284,21 @@ export async function listPosts(): Promise<CrmPost[]> {
   }
 }
 
-export async function queuePost(platform: PostPlatform, body: string, scheduledAt: number): Promise<CrmPost> {
+export async function queuePost(
+  platform: PostPlatform,
+  body: string,
+  scheduledAt: number,
+  socialAccountId?: string | null
+): Promise<CrmPost> {
   const { data, error } = await supabase()
     .from("crm_posts")
-    .insert({ platform, body: body.trim(), scheduled_at: new Date(scheduledAt).toISOString(), status: "queued" })
+    .insert({
+      platform,
+      body: body.trim(),
+      scheduled_at: new Date(scheduledAt).toISOString(),
+      status: "queued",
+      social_account_id: socialAccountId || null,
+    })
     .select("*")
     .single();
   if (error) throw mapError(error);
@@ -365,34 +379,64 @@ export function computeTodayStats(contacts: CrmContact[], outreach: CrmOutreach[
 }
 
 // ── social accounts (Connect Threads) ─────────────────────────────────────
-// SECURITY: client sirf SAFE columns select karta hai (platform, username,
-// token_expires_at) — access_token column client query me KABHI select nahi
-// hota. Token sirf server routes (service role) parhte/likhte hain.
+// SECURITY: client sirf SAFE columns select karta hai (id, platform,
+// username, token_expires_at, label, crm_contact_id) — access_token column
+// client query me KABHI select nahi hota. Token sirf server routes
+// (service role) parhte/likhte hain.
 export interface SocialAccountStatus {
+  id: string;
   platform: string;
   username: string | null;
   tokenExpiresAt: number | null;
+  /** Account ka label (partner ka naam) — owner ke default account par null */
+  label: string | null;
+  /** Kis CRM contact (partner/affiliate) se linked hai — owner default par null */
+  crmContactId: string | null;
+}
+
+const SOCIAL_SAFE_COLUMNS = "id, platform, username, token_expires_at, label, crm_contact_id";
+function rowToSocialAccount(r: any): SocialAccountStatus {
+  return {
+    id: r.id,
+    platform: r.platform,
+    username: r.username || null,
+    tokenExpiresAt: r.token_expires_at ? toMs(r.token_expires_at) : null,
+    label: r.label || null,
+    crmContactId: r.crm_contact_id || null,
+  };
 }
 
 export async function getThreadsAccount(): Promise<SocialAccountStatus | null> {
   try {
     const { data, error } = await supabase()
       .from("social_accounts")
-      .select("platform, username, token_expires_at")
+      .select(SOCIAL_SAFE_COLUMNS)
       .eq("platform", "threads")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    return {
-      platform: data.platform,
-      username: data.username || null,
-      tokenExpiresAt: data.token_expires_at ? toMs(data.token_expires_at) : null,
-    };
+    return rowToSocialAccount(data);
   } catch {
     // table abhi nahi lagi (SQL baqi) ya RLS — "not connected" jaisa behave karo
     return null;
+  }
+}
+
+/** Saare connected Threads accounts (owner default + partners) — Posting tab
+ *  ki list aur account-select ke liye. Sirf SAFE columns (token kabhi nahi). */
+export async function getThreadsAccounts(): Promise<SocialAccountStatus[]> {
+  try {
+    const { data, error } = await supabase()
+      .from("social_accounts")
+      .select(SOCIAL_SAFE_COLUMNS)
+      .eq("platform", "threads")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(rowToSocialAccount);
+  } catch {
+    return [];
   }
 }
 
