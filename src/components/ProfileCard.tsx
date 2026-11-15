@@ -31,7 +31,7 @@ export default function ProfileCard({
   const aboutText = about ?? (isMe ? m.about : visibleAbout(meId, m));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111114] soft-shadow">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#141C2B] soft-shadow">
       <div className="px-5 py-5">
         <div className="flex items-center gap-4">
           <Avatar m={shown} size={72} showDot meId={meId} role={m.role} />
@@ -43,7 +43,7 @@ export default function ProfileCard({
               <Badge role={m.role} />
               {m.role === "owner" && <Crown size={16} className="text-[#e8bd57]" />}
             </div>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-[#8b93a1]">
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-[#93A0B4]">
               <span className={`h-2 w-2 rounded-full ${online ? "bg-[#23a55a]" : "bg-[#80848e]/50"}`} />
               {online ? "Online" : lastSeen > 0 ? fmtLastSeen(lastSeen) : "Offline"}
             </p>
@@ -51,7 +51,7 @@ export default function ProfileCard({
         </div>
         {aboutText ? (
           <div className="mt-4 rounded-xl bg-white/[0.04] p-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8b93a1]">About</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#93A0B4]">About</p>
             <p className="mt-0.5 text-[15px] text-[#f4f6f8]">{aboutText}</p>
           </div>
         ) : null}

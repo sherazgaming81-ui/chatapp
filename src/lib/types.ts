@@ -103,6 +103,15 @@ export interface UIState {
   settingsOpen: boolean; // ProfileSettings modal (Phase 6 — checklist se bhi khulta hai)
   createGroupOpen: boolean; // CreateGroup modal
   selectedMsgs: string[]; // multi-select mode (WhatsApp jaisa)
+  /** Command Center / notifications se HQ ke andar navigation ka signal.
+   *  HqPage nonce change par apply karta hai: tab switch, contact drawer,
+   *  ya add-contact form. */
+  hqNav: {
+    section: "crm" | "outreach" | "posting" | "report";
+    contactId?: string;
+    newContact?: boolean;
+    nonce: number;
+  } | null;
 }
 
 export interface State {

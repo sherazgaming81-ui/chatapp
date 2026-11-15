@@ -2,7 +2,7 @@
 // Simple professional loader — black screen, naam + spinner. Koi playful animation nahi.
 export default function Loader() {
   return (
-    <div className="fixed inset-0 z-[300] grid place-items-center bg-[#050505]">
+    <div className="fixed inset-0 z-[300] grid place-items-center bg-[#0B111C]">
       <div className="flex flex-col items-center gap-4">
         <div className="text-2xl font-extrabold tracking-tight text-[#f4f6f8]">
           Chats<span className="text-[#4f8cff]">App</span>

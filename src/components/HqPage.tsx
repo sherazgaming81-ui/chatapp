@@ -19,6 +19,7 @@ import {
   type CrmContact, type CrmKind, type CrmStage, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
 } from "@/lib/crm";
 import { supabase } from "@/lib/supabase";
+import NotificationsBell from "@/components/NotificationsBell";
 
 type HqTab = "crm" | "outreach" | "posting" | "report";
 
@@ -30,7 +31,7 @@ const KIND_COLOR: Record<CrmKind, string> = {
 };
 
 const inputCls = "field w-full px-3 py-2 text-sm";
-const labelCls = "mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]";
+const labelCls = "mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]";
 
 export default function HqPage() {
   const meId = useStore((s) => s.me);
@@ -45,6 +46,26 @@ export default function HqPage() {
   const [tablesReady, setTablesReady] = useState(true);
   const [selected, setSelected] = useState<CrmContact | null>(null);
   const refreshTimer = useRef<any>(null);
+
+  // Command Center / notifications se ane wala navigation signal
+  const hqNav = useStore((s) => s.ui.hqNav);
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
+  const [formNonce, setFormNonce] = useState(0);
+  useEffect(() => {
+    if (!hqNav) return;
+    setTab(hqNav.section);
+    if (hqNav.contactId) setPendingContactId(hqNav.contactId);
+    if (hqNav.newContact) setFormNonce((n) => n + 1);
+  }, [hqNav]);
+  // contacts load ho jayen to pending contact ka drawer khol do
+  useEffect(() => {
+    if (!pendingContactId) return;
+    const c = contacts.find((x) => x.id === pendingContactId);
+    if (c) {
+      setSelected(c);
+      setPendingContactId(null);
+    }
+  }, [pendingContactId, contacts]);
 
   const refresh = useCallback(async () => {
     const [c, o, p] = await Promise.all([listContacts(), listOutreach(), listPosts()]);
@@ -72,7 +93,7 @@ export default function HqPage() {
   if (!isOwner) {
     return (
       <div className="panel flex flex-1 items-center justify-center rounded-2xl p-8 text-center">
-        <p className="text-sm font-semibold text-[#8b93a1]">This section is for the owner only.</p>
+        <p className="text-sm font-semibold text-[#93A0B4]">This section is for the owner only.</p>
       </div>
     );
   }
@@ -81,21 +102,22 @@ export default function HqPage() {
 
   return (
     <div className="panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-3 sm:px-4">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-white soft-shadow">
+      <header className="glass-bar flex h-14 shrink-0 items-center gap-2 border-b border-[#27334D] px-3 sm:px-4">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-white glow-accent">
           <Briefcase size={18} />
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Business HQ</h1>
-          <p className="truncate text-xs text-[#8b93a1]">Symbiote Systems — CRM · Outreach · Posting · Report (owner only)</p>
+          <p className="truncate text-xs text-[#93A0B4]">Symbiote Systems — CRM · Outreach · Posting · Report (owner only)</p>
         </div>
         <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b6bcc7] sm:block">
           {contacts.length} contacts · {stats.postsQueued} posts queued
         </span>
+        <NotificationsBell placement="header" />
       </header>
 
       {/* HQ tabs */}
-      <div className="flex shrink-0 gap-1 border-b border-white/10 px-3 py-2">
+      <div className="flex shrink-0 gap-1 border-b border-[#27334D] px-3 py-2">
         {([
           { id: "crm", label: "CRM", icon: LayoutGrid },
           { id: "outreach", label: "Outreach", icon: Send },
@@ -105,7 +127,7 @@ export default function HqPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold transition ${tab === t.id ? "bg-[#4f8cff] text-white soft-shadow" : "text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]"}`}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold transition ${tab === t.id ? "bg-[#4f8cff] text-white glow-accent" : "text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#f4f6f8]"}`}
           >
             <t.icon size={15} /> {t.label}
           </button>
@@ -124,7 +146,7 @@ export default function HqPage() {
             {[0, 1, 2].map((i) => <div key={i} className="skel h-16 w-full" />)}
           </div>
         ) : tab === "crm" ? (
-          <CrmBoard contacts={contacts} onAdd={async (c) => { setContacts((p) => [c, ...p]); }} onSelect={setSelected} />
+          <CrmBoard contacts={contacts} onAdd={async (c) => { setContacts((p) => [c, ...p]); }} onSelect={setSelected} formNonce={formNonce} />
         ) : tab === "outreach" ? (
           <OutreachTab contacts={contacts} outreach={outreach} refresh={refresh} />
         ) : tab === "posting" ? (
@@ -147,8 +169,12 @@ export default function HqPage() {
 }
 
 /* ─────────────────────────── CRM BOARD ─────────────────────────── */
-function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd: (c: CrmContact) => void; onSelect: (c: CrmContact) => void }) {
+function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0 }: { contacts: CrmContact[]; onAdd: (c: CrmContact) => void; onSelect: (c: CrmContact) => void; formNonce?: number }) {
   const [formOpen, setFormOpen] = useState(false);
+  // Command Center "Add Lead" — signal aye to form khol do
+  useEffect(() => {
+    if (formNonce > 0) setFormOpen(true);
+  }, [formNonce]);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<CrmKind>("lead");
   const [ig, setIg] = useState("");
@@ -179,7 +205,7 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[#8b93a1]">Pipeline — click a card to open its details. Duplicate usernames and emails are blocked by the database itself.</p>
+        <p className="text-[13px] font-semibold text-[#93A0B4]">Pipeline — click a card to open its details. Duplicate usernames and emails are blocked by the database itself.</p>
         <button onClick={() => setFormOpen((v) => !v)} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3.5 py-2 text-[13px]">
           <Plus size={15} /> New contact
         </button>
@@ -212,20 +238,20 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
           const list = contacts.filter((c) => c.stage === stage);
           return (
             <div key={stage} className="flex w-[240px] shrink-0 flex-col rounded-2xl border border-white/[0.07] bg-white/[0.02] p-2.5">
-              <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">{STAGE_LABEL[stage]} — {list.length}</p>
+              <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">{STAGE_LABEL[stage]} — {list.length}</p>
               <div className="space-y-2">
                 {list.map((c) => (
-                  <button key={c.id} onClick={() => onSelect(c)} className="w-full rounded-xl border border-white/[0.07] bg-[#111114] p-3 text-left transition hover:border-[#4f8cff]/50">
+                  <button key={c.id} onClick={() => onSelect(c)} className="w-full rounded-xl border border-[#27334D] bg-[#1B2638] p-3 text-left transition hover:border-[#4f8cff]/50">
                     <span className="flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f4f6f8]">{c.name || "—"}</span>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
                     </span>
-                    {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#8b93a1]">@{c.instagramUsername}</span>}
-                    {c.email && <span className="block truncate text-xs text-[#8b93a1]">{c.email}</span>}
-                    {c.source && <span className="mt-1.5 block text-[11px] text-[#8b93a1]/70">via {c.source}</span>}
+                    {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#93A0B4]">@{c.instagramUsername}</span>}
+                    {c.email && <span className="block truncate text-xs text-[#93A0B4]">{c.email}</span>}
+                    {c.source && <span className="mt-1.5 block text-[11px] text-[#93A0B4]/70">via {c.source}</span>}
                   </button>
                 ))}
-                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#8b93a1]/60">Empty</p>}
+                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#93A0B4]/60">Empty</p>}
               </div>
             </div>
           );
@@ -281,7 +307,7 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
   return (
     <div className="mt-6">
       <label className={labelCls}>Partner posting link (one-tap)</label>
-      <p className="mb-2 text-xs leading-relaxed text-[#8b93a1]">
+      <p className="mb-2 text-xs leading-relaxed text-[#93A0B4]">
         Send this signed link to the partner — on that page they'll see today's ready posts, post each one with "Post on Threads", and mark it as posted. No account connection needed. (Partners/affiliates only.)
       </p>
       {err ? (
@@ -294,7 +320,7 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
           </button>
         </div>
       ) : (
-        <p className="flex items-center gap-2 text-[13px] text-[#8b93a1]"><Link2 size={14} /> Generating link…</p>
+        <p className="flex items-center gap-2 text-[13px] text-[#93A0B4]"><Link2 size={14} /> Generating link…</p>
       )}
     </div>
   );
@@ -324,27 +350,27 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
-      <div className="pop-in fixed inset-x-3 bottom-3 top-auto z-50 max-h-[86dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-5 soft-shadow sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:w-[400px] thin-scroll">
+      <div className="pop-in fixed inset-x-3 bottom-3 top-auto z-50 max-h-[86dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#141C2B] p-5 soft-shadow sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:w-[400px] thin-scroll">
         <div className="mb-1 flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-lg font-extrabold text-[#f4f6f8]">{contact.name || "—"}</h3>
             <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[contact.kind]}`}>{KIND_LABEL[contact.kind]}</span>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]" aria-label="Close"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#f4f6f8]" aria-label="Close"><X size={18} /></button>
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm text-[#b6bcc7]">
           {contact.instagramUsername && <p>Instagram: <span className="font-semibold text-[#f4f6f8]">@{contact.instagramUsername}</span></p>}
           {contact.email && <p>Email: <span className="font-semibold text-[#f4f6f8]">{contact.email}</span></p>}
           {contact.whatsapp && <p>WhatsApp: <span className="font-semibold text-[#f4f6f8]">{contact.whatsapp}</span></p>}
-          {contact.source && <p className="text-xs text-[#8b93a1]">Source: {contact.source}</p>}
-          <p className="text-xs text-[#8b93a1]">Added: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Last contacted: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
+          {contact.source && <p className="text-xs text-[#93A0B4]">Source: {contact.source}</p>}
+          <p className="text-xs text-[#93A0B4]">Added: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Last contacted: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
         </div>
 
         <label className={`${labelCls} mt-5`}>Stage</label>
         <div className="flex flex-wrap gap-1.5">
           {CRM_STAGES.map((s) => (
-            <button key={s} onClick={() => changeStage(s)} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${contact.stage === s ? "bg-[#4f8cff] text-white" : "bg-white/[0.06] text-[#8b93a1] hover:text-[#f4f6f8]"}`}>
+            <button key={s} onClick={() => changeStage(s)} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${contact.stage === s ? "bg-[#4f8cff] text-white" : "bg-white/[0.06] text-[#93A0B4] hover:text-[#f4f6f8]"}`}>
               {STAGE_LABEL[s]}
             </button>
           ))}
@@ -360,7 +386,7 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
 
         <label className={`${labelCls} mt-6`}>Outreach timeline (first-touch log)</label>
         {outreach.length === 0 ? (
-          <p className="text-[13px] text-[#8b93a1]">No message sent yet — send the first one from the Outreach tab.</p>
+          <p className="text-[13px] text-[#93A0B4]">No message sent yet — send the first one from the Outreach tab.</p>
         ) : (
           <div className="space-y-2">
             {outreach.map((o) => (
@@ -391,7 +417,7 @@ function OutreachTab({ contacts, outreach, refresh }: { contacts: CrmContact[]; 
 
   return (
     <div className="space-y-6 p-3 sm:p-4">
-      <p className="text-[13px] font-semibold text-[#8b93a1]">
+      <p className="text-[13px] font-semibold text-[#93A0B4]">
         Today's queues — anyone who has already received a first message on a channel never appears in that queue again (dedupe lock). Pressing "Mark sent" logs it and moves the stage to Contacted.
         <br />Note: actual sending will connect via the Gmail/social connectors — for now the message is prepared and the log is kept.
       </p>
@@ -418,17 +444,17 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
   };
   return (
     <section>
-      <h3 className="mb-2 text-sm font-extrabold text-[#f4f6f8]">{title} <span className="text-[#8b93a1]">({list.length})</span></h3>
+      <h3 className="mb-2 text-sm font-extrabold text-[#f4f6f8]">{title} <span className="text-[#93A0B4]">({list.length})</span></h3>
       {list.length === 0 ? (
-        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#8b93a1]">The queue is empty — everyone eligible has already received a first message on this channel, or there are no eligible contacts.</p>
+        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#93A0B4]">The queue is empty — everyone eligible has already received a first message on this channel, or there are no eligible contacts.</p>
       ) : (
         <div className="space-y-2">
           {list.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-white/[0.07] bg-[#111114] p-3.5">
+            <div key={c.id} className="rounded-2xl border border-[#27334D] bg-[#1B2638] p-3.5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-bold text-[#f4f6f8]">{c.name}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
-                <span className="text-xs text-[#8b93a1]">{channel === "email" ? c.email : channel === "dm" ? `@${c.instagramUsername}` : c.whatsapp}</span>
+                <span className="text-xs text-[#93A0B4]">{channel === "email" ? c.email : channel === "dm" ? `@${c.instagramUsername}` : c.whatsapp}</span>
                 <button onClick={() => markSent(c)} disabled={busyId === c.id} className="btn btn-blurple ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:opacity-60">
                   {channel === "email" ? <Mail size={13} /> : <MessageCircle size={13} />} {busyId === c.id ? "Working…" : "Mark sent"}
                 </button>
@@ -498,15 +524,15 @@ function ThreadsCard() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-extrabold text-[#f4f6f8]">Threads account (yours — optional)</p>
           {!loaded ? (
-            <p className="text-[13px] text-[#8b93a1]">Checking…</p>
+            <p className="text-[13px] text-[#93A0B4]">Checking…</p>
           ) : account ? (
             <p className="text-[13px] text-[#b6bcc7]">
               <span className="font-bold text-[#4ade80]">● Connected</span>
               {account.username ? <> — <span className="font-bold text-[#f4f6f8]">@{account.username}</span></> : null}
-              {account.tokenExpiresAt ? <span className="text-[#8b93a1]"> · token expires {new Date(account.tokenExpiresAt).toLocaleDateString()}</span> : null}
+              {account.tokenExpiresAt ? <span className="text-[#93A0B4]"> · token expires {new Date(account.tokenExpiresAt).toLocaleDateString()}</span> : null}
             </p>
           ) : (
-            <p className="text-[13px] text-[#8b93a1]">No Threads account connected — your own API posts won't publish until one is connected. Partner one-tap posts don't need this.</p>
+            <p className="text-[13px] text-[#93A0B4]">No Threads account connected — your own API posts won't publish until one is connected. Partner one-tap posts don't need this.</p>
           )}
         </div>
         {account ? (
@@ -581,15 +607,15 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
                 <p key={a.id} className="flex flex-wrap items-center gap-2 text-[13px] text-[#b6bcc7]">
                   <span className="font-bold text-[#4ade80]">●</span>
                   <span className="font-bold text-[#f4f6f8]">{accountName(a)}</span>
-                  {a.username && a.label && <span className="text-[#8b93a1]">@{a.username}</span>}
-                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8b93a1]">
+                  {a.username && a.label && <span className="text-[#93A0B4]">@{a.username}</span>}
+                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#93A0B4]">
                     {linked ? `${KIND_LABEL[linked.kind]}: ${linked.name}` : a.crmContactId ? "Partner" : "Owner (default)"}
                   </span>
                 </p>
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-[#8b93a1]">Partners don't connect accounts — open a partner's contact in the CRM and send them their signed posting link instead.</p>
+          <p className="mt-2 text-xs text-[#93A0B4]">Partners don't connect accounts — open a partner's contact in the CRM and send them their signed posting link instead.</p>
         </div>
       )}
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -621,7 +647,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
               ))}
             </select>
           </div>
-          <p className="flex items-end pb-1 text-xs leading-relaxed text-[#8b93a1]">
+          <p className="flex items-end pb-1 text-xs leading-relaxed text-[#93A0B4]">
             If you pick a partner, the post goes to their signed page — they'll post it themselves with "Post on Threads" and mark it as posted (it will NOT go via the API).
           </p>
         </div>
@@ -629,9 +655,9 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
       </div>
 
       <div className="space-y-2">
-        {posts.length === 0 && <p className="text-[13px] text-[#8b93a1]">No posts in the queue yet.</p>}
+        {posts.length === 0 && <p className="text-[13px] text-[#93A0B4]">No posts in the queue yet.</p>}
         {posts.map((p) => (
-          <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-[#111114] px-3.5 py-3">
+          <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#27334D] bg-[#1B2638] px-3.5 py-3">
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b6bcc7]">{p.platform}</span>
             {p.socialAccountId && accountOf(p.socialAccountId) && (
               <span className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8dbcff]">{accountName(accountOf(p.socialAccountId)!)}</span>
@@ -642,7 +668,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
               </span>
             )}
             <span className="min-w-0 flex-1 truncate text-sm text-[#f4f6f8]">{p.body}</span>
-            <span className="text-xs text-[#8b93a1]">{new Date(p.scheduledAt).toLocaleString()}</span>
+            <span className="text-xs text-[#93A0B4]">{new Date(p.scheduledAt).toLocaleString()}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge(p.status)}`}>{p.status}</span>
             {p.status === "queued" && (
               <>
@@ -650,7 +676,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
                 <button onClick={async () => { await setPostStatus(p.id, "failed"); refresh(); }} className="rounded-md p-1.5 text-[#ff8589] hover:bg-white/[0.06]" title="Mark as failed"><X size={15} /></button>
               </>
             )}
-            <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
+            <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
           </div>
         ))}
       </div>
@@ -700,12 +726,12 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
 
   return (
     <div className="p-3 sm:p-4">
-      <p className="mb-3 text-[13px] font-semibold text-[#8b93a1]">Today ({todayKey()}) — counted from the data itself. Write the summary and save it each night; this is the daily CRM update.</p>
+      <p className="mb-3 text-[13px] font-semibold text-[#93A0B4]">Today ({todayKey()}) — counted from the data itself. Write the summary and save it each night; this is the daily CRM update.</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(([label, v]) => (
-          <div key={label} className="rounded-2xl border border-white/[0.07] bg-[#111114] p-4">
+          <div key={label} className="rounded-2xl border border-[#27334D] bg-[#1B2638] p-4">
             <p className="text-3xl font-extrabold tracking-tight text-[#f4f6f8]">{v}</p>
-            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#8b93a1]">{label}</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#93A0B4]">{label}</p>
           </div>
         ))}
       </div>

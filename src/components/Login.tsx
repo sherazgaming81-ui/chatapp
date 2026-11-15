@@ -14,9 +14,9 @@ export default function Login() {
   };
   return (
     <div className="flex h-full w-full items-center justify-center px-6">
-      <div className="pop-in glass-strong w-full max-w-md rounded-3xl p-8 text-center sm:p-10">
+      <div className="pop-in glass-strong glow-soft w-full max-w-md rounded-3xl p-8 text-center sm:p-10">
         <div
-          className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] soft-shadow"
+          className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] glow-accent"
           style={{ animation: "floaty 4s ease-in-out infinite" }}
         >
           <span className="text-4xl font-bold text-white">M</span>
@@ -43,7 +43,7 @@ export default function Login() {
           </svg>
           {busy ? "Opening…" : "Continue with Google"}
         </button>
-        <p className="mt-5 text-xs text-[#8b93a1]">Google account only — no password to remember.</p>
+        <p className="mt-5 text-xs text-[#93A0B4]">Google account only — no password to remember.</p>
       </div>
     </div>
   );

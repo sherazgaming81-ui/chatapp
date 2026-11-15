@@ -86,7 +86,7 @@ export default function AppLock() {
   if (!locked) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-[#2b2d31] via-[#313338] to-[#1e1f22] px-6">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-[#141C2B] via-[#1B2638] to-[#0B111C] px-6">
       <span className="lock-pop grid h-20 w-20 place-items-center rounded-3xl bg-[#4f8cff] soft-shadow">
         <Lock size={36} className="text-white" />
       </span>

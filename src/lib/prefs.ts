@@ -81,7 +81,7 @@ export const WALLPAPERS: WallpaperDef[] = [
   { id: "ocean", name: "Ocean", css: "linear-gradient(135deg, #00a8fc12 0%, #4f8cff0e 100%)" },
   { id: "dots", name: "Dots", css: "radial-gradient(#4f8cff14 1.5px, transparent 1.5px)", dark: false },
   { id: "grid", name: "Grid", css: "linear-gradient(#4f8cff0d 1px, transparent 1px), linear-gradient(90deg, #4f8cff0d 1px, transparent 1px)", dark: false },
-  { id: "night", name: "Night Sky", css: "linear-gradient(180deg, #2b2d3112 0%, #1e1f2214 100%)" },
+  { id: "night", name: "Night Sky", css: "linear-gradient(180deg, #141C2B12 0%, #0B111C14 100%)" },
   { id: "doodle", name: "Doodle 🎨", css: "doodle" },
 ];
 export function getWallpaper(): string { return LS.get("chatsapp:wallpaper") || "default"; }

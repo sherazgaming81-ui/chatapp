@@ -23,6 +23,7 @@ import CreateGroup from "@/components/CreateGroup";
 import Toasts from "@/components/Toasts";
 import AppLock from "@/components/AppLock";
 import { usePrefs } from "@/lib/prefs";
+import { useSidebarCollapsed } from "@/lib/shell";
 
 export default function App() {
   const session = useStore((s) => s.session);
@@ -32,6 +33,7 @@ export default function App() {
   const me = useStore((s) => s.members.find((m) => m.id === s.me));
   const meId = useStore((s) => s.me);
   const prefs = usePrefs();
+  const sidebarCollapsed = useSidebarCollapsed();
   const started = useRef(false);
 
   // WhatsApp-style: browser tab title me total unread count — (3) ChatsApp
@@ -240,7 +242,7 @@ export default function App() {
       {/* desktop: discord 3-column layout */}
       <div className="hidden min-w-0 flex-1 gap-3 md:flex">
         <ServerRail />
-        <Sidebar />
+        {!sidebarCollapsed && <Sidebar />}
         <div className="flex min-w-0 flex-1 flex-col">{main}</div>
         {!showHq && <MemberList />}
       </div>
@@ -251,7 +253,7 @@ export default function App() {
         <nav className={`mobile-nav grid shrink-0 ${isOwnerUser ? "grid-cols-3" : "grid-cols-2"}`} aria-label="Navigation">
           <button
             onClick={() => patchUI({ tab: "chat" })}
-            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#8dbcff]" : "text-[#8b93a1]"}`}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${tab === "chat" ? "text-[#8dbcff]" : "text-[#93A0B4]"}`}
           >
             <MessageCircle size={21} />
             Chats
@@ -259,7 +261,7 @@ export default function App() {
           {isOwnerUser && (
             <button
               onClick={() => patchUI({ tab: "hq" })}
-              className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showHq ? "text-[#8dbcff]" : "text-[#8b93a1]"}`}
+              className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${showHq ? "text-[#8dbcff]" : "text-[#93A0B4]"}`}
             >
               <Briefcase size={21} />
               HQ
@@ -267,7 +269,7 @@ export default function App() {
           )}
           <button
             onClick={() => patchUI({ settingsOpen: true })}
-            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#8b93a1] transition active:text-[#8dbcff]"
+            className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold text-[#93A0B4] transition active:text-[#8dbcff]"
           >
             <User size={21} />
             Profile
@@ -287,7 +289,7 @@ export default function App() {
       </div>
     </div>
     ) : (
-      <div className="flex h-full w-full bg-[#050505]" />
+      <div className="flex h-full w-full bg-[#0B111C]" />
     )}
     {/* TASK 4: Loader overlay — main UI pehle se rendered, hatne par foran dikhe */}
     {loading && <Loader />}

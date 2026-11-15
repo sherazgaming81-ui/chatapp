@@ -302,7 +302,7 @@ export default function ChatView() {
 
   return (
     <div className="panel relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-3 sm:px-4">
+      <header className="glass-bar flex h-14 shrink-0 items-center gap-2 border-b border-[#27334D] px-3 sm:px-4">
         <button onClick={() => patchUI({ mobileDrawer: "channels" })} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06] md:hidden" aria-label="Channels">
           <Menu size={20} />
         </button>
@@ -319,10 +319,10 @@ export default function ChatView() {
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-white/[0.05] active:scale-[0.99]"
             aria-label="Open group info"
           >
-            <Hash size={20} className="shrink-0 text-[#8b93a1]" />
+            <Hash size={20} className="shrink-0 text-[#93A0B4]" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">{activeChat?.name || "Chat"}</h1>
-              <p className="truncate text-xs text-[#8b93a1]">Tap to see group info 👆</p>
+              <p className="truncate text-xs text-[#93A0B4]">Tap to see group info 👆</p>
             </div>
           </button>
         )}
@@ -359,7 +359,7 @@ export default function ChatView() {
             placeholder="Search in this chat…"
             className="field min-w-0 flex-1 px-3 py-1.5 text-sm"
           />
-          <span className="w-12 shrink-0 text-center text-xs tabular-nums text-[#8b93a1]">
+          <span className="w-12 shrink-0 text-center text-xs tabular-nums text-[#93A0B4]">
             {matchIds.length > 0 ? `${qIdx + 1}/${matchIds.length}` : q ? "0" : ""}
           </span>
           <button onClick={() => jumpMatch(-1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Previous"><ChevronUp size={18} /></button>
@@ -418,13 +418,13 @@ export default function ChatView() {
               {isDM ? <span className="text-2xl">👋</span> : <Hash size={28} className="text-[#8dbcff]" />}
             </div>
             <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#f4f6f8]">{isDM ? `This is the start of your conversation with ${dmOther?.name || "them"}` : `Welcome to ${activeChat?.name || "group"}!`}</h3>
-            <p className="mt-1.5 max-w-xs text-sm text-[#8b93a1]">Send the first message to start the conversation 🌙</p>
+            <p className="mt-1.5 max-w-xs text-sm text-[#93A0B4]">Send the first message to start the conversation 🌙</p>
           </div>
         ) : (
           sections.map((sec) => (
             <div key={sec.key}>
               <div className="sticky top-0 z-[5] flex justify-center py-1.5">
-                <span key={sec.key} className="date-pill rounded-full border border-white/10 bg-[#111114]/95 px-3 py-1 text-[11px] font-bold text-[#b6bcc7] shadow-sm">{sec.label}</span>
+                <span key={sec.key} className="date-pill rounded-full border border-white/10 bg-[#141C2B]/95 px-3 py-1 text-[11px] font-bold text-[#b6bcc7] shadow-sm">{sec.label}</span>
               </div>
               {sec.msgs.map((m, i) => {
                 const prev = sec.msgs[i - 1];
@@ -462,7 +462,7 @@ export default function ChatView() {
         {typer && (
           <div className="flex items-center gap-3 px-4 pt-2">
             <Avatar m={typer} size={28} role={typer.role} />
-            <span className="text-xs font-semibold text-[#8b93a1]">{typer.name} is typing…</span>
+            <span className="text-xs font-semibold text-[#93A0B4]">{typer.name} is typing…</span>
             <span className="flex gap-1 rounded-xl bg-white/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
           </div>
         )}

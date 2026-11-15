@@ -43,25 +43,25 @@ export default function CreateGroup() {
           <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto thin-scroll p-4">
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Group name *</label>
+          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Group name *</label>
           <input
             autoFocus
             value={name} onChange={(e) => setName(e.target.value)} maxLength={60}
             placeholder="e.g. Madrasa Friends 🕌"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
-          <label className="mb-1 mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Description (optional)</label>
+          <label className="mb-1 mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Description (optional)</label>
           <textarea
             value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} rows={2}
             placeholder="What is this group for…"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
           <div className="mb-1 mt-3 flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Members</label>
+            <label className="text-xs font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Members</label>
             <span className="text-xs font-bold text-[#8dbcff]">{sel.length} selected</span>
           </div>
           <div className="max-h-52 space-y-0.5 overflow-y-auto thin-scroll rounded-xl border border-black/[0.07] bg-black/[0.02] p-1.5">
-            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#8b93a1]">No members found</p>}
+            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#93A0B4]">No members found</p>}
             {sorted.map((m) => {
               const on = sel.includes(m.id);
               return (
@@ -73,7 +73,7 @@ export default function CreateGroup() {
                   <Avatar m={m} size={34} showDot />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
-                    <span className="block text-[11px] text-[#8b93a1]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : "offline"}</span>
+                    <span className="block text-[11px] text-[#93A0B4]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : "offline"}</span>
                   </span>
                   <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition ${on ? "border-[#4f8cff] bg-[#4f8cff] text-white" : "border-white/25 text-transparent"}`}>
                     <Check size={14} strokeWidth={3} />

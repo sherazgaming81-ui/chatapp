@@ -83,9 +83,9 @@ function ProfileTab({ onClose }: { onClose: () => void }) {
         </button>
         <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
       </div>
-      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Name</label>
+      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">Name</label>
       <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="Your name" className="field mb-3 w-full px-3 py-2.5 text-[15px]" />
-      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">About</label>
+      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">About</label>
       <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={2} placeholder="A little about you…" className="field mb-4 w-full resize-none px-3 py-2.5 text-[15px]" />
       <button onClick={save} disabled={saving} className="btn btn-blurple flex w-full items-center justify-center gap-2 px-4 py-3 text-[15px] disabled:opacity-60">
         <Check size={17} /> {saving ? "Saving…" : "Save"}
@@ -103,7 +103,7 @@ function AudienceRow({ label, desc, value, onChange }: { label: string; desc: st
     <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-[#f4f6f8]">{label}</p>
-        <p className="text-xs text-[#8b93a1]">{desc}</p>
+        <p className="text-xs text-[#93A0B4]">{desc}</p>
       </div>
       <div className="flex shrink-0 overflow-hidden rounded-lg border border-white/10">
         {(Object.keys(AUDIENCE_LABELS) as PrivacyAudience[]).map((a) => (
@@ -134,12 +134,12 @@ function PrivacyTab() {
 
   return (
     <div className="space-y-2.5">
-      <p className="flex items-center gap-2 text-xs text-[#8b93a1]"><Eye size={14} /> Control who can see what {saving && "· saving…"}</p>
+      <p className="flex items-center gap-2 text-xs text-[#93A0B4]"><Eye size={14} /> Control who can see what {saving && "· saving…"}</p>
       <AudienceRow label="Last seen" desc="When you were last online" value={pr.lastSeen} onChange={(v) => change("lastSeen", v)} />
       <AudienceRow label="Profile photo" desc="Who sees your photo" value={pr.photo} onChange={(v) => change("photo", v)} />
       <AudienceRow label="About" desc="Who can read your about" value={pr.about} onChange={(v) => change("about", v)} />
       <AudienceRow label="Online status" desc="Who sees your online dot" value={pr.online} onChange={(v) => change("online", v)} />
-      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#8b93a1]"><EyeOff size={12} /> "Nobody" means no one can see it — and you won't see theirs either if they've also chosen Nobody</p>
+      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#93A0B4]"><EyeOff size={12} /> "Nobody" means no one can see it — and you won't see theirs either if they've also chosen Nobody</p>
     </div>
   );
 }
@@ -185,7 +185,7 @@ function LockTab() {
       <div className="py-6 text-center">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Lock size={28} className="text-[#8dbcff]" /></span>
         <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">Set a 4-digit PIN — the app will ask for it on open, or after 5 minutes of inactivity</p>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#93A0B4]">Set a 4-digit PIN — the app will ask for it on open, or after 5 minutes of inactivity</p>
         <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn btn-blurple mt-4 px-6 py-2.5 text-sm">
           <KeyRound size={15} /> Set PIN
         </button>
@@ -198,7 +198,7 @@ function LockTab() {
       <div className="py-6 text-center">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#23a55a]/10"><Shield size={28} className="text-[#23a55a]" /></span>
         <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock is ON</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">Forgot your PIN? Log out and sign in with Google again — your PIN will be reset</p>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#93A0B4]">Forgot your PIN? Log out and sign in with Google again — your PIN will be reset</p>
         <div className="mt-4 flex justify-center gap-2">
           <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn px-4 py-2 text-sm">Change PIN</button>
           <button onClick={remove} className="btn flex items-center gap-1.5 px-4 py-2 text-sm text-[#ed4245] hover:bg-[#ed4245]/10"><Trash2 size={14} /> Remove</button>
@@ -226,7 +226,7 @@ function LockTab() {
           )
         ))}
       </div>
-      <button onClick={() => { setStep("idle"); setLocked(hasPin()); }} className="mt-3 text-xs font-bold text-[#8b93a1] hover:text-[#f4f6f8]">Cancel</button>
+      <button onClick={() => { setStep("idle"); setLocked(hasPin()); }} className="mt-3 text-xs font-bold text-[#93A0B4] hover:text-[#f4f6f8]">Cancel</button>
     </div>
   );
 }
@@ -260,7 +260,7 @@ function AppearanceTab() {
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
           <p className="text-sm font-bold text-[#f4f6f8]">Compact mode</p>
-          <p className="text-xs text-[#8b93a1]">Smaller bubbles, more messages</p>
+          <p className="text-xs text-[#93A0B4]">Smaller bubbles, more messages</p>
         </div>
         <button onClick={toggleCompact} className={`relative h-7 w-12 shrink-0 rounded-full transition ${compact ? "bg-[#4f8cff]" : "bg-white/15"}`}>
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${compact ? "left-6" : "left-1"}`} />
@@ -271,7 +271,7 @@ function AppearanceTab() {
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
           <p className="text-sm font-bold text-[#f4f6f8]">Notification sound 🔊</p>
-          <p className="text-xs text-[#8b93a1]">Play a pop sound when a new message arrives</p>
+          <p className="text-xs text-[#93A0B4]">Play a pop sound when a new message arrives</p>
         </div>
         <button onClick={toggleSound} className={`relative h-7 w-12 shrink-0 rounded-full transition ${sound ? "bg-[#4f8cff]" : "bg-white/15"}`} aria-label="Notification sound">
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${sound ? "left-6" : "left-1"}`} />
@@ -332,7 +332,7 @@ function BackupTab() {
     <div className="py-4 text-center">
       <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Database size={28} className="text-[#8dbcff]" /></span>
       <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">Chat Backup</h4>
-      <p className="mx-auto mt-1 max-w-[280px] text-xs text-[#8b93a1]">
+      <p className="mx-auto mt-1 max-w-[280px] text-xs text-[#93A0B4]">
         Download a JSON backup of all your chats. It's saved only on your device — nothing is uploaded to a server.
       </p>
       {last > 0 && (
@@ -354,10 +354,10 @@ export default function ProfileSettings({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-[96] bg-black/40" onClick={onClose} />
-      <div className={`pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111114] soft-shadow w-[380px] max-w-[94vw]`}>
+      <div className={`pop-in fixed left-1/2 top-1/2 z-[97] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#141C2B] soft-shadow w-[380px] max-w-[94vw]`}>
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
           <h3 className="text-lg font-extrabold tracking-tight text-[#f4f6f8]">Settings</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 px-3 py-2">
           {TABS.map((t) => (

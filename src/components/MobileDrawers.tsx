@@ -133,15 +133,15 @@ export default function MobileDrawers() {
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-lg font-bold text-white">{(group.name || "G")[0]?.toUpperCase()}</span>
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm font-bold ${activeChatId === group.id ? "text-white" : "text-[#f4f6f8]"}`}>{group.name}</span>
-              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#8b93a1]"}`}>group</span>
+              <span className={`block text-xs ${activeChatId === group.id ? "text-white/70" : "text-[#93A0B4]"}`}>group</span>
             </span>
-            {isChatMuted(group.id) && <VolumeX size={14} className="shrink-0 text-[#8b93a1]" />}
+            {isChatMuted(group.id) && <VolumeX size={14} className="shrink-0 text-[#93A0B4]" />}
             <UnreadBadge count={unread[group.id] || 0} />
           </button>
           </SwipeRow>
           );
         })}
-        {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Direct messages</p>}
+        {dms.length > 0 && <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Direct messages</p>}
         {dms.map((dm) => {
           const other = members.find((m) => m.id === dm.otherId);
           const lm = lastMsg(dm.id);
@@ -160,9 +160,9 @@ export default function MobileDrawers() {
               <Avatar m={{ id: other?.id || dm.id, name: other?.name || dm.name, avatar: other?.avatar || dm.photo, online: !!other?.online }} size={36} showDot />
               <span className="min-w-0 flex-1">
                 <span className={`block truncate text-sm font-bold ${active ? "text-white" : "text-[#f4f6f8]"}`}>{other?.name || dm.name}</span>
-                {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#8b93a1]"}`}>{lm.text?.slice(0, 30) || "media"} · {fmtTime(lm.at)}</span>}
+                {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#93A0B4]"}`}>{lm.text?.slice(0, 30) || "media"} · {fmtTime(lm.at)}</span>}
               </span>
-              {isChatMuted(dm.id) && <VolumeX size={14} className="shrink-0 text-[#8b93a1]" />}
+              {isChatMuted(dm.id) && <VolumeX size={14} className="shrink-0 text-[#93A0B4]" />}
               <UnreadBadge count={unread[dm.id] || 0} />
             </button>
             </SwipeRow>
@@ -180,15 +180,15 @@ export default function MobileDrawers() {
       <Avatar m={m} size={36} showDot />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-[#f4f6f8]">{m.id === meId ? "You" : m.name}<Badge role={m.role} /></span>
-        <span className="block text-xs text-[#8b93a1]">{m.online ? "Online" : "Offline"}</span>
+        <span className="block text-xs text-[#93A0B4]">{m.online ? "Online" : "Offline"}</span>
       </span>
     </button>
   );
   return (
     <Drawer side="right" onClose={close} title={`Members · ${visible.length}`}>
-      <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Online — {online.length}</p>
+      <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Online — {online.length}</p>
       {online.map((m) => <Row key={m.id} m={m} />)}
-      <p className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Offline — {offline.length}</p>
+      <p className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Offline — {offline.length}</p>
       {offline.map((m) => <Row key={m.id} m={m} />)}
     </Drawer>
   );

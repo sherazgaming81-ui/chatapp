@@ -25,12 +25,12 @@ export default function PollMessage({ m }: { m: Message }) {
     return () => clearInterval(t);
   }, []);
 
-  if (!poll) return <p className="text-sm italic text-[#8b93a1]">Couldn't load this poll</p>;
+  if (!poll) return <p className="text-sm italic text-[#93A0B4]">Couldn't load this poll</p>;
   const closed = poll.endsAt < Date.now();
   const { counts, total, mine } = pollVotes({ ...m, reactions });
 
   return (
-    <div className="mt-1.5 w-full max-w-sm rounded-xl border border-white/10 bg-[#111114] p-3.5 soft-shadow">
+    <div className="mt-1.5 w-full max-w-sm rounded-xl border border-white/10 bg-[#141C2B] p-3.5 soft-shadow">
       <p className="mb-0.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[#8dbcff]">
         <BarChart3 size={13} /> Poll
       </p>
@@ -62,7 +62,7 @@ export default function PollMessage({ m }: { m: Message }) {
           );
         })}
       </div>
-      <p className="mt-2.5 flex items-center gap-1.5 text-xs text-[#8b93a1]">
+      <p className="mt-2.5 flex items-center gap-1.5 text-xs text-[#93A0B4]">
         <Clock size={12} /> {fmtLeft(poll.endsAt - Date.now())} · {total} vote{total === 1 ? "" : "s"}
         {!closed && mine >= 0 && <span> · tap again to change your vote</span>}
       </p>

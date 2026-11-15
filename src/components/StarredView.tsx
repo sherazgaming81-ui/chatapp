@@ -28,7 +28,7 @@ function StarredRow({ m }: { m: Message }) {
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-sm font-bold" style={{ color: member ? nameColor(member) : "#5c5e66" }}>{name}</span>
-            <span className="text-[11px] text-[#8b93a1]">{fmtDayLabel(m.at)} {fmtTime(m.at)}</span>
+            <span className="text-[11px] text-[#93A0B4]">{fmtDayLabel(m.at)} {fmtTime(m.at)}</span>
           </span>
           <span className="block truncate text-sm text-[#f4f6f8]">
             {m.text || (m.type === "image" ? "📷 Photo" : m.type === "voice" ? "🎙️ Voice note" : m.type === "poll" ? "📊 Poll" : m.type === "location" ? "📍 Location" : m.type === "contact" ? "👤 Contact" : "Message")}
@@ -71,7 +71,7 @@ export default function StarredView() {
               <SearchX size={28} />
             </span>
             <p className="mt-4 text-[15px] font-bold text-[#f4f6f8]">No starred messages</p>
-            <p className="mt-1 text-sm text-[#8b93a1]">Star any message and it will be saved here</p>
+            <p className="mt-1 text-sm text-[#93A0B4]">Star any message and it will be saved here</p>
           </div>
         ) : (
           items.map((m) => <StarredRow key={m.id} m={m} />)

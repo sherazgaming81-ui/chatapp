@@ -47,9 +47,9 @@ export default function ProfileSetup({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-5">
-      <div className="pop-in w-full max-w-sm rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+      <div className="pop-in w-full max-w-sm rounded-2xl border border-white/10 bg-[#141C2B] p-6 soft-shadow">
         <h2 className="text-lg font-extrabold text-[#f4f6f8]">Complete your profile</h2>
-        <p className="mt-0.5 text-sm text-[#8b93a1]">Just your name and photo.</p>
+        <p className="mt-0.5 text-sm text-[#93A0B4]">Just your name and photo.</p>
         <div className="mb-4 mt-5 flex justify-center">
           <button onClick={() => file.current?.click()} className="group relative" title="Change photo">
             <Avatar m={{ id: meId, name: name || "?", avatar: photo, online: true }} size={84} />
@@ -59,7 +59,7 @@ export default function ProfileSetup({ onDone }: { onDone: () => void }) {
           </button>
           <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         </div>
-        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Name</label>
+        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">Name</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}

@@ -279,7 +279,7 @@ export default function Composer({ chatId }: { chatId: string }) {
     <div className="relative shrink-0 px-4 pb-4 pt-1">
       {showPalette && cmdList.length > 0 && (
         <div className="pop-in glass-strong absolute bottom-full left-4 right-4 z-30 mb-2 overflow-hidden rounded-xl p-1.5">
-          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Commands</p>
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Commands</p>
           {cmdList.map((c, i) => (
             <button
               key={c.name}
@@ -290,7 +290,7 @@ export default function Composer({ chatId }: { chatId: string }) {
               <Terminal size={16} className={`shrink-0 ${i === cmdSel ? "text-white" : "text-[#8dbcff]"}`} />
               <span className="min-w-0 flex-1">
                 <span className={`block text-sm font-bold ${i === cmdSel ? "text-white" : "text-[#f4f6f8]"}`}>/{c.name}</span>
-                <span className={`block truncate text-xs ${i === cmdSel ? "text-white/75" : "text-[#8b93a1]"}`}>{c.desc} · {c.usage}</span>
+                <span className={`block truncate text-xs ${i === cmdSel ? "text-white/75" : "text-[#93A0B4]"}`}>{c.desc} · {c.usage}</span>
               </span>
               {c.staff && <span className="badge-pill shrink-0" style={{ background: i === cmdSel ? "rgba(255,255,255,0.25)" : "#4f8cff", color: "#fff" }}>Staff</span>}
             </button>
@@ -303,7 +303,7 @@ export default function Composer({ chatId }: { chatId: string }) {
           <span className="min-w-0 flex-1 truncate text-[#b6bcc7]">
             <b className="text-[#f4f6f8]">Replying to {replyMember?.name || "Member"}</b>: {replyTo.text?.slice(0, 60) || (replyTo.type === "image" ? "📷 Photo" : replyTo.type === "voice" ? "🎙️ Voice" : replyTo.type === "poll" ? "📊 Poll" : replyTo.type === "location" ? "📍 Location" : replyTo.type === "contact" ? "👤 Contact" : "media")}
           </span>
-          <button onClick={() => patchUI({ replyTo: null })} className="rounded-md p-1 text-[#8b93a1] hover:bg-white/10"><X size={15} /></button>
+          <button onClick={() => patchUI({ replyTo: null })} className="rounded-md p-1 text-[#93A0B4] hover:bg-white/10"><X size={15} /></button>
         </div>
       )}
       {editingMsg && (
@@ -312,7 +312,7 @@ export default function Composer({ chatId }: { chatId: string }) {
           <span className="min-w-0 flex-1 truncate text-[#b6bcc7]">
             <b className="text-[#f4f6f8]">Editing</b> · within 15 min
           </span>
-          <button onClick={() => { patchUI({ editingMsg: null }); setText(""); }} className="rounded-md p-1 text-[#8b93a1] hover:bg-white/10" aria-label="Cancel edit"><X size={15} /></button>
+          <button onClick={() => { patchUI({ editingMsg: null }); setText(""); }} className="rounded-md p-1 text-[#93A0B4] hover:bg-white/10" aria-label="Cancel edit"><X size={15} /></button>
         </div>
       )}
       {banned ? (
@@ -327,11 +327,11 @@ export default function Composer({ chatId }: { chatId: string }) {
         <div className="glass-strong flex items-center gap-3 rounded-lg px-4 py-3">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#ed4245]" />
           <span className="text-sm font-bold tabular-nums text-[#f4f6f8]">{Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, "0")}</span>
-          <span className="flex-1 text-sm text-[#8b93a1]">Recording…</span>
+          <span className="flex-1 text-sm text-[#93A0B4]">Recording…</span>
           <button onClick={stopRec} className="btn btn-blurple flex items-center gap-1.5 px-4 py-2 text-sm"><Square size={14} /> Send</button>
         </div>
       ) : (
-        <div className="glass-strong relative flex items-end gap-1.5 rounded-lg p-2 pl-2">
+        <div className="glass-strong relative flex items-end gap-1.5 rounded-2xl p-2 pl-2">
           <button onClick={() => { setAttachOpen((v) => !v); setEmojiOpen(false); }} className={`rounded-md p-2.5 hover:bg-white/[0.06] ${attachOpen ? "text-[#8dbcff]" : "text-[#b6bcc7] hover:text-[#f4f6f8]"}`} title="Attach">
             <Plus size={20} className={`transition-transform ${attachOpen ? "rotate-45" : ""}`} />
           </button>
@@ -375,7 +375,7 @@ export default function Composer({ chatId }: { chatId: string }) {
               if (e.key === "Escape" && showPalette) { setText(""); }
             }}
             placeholder={editingMsg ? "Edit message…" : "Type a message…"}
-            className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] text-[#f4f6f8] outline-none placeholder:text-[#8b93a1]"
+            className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] text-[#f4f6f8] outline-none placeholder:text-[#93A0B4]"
           />
           {/* 2 — send button morph: mic ↔ send smooth transition */}
           <button
@@ -401,7 +401,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       {attachOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setAttachOpen(false)} />
-          <div className="pop-in thin-scroll fixed inset-x-4 bottom-24 z-40 max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#111114] p-2 soft-shadow [-webkit-overflow-scrolling:touch] md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
+          <div className="pop-in thin-scroll fixed inset-x-4 bottom-24 z-40 max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#141C2B] p-2 soft-shadow [-webkit-overflow-scrolling:touch] md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
             <AttachItem icon={<ImagePlus size={19} />} color="#4f8cff" bg="#4f8cff/10" label="Photo" desc="Choose from gallery" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
             <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Ask a question, take votes" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
@@ -435,7 +435,7 @@ function AttachItem({ icon, color, bg, label, desc, onClick }: { icon: React.Rea
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color, background: bg.replace("/10", "") + "22" }}>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-[#f4f6f8]">{label}</span>
-        <span className="block truncate text-xs text-[#8b93a1]">{desc}</span>
+        <span className="block truncate text-xs text-[#93A0B4]">{desc}</span>
       </span>
     </button>
   );
@@ -459,14 +459,14 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#141C2B] p-5 soft-shadow">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><BarChart3 size={19} className="text-[#f5a623]" /> Create poll</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Write your question…" maxLength={140}
           className="field mt-4 w-full px-3.5 py-2.5 text-[15px]" />
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Options (2–5)</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">Options (2–5)</p>
         <div className="space-y-1.5">
           {opts.map((o, i) => (
             <div key={i} className="flex items-center gap-1.5">
@@ -483,7 +483,7 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
         {opts.length < 5 && (
           <button onClick={() => setOpts([...opts, ""])} className="mt-2 text-sm font-bold text-[#8dbcff] hover:underline">+ Add option</button>
         )}
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Duration</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">Duration</p>
         <div className="flex gap-1.5">
           {[["1h", "1 hour"], ["1d", "1 day"], ["1w", "1 week"]].map(([v, l]) => (
             <button key={v} onClick={() => setDur(v)}
@@ -510,10 +510,10 @@ function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDev
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-[#141C2B] p-5 soft-shadow">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><User size={19} className="text-[#8dbcff]" /> Send contact</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <button onClick={() => pickDevice((n, p) => { setName(n); setPhone(p); })}
           className="mt-4 w-full rounded-lg border border-dashed border-[#4f8cff]/40 bg-[#4f8cff]/[0.05] px-3 py-2.5 text-sm font-bold text-[#8dbcff] hover:bg-[#4f8cff]/[0.16]">
@@ -546,26 +546,26 @@ function PhotoSendModal({ chatId, file, onClose }: { chatId: string; file: File;
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
+      <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#141C2B] p-5 soft-shadow">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><ImagePlus size={19} className="text-[#8dbcff]" /> Send photo</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <img src={preview} alt="" className="mt-4 max-h-56 w-full rounded-xl border border-white/10 object-cover" draggable={false} />
         <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Add a caption…" maxLength={300}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
           className="field mt-3 w-full px-3.5 py-2.5 text-[15px]" />
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Quality</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#93A0B4]">Quality</p>
         <div className="flex gap-1.5">
           <button onClick={() => setQuality("standard")}
             className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "standard" ? "border-[#4f8cff] bg-[#4f8cff]/15" : "border-white/10 hover:border-black/25"}`}>
             <span className={`block text-sm font-bold ${quality === "standard" ? "text-[#8dbcff]" : "text-[#f4f6f8]"}`}>Standard</span>
-            <span className="block text-xs text-[#8b93a1]">Fast, smaller file</span>
+            <span className="block text-xs text-[#93A0B4]">Fast, smaller file</span>
           </button>
           <button onClick={() => setQuality("hd")}
             className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "hd" ? "border-[#4f8cff] bg-[#4f8cff]/15" : "border-white/10 hover:border-black/25"}`}>
             <span className={`block text-sm font-bold ${quality === "hd" ? "text-[#8dbcff]" : "text-[#f4f6f8]"}`}>HD</span>
-            <span className="block text-xs text-[#8b93a1]">Clearer, larger file</span>
+            <span className="block text-xs text-[#93A0B4]">Clearer, larger file</span>
           </button>
         </div>
         <button onClick={send} disabled={busy} className="btn btn-blurple mt-5 flex w-full items-center justify-center gap-1.5 py-3 text-[15px] disabled:opacity-60">

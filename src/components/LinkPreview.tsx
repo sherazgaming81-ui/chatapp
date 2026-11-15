@@ -81,7 +81,7 @@ export function LinkPreviewCard({ url, mine = false }: { url: string; mine?: boo
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`mt-2 flex gap-3 overflow-hidden rounded-xl border transition soft-shadow ${mine ? "border-white/20 bg-[#075e54] hover:border-white/40" : "border-white/10 bg-[#111114] hover:border-[#4f8cff]/50"}`}
+      className={`mt-2 flex gap-3 overflow-hidden rounded-xl border transition soft-shadow ${mine ? "border-white/20 bg-[#075e54] hover:border-white/40" : "border-white/10 bg-[#141C2B] hover:border-[#4f8cff]/50"}`}
       onClick={(e) => e.stopPropagation()}
     >
       {og.img ? (
@@ -92,7 +92,7 @@ export function LinkPreviewCard({ url, mine = false }: { url: string; mine?: boo
         </span>
       )}
       <span className="min-w-0 flex-1 py-2 pr-3">
-        <span className={`block text-xs font-bold uppercase tracking-wide ${mine ? "text-white/70" : "text-[#8b93a1]"}`}>{og.domain}</span>
+        <span className={`block text-xs font-bold uppercase tracking-wide ${mine ? "text-white/70" : "text-[#93A0B4]"}`}>{og.domain}</span>
         <span className={`block truncate text-sm font-bold ${mine ? "text-white" : "text-[#f4f6f8]"}`}>{og.title}</span>
         {og.desc && <span className={`block truncate text-xs ${mine ? "text-white/70" : "text-[#b6bcc7]"}`}>{og.desc}</span>}
       </span>

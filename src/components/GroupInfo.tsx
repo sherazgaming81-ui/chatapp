@@ -61,14 +61,14 @@ function Insights({ chatId }: { chatId: string }) {
         <BarChart3 size={16} className="text-[#8dbcff]" /> Insights
         <span className="badge-pill" style={{ background: "#23a55a22", color: "#1a7a55" }}>live</span>
       </h3>
-      {loading && <p className="mt-3 text-xs text-[#8b93a1]">Counting… ⏳</p>}
+      {loading && <p className="mt-3 text-xs text-[#93A0B4]">Counting… ⏳</p>}
       {!loading && (!ins || ins.total < 10) && (
-        <p className="mt-3 text-xs leading-relaxed text-[#8b93a1]">📊 Data is still being collected — insights will appear here in a few days.</p>
+        <p className="mt-3 text-xs leading-relaxed text-[#93A0B4]">📊 Data is still being collected — insights will appear here in a few days.</p>
       )}
       {!loading && ins && ins.total >= 10 && (
         <div className="mt-3 space-y-4">
           <div>
-            <p className="mb-2 text-xs font-bold text-[#8b93a1]">Messages per day (last 7 days)</p>
+            <p className="mb-2 text-xs font-bold text-[#93A0B4]">Messages per day (last 7 days)</p>
             <div className="flex h-28 items-end gap-1.5">
               {ins.perDay.map((d) => {
                 const max = Math.max(1, ...ins.perDay.map((x) => x.count));
@@ -80,23 +80,23 @@ function Insights({ chatId }: { chatId: string }) {
                       style={{ height: `${Math.max(5, (d.count / max) * 88)}px` }}
                       title={`${d.label}: ${d.count}`}
                     />
-                    <span className="truncate text-[10px] font-semibold text-[#8b93a1]">{d.label}</span>
+                    <span className="truncate text-[10px] font-semibold text-[#93A0B4]">{d.label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#8b93a1]">Active hours ⚡</p>
+            <p className="mb-1.5 text-xs font-bold text-[#93A0B4]">Active hours ⚡</p>
             {(() => {
               const top = ins.perHour.map((c, h) => ({ h, c })).sort((a, b) => b.c - a.c).slice(0, 3).filter((x) => x.c > 0);
               return top.length === 0
-                ? <p className="text-xs text-[#8b93a1]">—</p>
+                ? <p className="text-xs text-[#93A0B4]">—</p>
                 : <p className="text-[13px] font-bold text-[#f4f6f8]">{top.map((t) => fmtHour(t.h)).join(" · ")}</p>;
             })()}
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#8b93a1]">Top contributors 🏆</p>
+            <p className="mb-1.5 text-xs font-bold text-[#93A0B4]">Top contributors 🏆</p>
             <div className="space-y-1.5">
               {ins.top.map((t, i) => {
                 const m = members.find((x) => x.id === t.id);
@@ -104,7 +104,7 @@ function Insights({ chatId }: { chatId: string }) {
                 const max = Math.max(1, ins.top[0]?.count || 1);
                 return (
                   <div key={t.id} className="flex items-center gap-2">
-                    <span className="w-4 text-xs font-extrabold text-[#8b93a1]">{i + 1}</span>
+                    <span className="w-4 text-xs font-extrabold text-[#93A0B4]">{i + 1}</span>
                     <Avatar m={m} size={26} />
                     <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
                     <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/[0.07]">
@@ -116,7 +116,7 @@ function Insights({ chatId }: { chatId: string }) {
               })}
             </div>
           </div>
-          <p className="text-[11px] text-[#8b93a1]">In the last 7 days: <b className="text-[#f4f6f8]">{ins.total}</b> messages · <b className="text-[#f4f6f8]">{ins.media}</b> media</p>
+          <p className="text-[11px] text-[#93A0B4]">In the last 7 days: <b className="text-[#f4f6f8]">{ins.total}</b> messages · <b className="text-[#f4f6f8]">{ins.media}</b> media</p>
         </div>
       )}
     </section>
@@ -161,7 +161,7 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
             className="field w-full text-sm"
           />
           <div className="mt-2 flex justify-end gap-2">
-            <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#8b93a1] hover:bg-white/[0.06]">Cancel</button>
+            <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#93A0B4] hover:bg-white/[0.06]">Cancel</button>
             <button onClick={save} disabled={saving} className="flex items-center gap-1 rounded-lg bg-[#b8860b] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50">
               <Check size={14} /> {saving ? "Save…" : "Save"}
             </button>
@@ -171,11 +171,11 @@ function RulesCard({ chatId, canEdit }: { chatId: string; canEdit: boolean }) {
         <div className="mt-2">
           <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#f4f6f8]">{rules.text}</p>
           {(rules.updatedAt > 0) && (
-            <p className="mt-2 text-[11px] text-[#8b93a1]">Last updated: {fmtFull(rules.updatedAt)}{byName ? ` · ${byName}` : ""}</p>
+            <p className="mt-2 text-[11px] text-[#93A0B4]">Last updated: {fmtFull(rules.updatedAt)}{byName ? ` · ${byName}` : ""}</p>
           )}
         </div>
       ) : (
-        <p className="mt-2 text-xs leading-relaxed text-[#8b93a1]">
+        <p className="mt-2 text-xs leading-relaxed text-[#93A0B4]">
           {canEdit ? "No rules yet — tap Edit to write them ✍️" : "No rules yet."}
         </p>
       )}
@@ -203,7 +203,7 @@ function WelcomeToggle({ chatId }: { chatId: string }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-extrabold text-[#f4f6f8]">Welcome message</p>
-        <p className="text-xs text-[#8b93a1]">Auto-greet new members</p>
+        <p className="text-xs text-[#93A0B4]">Auto-greet new members</p>
       </div>
       <button
         onClick={toggle} disabled={busy}
@@ -256,7 +256,7 @@ function DeleteZone({ chatId, chatName }: { chatId: string; chatName: string }) 
             <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
               <b className="text-[#f4f6f8]">“{chatName}”</b> and all its messages will be permanently deleted.
             </p>
-            <p className="mt-3 text-xs font-bold text-[#8b93a1]">Type the group name to confirm:</p>
+            <p className="mt-3 text-xs font-bold text-[#93A0B4]">Type the group name to confirm:</p>
             <input
               autoFocus
               value={typed}
@@ -385,7 +385,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] sm:hidden" onClick={close} />
       <aside className="slide-in-right fixed bottom-0 right-0 top-0 z-40 flex w-full flex-col bg-[#f4f4f6] soft-shadow sm:w-[400px] sm:border-l sm:border-white/10">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#111114]/80 px-3 backdrop-blur">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#141C2B]/80 px-3 backdrop-blur">
           {view !== "info" ? (
             <button onClick={() => setView("info")} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Back">
               <ChevronLeft size={20} />
@@ -431,7 +431,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-xl font-extrabold tracking-tight text-[#f4f6f8]">{chat.name}</h3>
-                  <p className="text-xs text-[#8b93a1]">A group for madrasa friends 🕌</p>
+                  <p className="text-xs text-[#93A0B4]">A group for madrasa friends 🕌</p>
                 </div>
               </div>
 
@@ -449,7 +449,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                   <div className="mt-2">
                     <textarea autoFocus value={descText} onChange={(e) => setDescText(e.target.value)} rows={3} placeholder="Write about this group…" className="field w-full text-sm" />
                     <div className="mt-2 flex justify-end gap-2">
-                      <button onClick={() => setEditDesc(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#8b93a1] hover:bg-white/[0.06]">Cancel</button>
+                      <button onClick={() => setEditDesc(false)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#93A0B4] hover:bg-white/[0.06]">Cancel</button>
                       <button onClick={saveDesc} disabled={savingDesc} className="flex items-center gap-1 rounded-lg bg-[#4f8cff] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50">
                         <Check size={14} /> {savingDesc ? "Save…" : "Save"}
                       </button>
@@ -469,7 +469,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                 ].map((s) => (
                   <div key={s.l} className="rounded-2xl border border-black/[0.07] bg-white/60 p-3 text-center">
                     <p className="text-lg font-extrabold tabular-nums text-[#f4f6f8]">{s.v}</p>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8b93a1]">{s.l}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#93A0B4]">{s.l}</p>
                   </div>
                 ))}
               </div>
@@ -533,7 +533,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                             <span className="truncate text-[14px] font-bold" style={{ color: nameColor(m) }}>{m.name}</span>
                             <Badge role={m.role} />
                           </span>
-                          <span className="block text-[11px] text-[#8b93a1]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
+                          <span className="block text-[11px] text-[#93A0B4]">{m.online ? <span className="font-bold text-[#23a55a]">online</span> : m.about || "—"}</span>
                         </span>
                       </button>
                       {m.id === meId ? (
@@ -541,7 +541,7 @@ function Panel({ chatId, view }: { chatId: string; view: "info" | "media" | "fil
                       ) : (
                         <button
                           onClick={() => openDM(m.id)}
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#8b93a1] hover:bg-[#4f8cff]/15 hover:text-[#8dbcff]"
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#93A0B4] hover:bg-[#4f8cff]/15 hover:text-[#8dbcff]"
                           title={`Message ${m.name}`}
                           aria-label="Send DM"
                         >

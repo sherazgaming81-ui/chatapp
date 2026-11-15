@@ -80,7 +80,15 @@ function PartnerPosts() {
     return (
       <Shell>
         <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Loading your posts…</h1>
-        <p className="mt-2 text-sm text-[#b6bcc7]">Please wait a moment.</p>
+        <div className="mt-4 space-y-3" aria-hidden>
+          {[0, 1].map((i) => (
+            <div key={i} className="rounded-2xl border border-[#27334D] bg-[#141C2B] p-5">
+              <div className="skel h-4 w-full" />
+              <div className="skel mt-2 h-4 w-2/3" />
+              <div className="skel mt-4 h-11 w-full !rounded-lg" />
+            </div>
+          ))}
+        </div>
       </Shell>
     );
   }
@@ -88,7 +96,7 @@ function PartnerPosts() {
   if (state === "invalid") {
     return (
       <Shell>
-        <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+        <div className="rounded-2xl border border-[#27334D] bg-[#141C2B] p-6 soft-shadow">
           <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">This link isn't valid</h1>
           <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
             This link looks incorrect or outdated. Please ask Symbiote Systems for a fresh link — only the exact link sent to you will work.
@@ -101,7 +109,7 @@ function PartnerPosts() {
   if (state === "error") {
     return (
       <Shell>
-        <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+        <div className="rounded-2xl border border-[#27334D] bg-[#141C2B] p-6 soft-shadow">
           <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Please try again shortly</h1>
           <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
             Your posts couldn't be loaded right now. Please open the same link again in a little while, or let Symbiote Systems know.
@@ -122,7 +130,7 @@ function PartnerPosts() {
       </p>
 
       {posts.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+        <div className="mt-4 rounded-2xl border border-[#27334D] bg-[#141C2B] p-6 soft-shadow">
           <p className="text-sm leading-relaxed text-[#b6bcc7]">
             No posts are ready for today. When Symbiote Systems queues a new post for you, it will appear here — just open this same link again tomorrow.
           </p>
@@ -134,7 +142,7 @@ function PartnerPosts() {
             return (
               <div
                 key={post.id}
-                className={`rounded-2xl border p-5 soft-shadow transition ${done ? "border-[#23a55a]/40 bg-[#23a55a]/[0.06] opacity-70" : "border-white/10 bg-[#111114]"}`}
+                className={`rounded-2xl border p-5 soft-shadow transition ${done ? "border-[#23a55a]/40 bg-[#23a55a]/[0.06] opacity-70" : "border-[#27334D] bg-[#141C2B]"}`}
               >
                 <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f4f6f8]">{post.body}</p>
                 {done ? (
@@ -171,7 +179,7 @@ function PartnerPosts() {
           })}
         </div>
       )}
-      <p className="pb-4 text-center text-xs text-[#8b93a1]">
+      <p className="pb-4 text-center text-xs text-[#93A0B4]">
         This page is private to you — please don't share the link with anyone else.
       </p>
     </Shell>
@@ -183,7 +191,7 @@ export default function PartnerThreadsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4">
-          <p className="text-sm text-[#8b93a1]">Loading your posts…</p>
+          <p className="text-sm text-[#93A0B4]">Loading your posts…</p>
         </div>
       }
     >

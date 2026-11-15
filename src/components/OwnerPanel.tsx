@@ -37,7 +37,7 @@ function Stat({ icon, label, value, color }: { icon: React.ReactNode; label: str
       <span className="absolute -right-4 -top-4 h-20 w-20 rounded-full opacity-15" style={{ background: color }} />
       <span className="mb-2 grid h-10 w-10 place-items-center rounded-lg" style={{ background: color + "1f", color }}>{icon}</span>
       <p className="text-3xl font-extrabold tabular-nums text-[#f4f6f8]">{value}</p>
-      <p className="text-xs font-semibold text-[#8b93a1]">{label}</p>
+      <p className="text-xs font-semibold text-[#93A0B4]">{label}</p>
     </div>
   );
 }
@@ -76,7 +76,7 @@ function OverviewTab() {
       <div className="card bg-white/80 p-4">
         <SectionTitle>📊 Last 7 days — messages</SectionTitle>
         {weekMsgs === 0 ? (
-          <p className="py-4 text-center text-sm text-[#8b93a1]">📊 Data is still being collected</p>
+          <p className="py-4 text-center text-sm text-[#93A0B4]">📊 Data is still being collected</p>
         ) : (
           <div className="flex h-32 items-end gap-2">
             {days.map((d, i) => (
@@ -86,12 +86,12 @@ function OverviewTab() {
                   className="w-full rounded-t-md bg-gradient-to-t from-[#4f8cff] to-[#3b76d6]"
                   style={{ height: `${Math.max(4, (d.count / maxDay) * 90)}px` }}
                 />
-                <span className="text-[10px] font-semibold text-[#8b93a1]">{d.label}</span>
+                <span className="text-[10px] font-semibold text-[#93A0B4]">{d.label}</span>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-xs text-[#8b93a1]"><b className="text-[#f4f6f8]">{weekMsgs}</b> messages · <b className="text-[#f4f6f8]">{active}</b> active members in the last 7 days</p>
+        <p className="mt-2 text-xs text-[#93A0B4]"><b className="text-[#f4f6f8]">{weekMsgs}</b> messages · <b className="text-[#f4f6f8]">{active}</b> active members in the last 7 days</p>
       </div>
 
       {top.length > 0 && (
@@ -103,7 +103,7 @@ function OverviewTab() {
               const max = top[0]?.count || 1;
               return (
                 <div key={t.id} className="flex items-center gap-3">
-                  <span className="w-6 text-sm font-extrabold text-[#8b93a1]">{i + 1}</span>
+                  <span className="w-6 text-sm font-extrabold text-[#93A0B4]">{i + 1}</span>
                   <Avatar m={m} size={32} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold text-[#f4f6f8]">{t.name}</span>
@@ -130,7 +130,7 @@ function OverviewTab() {
               <Avatar m={m} size={38} showDot />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold text-[#f4f6f8]">{m.name}<Badge role={m.role} /></span>
-                <span className="block text-xs text-[#8b93a1]">
+                <span className="block text-xs text-[#93A0B4]">
                   {m.mutedUntil !== undefined ? "🔇 muted" : m.online ? "Online" : "Offline"}
                   {m.warns.length > 0 && ` · ⚠️ ${m.warns.length}`}
                 </span>
@@ -140,7 +140,7 @@ function OverviewTab() {
           ))}
         </div>
       </div>
-      <p className="pb-4 text-center text-xs text-[#8b93a1]">All numbers are 100% real — straight from Supabase 🌱</p>
+      <p className="pb-4 text-center text-xs text-[#93A0B4]">All numbers are 100% real — straight from Supabase 🌱</p>
     </div>
   );
 }
@@ -221,14 +221,14 @@ function BroadcastTab() {
                 <Clock size={14} className="shrink-0 text-[#8dbcff]" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-bold text-[#f4f6f8]">{s.text}</span>
-                  <span className="block text-[11px] text-[#8b93a1]">{new Date(s.at).toLocaleString()} · {s.chatIds.length} chats</span>
+                  <span className="block text-[11px] text-[#93A0B4]">{new Date(s.at).toLocaleString()} · {s.chatIds.length} chats</span>
                 </span>
                 <button onClick={() => { cancelScheduled(s.id); toast("Cancelled", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-[11px] text-[#8b93a1]">If the app is open, it will auto-post at that time ⏰</p>
+        <p className="mt-2 text-[11px] text-[#93A0B4]">If the app is open, it will auto-post at that time ⏰</p>
       </div>
     </div>
   );
@@ -263,13 +263,13 @@ function PinsTab() {
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">No pinned messages 📌</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#93A0B4]">No pinned messages 📌</p>}
       {shown.map((e) => (
         <div key={e.id} className="card flex items-center gap-3 bg-white/80 px-3 py-2.5">
           <Pin size={16} className="shrink-0 text-[#8dbcff]" />
           <button onClick={() => jump(e.chatId, e.id)} className="min-w-0 flex-1 text-left">
             <span className="block truncate text-sm font-bold text-[#f4f6f8]">{e.msg?.text?.slice(0, 80) || "(media)"}</span>
-            <span className="block text-[11px] text-[#8b93a1]">{chatName(e.chatId)}</span>
+            <span className="block text-[11px] text-[#93A0B4]">{chatName(e.chatId)}</span>
           </button>
           <button onClick={() => jump(e.chatId, e.id)} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#8dbcff] hover:bg-[#4f8cff]/15">Jump →</button>
           <button onClick={() => { togglePin(e.chatId, e.id); toast("Unpinned", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
@@ -406,7 +406,7 @@ function AutoModTab() {
             </div>
           </div>
           <button onClick={save} className="btn btn-blurple px-5 py-2.5 text-sm">Save</button>
-          <p className="text-[11px] text-[#8b93a1]">Auto-mod doesn't apply to staff (owner/admin/mod).</p>
+          <p className="text-[11px] text-[#93A0B4]">Auto-mod doesn't apply to staff (owner/admin/mod).</p>
         </div>
       )}
     </div>
@@ -438,7 +438,7 @@ function AuditTab() {
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">No actions yet 📋</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#93A0B4]">No actions yet 📋</p>}
       <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1">
         {shown.map((e) => {
           const meta = ACTION_META[e.action] || { icon: "•", color: "#80848e" };
@@ -450,7 +450,7 @@ function AuditTab() {
                   <b>{e.byName}</b> <b style={{ color: meta.color }}>{e.action}</b>
                   {e.targetName && <> → <b>{e.targetName}</b></>}
                 </span>
-                {e.reason && <span className="block truncate text-xs text-[#8b93a1]">{e.reason}</span>}
+                {e.reason && <span className="block truncate text-xs text-[#93A0B4]">{e.reason}</span>}
                 <span className="block text-[10px] text-[#a0a3ab]">{new Date(e.at).toLocaleString()}</span>
               </span>
             </div>
@@ -469,7 +469,7 @@ function WhatsNewTab() {
         <div key={c.v} className="card bg-white/80 p-4">
           <p className="flex items-center justify-between">
             <span className="text-sm font-extrabold text-[#8dbcff]">{c.v}</span>
-            <span className="text-[11px] text-[#8b93a1]">{c.date}</span>
+            <span className="text-[11px] text-[#93A0B4]">{c.date}</span>
           </p>
           <ul className="mt-1.5 space-y-1">
             {c.items.map((it, i) => (
@@ -490,7 +490,7 @@ export default function OwnerPanel() {
 
   return (
     <div className="glass thin-scroll min-w-0 flex-1 overflow-y-auto rounded-2xl">
-      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#111114]/70 backdrop-blur">
+      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#141C2B]/70 backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-4">
           <button onClick={() => patchUI({ tab: "chat" })} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]"><ArrowLeft size={20} /></button>
           <h1 className="text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Owner dashboard 👑</h1>

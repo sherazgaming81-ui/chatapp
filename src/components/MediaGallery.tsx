@@ -44,7 +44,7 @@ function AudioList({ items, members }: { items: Message[]; members: any[] }) {
             <Avatar m={{ id: m.from, name: senderName(members, m.from), online: false }} size={28} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-bold text-[#f4f6f8]">{senderName(members, m.from)}</p>
-              <p className="text-[11px] text-[#8b93a1]">{fmtFull(m.at)}{m.dur ? ` · ${Math.round(m.dur)}s` : ""}</p>
+              <p className="text-[11px] text-[#93A0B4]">{fmtFull(m.at)}{m.dur ? ` · ${Math.round(m.dur)}s` : ""}</p>
             </div>
             <a href={m.src} download={`chatsapp-audio-${m.id}.mp3`} className="rounded-lg p-2 text-[#8dbcff] hover:bg-[#4f8cff]/15" aria-label="Download">
               <Download size={16} />
@@ -74,7 +74,7 @@ function LinksList({ items, members }: { items: { msg: Message; url: string }[];
               </a>
             </div>
             <LinkPreviewCard url={url} />
-            <p className="mt-1.5 text-[11px] text-[#8b93a1]">
+            <p className="mt-1.5 text-[11px] text-[#93A0B4]">
               {members.find((x: any) => x.id === msg.from)?.name || "Member"} · {fmtFull(msg.at)}
             </p>
           </div>
@@ -88,7 +88,7 @@ function Empty({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
       <SearchX size={28} className="text-[#a0a3ab]" />
-      <p className="text-sm font-bold text-[#8b93a1]">{label} 📭</p>
+      <p className="text-sm font-bold text-[#93A0B4]">{label} 📭</p>
     </div>
   );
 }
@@ -137,9 +137,9 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
               onClick={() => setTab(t.id)}
               className={`rounded-2xl border p-3 text-center transition active:scale-[0.98] ${tab === t.id ? "border-[#4f8cff]/40 bg-[#4f8cff]/[0.08]" : "border-black/[0.07] bg-white/60 hover:bg-white"}`}
             >
-              <t.icon size={18} className={`mx-auto ${tab === t.id ? "text-[#8dbcff]" : "text-[#8b93a1]"}`} />
+              <t.icon size={18} className={`mx-auto ${tab === t.id ? "text-[#8dbcff]" : "text-[#93A0B4]"}`} />
               <p className="mt-1 text-base font-extrabold tabular-nums text-[#f4f6f8]">{t.count}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#8b93a1]">{t.label}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#93A0B4]">{t.label}</p>
             </button>
           ))}
         </div>
@@ -147,7 +147,7 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
         {mode === "files" && tab === "photos" && photos.length > 0 && (
           <div className="mb-3 flex items-center justify-between rounded-2xl bg-[#4f8cff]/[0.07] px-3 py-2">
             <p className="text-xs font-bold text-[#8dbcff]">{photos.length} photos</p>
-            <p className="text-[11px] text-[#8b93a1]">Open a photo to download it 👆</p>
+            <p className="text-[11px] text-[#93A0B4]">Open a photo to download it 👆</p>
           </div>
         )}
 
@@ -162,7 +162,7 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
                 <img src={m.src} alt="" className="h-11 w-11 rounded-xl object-cover" loading="lazy" draggable={false} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-bold text-[#f4f6f8]">Photo · {senderName(members, m.from)}</p>
-                  <p className="text-[11px] text-[#8b93a1]">{fmtFull(m.at)}</p>
+                  <p className="text-[11px] text-[#93A0B4]">{fmtFull(m.at)}</p>
                 </div>
                 <a href={m.src} download={`chatsapp-photo-${m.id}.jpg`} className="rounded-lg p-2 text-[#8dbcff] hover:bg-[#4f8cff]/15" aria-label="Download">
                   <Download size={16} />
