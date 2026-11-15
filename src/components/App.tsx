@@ -192,6 +192,14 @@ export default function App() {
     } catch { /* ignore */ }
   }, [session, loading, meId]);
 
+  /* Connect Threads se wapas (?threads=...) — HQ tab khud khul jaye taake status dikhe */
+  useEffect(() => {
+    if (!session || loading) return;
+    try {
+      if (new URLSearchParams(window.location.search).has("threads")) patchUI({ tab: "hq" });
+    } catch { /* ignore */ }
+  }, [session, loading]);
+
   const finishSetup = () => {
     try {
       localStorage.setItem(`chatsapp:wizard:done:${meId}`, "1");

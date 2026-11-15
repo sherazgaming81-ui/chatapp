@@ -15,8 +15,10 @@ import {
   listOutreach, canSendTo, recordOutreach, outreachTemplate,
   listPosts, queuePost, setPostStatus, deletePost,
   getDailyReport, upsertDailyReport, computeTodayStats, todayKey, subscribeCrm, crmTablesReady,
+  getThreadsAccount, type SocialAccountStatus,
   type CrmContact, type CrmKind, type CrmStage, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
 } from "@/lib/crm";
+import { supabase } from "@/lib/supabase";
 
 type HqTab = "crm" | "outreach" | "posting" | "report";
 
@@ -372,6 +374,93 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
 }
 
 /* ─────────────────────────── POSTING TAB ─────────────────────────── */
+/* ─────────── Connect Threads card ───────────
+   OAuth se apna Threads account joro — phir queue ki Threads posts usi
+   account se API se publish hongi (permission connect ke waqt milti hai).
+   Token client ko kabhi nahi dikhta — sirf username/status ata hai. */
+function ThreadsCard() {
+  const [account, setAccount] = useState<SocialAccountStatus | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [param, setParam] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setAccount(await getThreadsAccount());
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    load();
+    try {
+      const p = new URLSearchParams(window.location.search).get("threads");
+      if (p) {
+        setParam(p);
+        // param saaf kar do taake refresh par purana message na dikhe
+        const url = new URL(window.location.href);
+        url.searchParams.delete("threads");
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch { /* ignore */ }
+  }, [load]);
+
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) { toast("Session nahi mila", "Dobara login karo"); setBusy(false); return; }
+      const r = await fetch("/api/threads/disconnect", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        toast("Threads disconnect ho gaya", "");
+        setAccount(null);
+      } else {
+        toast("Disconnect nahi hua", "Dobara try karo");
+      }
+    } catch { toast("Disconnect nahi hua", "Network check karo"); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-extrabold text-[#f4f6f8]">Threads account</p>
+          {!loaded ? (
+            <p className="text-[13px] text-[#8b93a1]">Check ho raha hai…</p>
+          ) : account ? (
+            <p className="text-[13px] text-[#b6bcc7]">
+              <span className="font-bold text-[#4ade80]">● Connected</span>
+              {account.username ? <> — <span className="font-bold text-[#f4f6f8]">@{account.username}</span></> : null}
+              {account.tokenExpiresAt ? <span className="text-[#8b93a1]"> · token expiry {new Date(account.tokenExpiresAt).toLocaleDateString()}</span> : null}
+            </p>
+          ) : (
+            <p className="text-[13px] text-[#8b93a1]">Koi Threads account connected nahi — posts publish nahi hongi jab tak connect na ho.</p>
+          )}
+        </div>
+        {account ? (
+          <button onClick={disconnect} disabled={busy} className="btn btn-ghost px-4 py-2 text-sm text-[#ff8589] disabled:opacity-60">
+            {busy ? "Ho raha…" : "Disconnect"}
+          </button>
+        ) : (
+          <a href="/api/threads/connect" className="btn btn-blurple px-4 py-2 text-sm">Connect Threads</a>
+        )}
+      </div>
+      {param === "connected" && (
+        <p className="mt-3 rounded-lg bg-[#23a55a]/15 px-3 py-2 text-[13px] font-bold text-[#4ade80]">Threads connect ho gaya — ab queue ki posts is account se jayengi.</p>
+      )}
+      {param === "not_configured" && (
+        <p className="mt-3 rounded-lg bg-[#f5a623]/15 px-3 py-2 text-[13px] font-bold text-[#fbbf24]">Server par Threads app abhi configure nahi hai — pehle THREADS-SETUP.md wale steps mukammal karo (Meta app + Vercel env).</p>
+      )}
+      {param === "error" && (
+        <p className="mt-3 rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">Connect nahi hua — dobara try karo. Masla rahe to THREADS-SETUP.md dobara check karo.</p>
+      )}
+    </div>
+  );
+}
+
 function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promise<void> }) {
   const [platform, setPlatform] = useState<PostPlatform>("threads");
   const [body, setBody] = useState("");
@@ -400,8 +489,9 @@ function PostingTab({ posts, refresh }: { posts: CrmPost[]; refresh: () => Promi
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-4 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-bold text-[#8dbcff]">
-        Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Asal posting Round 2 me connectors se lagegi.
+        Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Threads posts neeche connect kiye hue account se Threads API se publish hoti hain.
       </div>
+      <ThreadsCard />
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr_220px]">
           <div><label className={labelCls}>Platform</label>

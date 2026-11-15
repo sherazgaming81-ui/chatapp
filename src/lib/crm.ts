@@ -364,6 +364,38 @@ export function computeTodayStats(contacts: CrmContact[], outreach: CrmOutreach[
   };
 }
 
+// ── social accounts (Connect Threads) ─────────────────────────────────────
+// SECURITY: client sirf SAFE columns select karta hai (platform, username,
+// token_expires_at) — access_token column client query me KABHI select nahi
+// hota. Token sirf server routes (service role) parhte/likhte hain.
+export interface SocialAccountStatus {
+  platform: string;
+  username: string | null;
+  tokenExpiresAt: number | null;
+}
+
+export async function getThreadsAccount(): Promise<SocialAccountStatus | null> {
+  try {
+    const { data, error } = await supabase()
+      .from("social_accounts")
+      .select("platform, username, token_expires_at")
+      .eq("platform", "threads")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      platform: data.platform,
+      username: data.username || null,
+      tokenExpiresAt: data.token_expires_at ? toMs(data.token_expires_at) : null,
+    };
+  } catch {
+    // table abhi nahi lagi (SQL baqi) ya RLS — "not connected" jaisa behave karo
+    return null;
+  }
+}
+
 /** Realtime — crm_contacts / outreach / posts par koi change aye to callback */
 export function subscribeCrm(onChange: () => void): () => void {
   try {
