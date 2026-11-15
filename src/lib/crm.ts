@@ -14,6 +14,7 @@
 import { supabase } from "./supabase";
 
 export type CrmKind = "client" | "partner" | "affiliate" | "lead";
+export type CrmPriority = "low" | "medium" | "high";
 export type CrmStage = "new" | "contacted" | "replied" | "meeting" | "client" | "done" | "lost";
 export type OutreachChannel = "email" | "dm" | "whatsapp";
 export type PostPlatform = "threads" | "instagram" | "facebook";
@@ -37,6 +38,11 @@ export const KIND_LABEL: Record<CrmKind, string> = {
   affiliate: "Affiliate",
   lead: "Lead",
 };
+export const PRIORITY_LABEL: Record<CrmPriority, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
 
 export interface CrmContact {
   id: string;
@@ -51,6 +57,12 @@ export interface CrmContact {
   createdAt: number; // ms epoch
   updatedAt: number;
   lastContactedAt: number | null;
+  // Phase 2 fields (supabase/crm-phase2.sql)
+  dealValue: number;
+  priority: CrmPriority;
+  tags: string[];
+  followUpAt: number | null; // ms epoch
+  leadScore: number; // 0–100, computeLeadScore se banta hai aur DB me save hota hai
 }
 
 export interface CrmOutreach {
@@ -122,6 +134,11 @@ function rowToContact(r: any): CrmContact {
     createdAt: toMs(r.created_at),
     updatedAt: toMs(r.updated_at),
     lastContactedAt: r.last_contacted_at ? toMs(r.last_contacted_at) : null,
+    dealValue: Number(r.deal_value || 0) || 0,
+    priority: (["low", "medium", "high"].includes(r.priority) ? r.priority : "medium") as CrmPriority,
+    tags: Array.isArray(r.tags) ? r.tags.filter((t: any) => typeof t === "string") : [],
+    followUpAt: r.follow_up_at ? toMs(r.follow_up_at) : null,
+    leadScore: Number(r.lead_score || 0) || 0,
   };
 }
 function rowToOutreach(r: any): CrmOutreach {
@@ -164,6 +181,23 @@ const isMissingTable = (e: any) => {
   return /relation .* does not exist|schema cache|Could not find the table/i.test(m) || String(e?.code || "") === "42P01";
 };
 
+// ── lead score ─────────────────────────────────────────────────────────────
+// Simple, transparent rule — koi black box nahi. Drawer me yahi rule text
+// hint ke tor par dikhta hai (LEAD_SCORE_RULE).
+export const LEAD_SCORE_RULE =
+  "Email +15 · WhatsApp +15 · Instagram +10 · Contacted or beyond +20 · Replied or beyond +20 · Meeting / Client / Done +20 (max 100).";
+
+export function computeLeadScore(c: Pick<CrmContact, "email" | "whatsapp" | "instagramUsername" | "stage">): number {
+  let s = 0;
+  if (c.email) s += 15;
+  if (c.whatsapp) s += 15;
+  if (c.instagramUsername) s += 10;
+  if (c.stage !== "new") s += 20;
+  if (c.stage === "replied" || c.stage === "meeting" || c.stage === "client" || c.stage === "done") s += 20;
+  if (c.stage === "meeting" || c.stage === "client" || c.stage === "done") s += 20;
+  return Math.min(100, s);
+}
+
 // ── contacts ───────────────────────────────────────────────────────────────
 export async function listContacts(): Promise<CrmContact[]> {
   try {
@@ -186,18 +220,34 @@ export interface ContactInput {
   stage?: CrmStage;
   notes?: string;
   source?: string;
+  // Phase 2
+  dealValue?: number;
+  priority?: CrmPriority;
+  tags?: string[];
+  followUpAt?: number | null; // ms epoch
 }
 
 export async function createContact(input: ContactInput): Promise<CrmContact> {
+  const stage = input.stage || "new";
   const row = {
     kind: input.kind,
     name: input.name.trim(),
     instagram_username: normIg(input.instagramUsername),
     email: normEmail(input.email),
     whatsapp: clean(input.whatsapp),
-    stage: input.stage || "new",
+    stage,
     notes: input.notes || "",
     source: input.source || "manual",
+    deal_value: Number(input.dealValue || 0) || 0,
+    priority: input.priority || "medium",
+    tags: input.tags || [],
+    follow_up_at: input.followUpAt ? new Date(input.followUpAt).toISOString() : null,
+    lead_score: computeLeadScore({
+      email: normEmail(input.email),
+      whatsapp: clean(input.whatsapp),
+      instagramUsername: normIg(input.instagramUsername),
+      stage,
+    }),
   };
   const { data, error } = await supabase().from("crm_contacts").insert(row).select("*").single();
   if (error) throw mapError(error);
@@ -214,10 +264,42 @@ export async function updateContact(id: string, patch: Partial<ContactInput> & {
   if (patch.stage !== undefined) row.stage = patch.stage;
   if (patch.notes !== undefined) row.notes = patch.notes;
   if (patch.source !== undefined) row.source = patch.source;
+  if (patch.dealValue !== undefined) row.deal_value = Number(patch.dealValue || 0) || 0;
+  if (patch.priority !== undefined) row.priority = patch.priority;
+  if (patch.tags !== undefined) row.tags = patch.tags;
+  if (patch.followUpAt !== undefined) row.follow_up_at = patch.followUpAt ? new Date(patch.followUpAt).toISOString() : null;
   if (patch.lastContactedAt !== undefined) row.last_contacted_at = patch.lastContactedAt ? new Date(patch.lastContactedAt).toISOString() : null;
+
+  // Score jin fields par depend karta hai un me se koi bhi badle (ya stage
+  // change detect karna ho) to pehle current row lao — score recompute +
+  // stage activity dono ke liye chahiye.
+  const needsCurrent =
+    patch.stage !== undefined || patch.email !== undefined || patch.whatsapp !== undefined || patch.instagramUsername !== undefined;
+  let prevStage: CrmStage | null = null;
+  if (needsCurrent) {
+    try {
+      const { data: cur } = await supabase().from("crm_contacts").select("*").eq("id", id).single();
+      if (cur) {
+        const merged = rowToContact(cur);
+        prevStage = merged.stage;
+        if (patch.stage !== undefined) merged.stage = patch.stage;
+        if (patch.email !== undefined) merged.email = normEmail(patch.email);
+        if (patch.whatsapp !== undefined) merged.whatsapp = clean(patch.whatsapp);
+        if (patch.instagramUsername !== undefined) merged.instagramUsername = normIg(patch.instagramUsername);
+        row.lead_score = computeLeadScore(merged);
+      }
+    } catch { /* current row na mile to score/activity skip — update phir bhi hoga */ }
+  }
+
   const { data, error } = await supabase().from("crm_contacts").update(row).eq("id", id).select("*").single();
   if (error) throw mapError(error);
-  return rowToContact(data);
+  const updated = rowToContact(data);
+
+  // Stage change → activity timeline entry (best-effort)
+  if (patch.stage !== undefined && prevStage !== null && prevStage !== patch.stage) {
+    await addActivity(id, "stage", `Stage changed from ${STAGE_LABEL[prevStage]} to ${STAGE_LABEL[patch.stage]}`);
+  }
+  return updated;
 }
 
 export async function moveStage(id: string, stage: CrmStage): Promise<CrmContact> {
@@ -227,6 +309,51 @@ export async function moveStage(id: string, stage: CrmStage): Promise<CrmContact
 export async function deleteContact(id: string): Promise<void> {
   const { error } = await supabase().from("crm_contacts").delete().eq("id", id);
   if (error) throw mapError(error);
+}
+
+// ── activities (Phase 2 — timeline: notes, stage changes, outreach) ───────
+export type CrmActivityKind = "note" | "stage" | "outreach" | "system";
+
+export interface CrmActivity {
+  id: string;
+  contactId: string;
+  kind: CrmActivityKind;
+  body: string;
+  createdAt: number; // ms epoch
+}
+
+function rowToActivity(r: any): CrmActivity {
+  return {
+    id: r.id,
+    contactId: r.contact_id,
+    kind: (r.kind || "note") as CrmActivityKind,
+    body: r.body || "",
+    createdAt: toMs(r.created_at),
+  };
+}
+
+/** Timeline entry add karo — best-effort: table na ho to khamoshi se skip
+ *  (CRM ka asal kaam is par kabhi nahi rukta). */
+export async function addActivity(contactId: string, kind: CrmActivityKind, body: string): Promise<void> {
+  try {
+    const { error } = await supabase().from("crm_activities").insert({ contact_id: contactId, kind, body });
+    if (error) throw error;
+  } catch { /* timeline optional hai — ignore */ }
+}
+
+export async function listActivities(contactId: string): Promise<CrmActivity[]> {
+  try {
+    const { data, error } = await supabase()
+      .from("crm_activities")
+      .select("*")
+      .eq("contact_id", contactId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return (data || []).map(rowToActivity);
+  } catch {
+    return [];
+  }
 }
 
 // ── outreach log (first-touch dedupe) ─────────────────────────────────────
@@ -260,6 +387,8 @@ export async function recordOutreach(contactId: string, channel: OutreachChannel
   }
   // last_contacted_at bhi update kar do (best-effort)
   try { await updateContact(contactId, { lastContactedAt: Date.now() }); } catch { /* ignore */ }
+  // Timeline entry bhi (best-effort)
+  await addActivity(contactId, "outreach", `First message sent via ${channel}`);
   return rowToOutreach(data);
 }
 
@@ -274,6 +403,138 @@ export function outreachTemplate(c: CrmContact, channel: OutreachChannel): strin
   }
   // dm (Instagram)
   return `Assalam-o-Alaikum ${first}! Main Sheraz hoon, Symbiote Systems se — hum businesses ke liye AI website + chatbot banate hain jo DMs/customers ko 24/7 khud jawab de. Aap ke liye aik chhota demo dikhaun? 🙌`;
+}
+
+// ── CSV import / export (Phase 2) ─────────────────────────────────────────
+// Columns: name, kind, instagram, email, phone, stage, source, deal_value,
+// priority, tags (';' separated). Import hamesha createContact/dedupe se
+// jata hai — duplicate username/email kabhi andar nahi ata.
+export const CSV_COLUMNS = ["name", "kind", "instagram", "email", "phone", "stage", "source", "deal_value", "priority", "tags"] as const;
+
+function csvEscape(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+export function contactsToCsv(contacts: CrmContact[]): string {
+  const lines = [CSV_COLUMNS.join(",")];
+  for (const c of contacts) {
+    lines.push(
+      [
+        c.name,
+        c.kind,
+        c.instagramUsername || "",
+        c.email || "",
+        c.whatsapp || "",
+        c.stage,
+        c.source || "",
+        String(c.dealValue || 0),
+        c.priority,
+        (c.tags || []).join(";"),
+      ]
+        .map((v) => csvEscape(String(v)))
+        .join(",")
+    );
+  }
+  return lines.join("\n");
+}
+
+/** Browser download — saare contacts aik CSV file me */
+export function exportContactsCsv(contacts: CrmContact[]): void {
+  const blob = new Blob([contactsToCsv(contacts)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `crm-contacts-${todayKey()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** Chhota robust CSV parser — quoted fields, "" escapes aur quoted newlines
+ *  support karta hai. Rows of raw string cells deta hai. */
+function parseCsvRows(text: string): string[][] {
+  const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(field); field = "";
+    } else if (ch === "\n") {
+      row.push(field); field = ""; rows.push(row); row = [];
+    } else field += ch;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+/** CSV text → ContactInput rows (header row lazmi; unknown kind/stage/priority
+ *  values safe defaults par girte hain). */
+export function parseContactsCsv(text: string): ContactInput[] {
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) return [];
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const at = (cells: string[], name: string): string => {
+    const i = header.indexOf(name);
+    return i >= 0 ? (cells[i] || "").trim() : "";
+  };
+  const out: ContactInput[] = [];
+  for (const cells of rows.slice(1)) {
+    const kindRaw = at(cells, "kind").toLowerCase();
+    const stageRaw = at(cells, "stage").toLowerCase();
+    const prioRaw = at(cells, "priority").toLowerCase();
+    out.push({
+      kind: (CRM_KINDS as string[]).includes(kindRaw) ? (kindRaw as CrmKind) : "lead",
+      name: at(cells, "name"),
+      instagramUsername: at(cells, "instagram") || null,
+      email: at(cells, "email") || null,
+      whatsapp: at(cells, "phone") || null,
+      stage: (CRM_STAGES as string[]).includes(stageRaw) ? (stageRaw as CrmStage) : "new",
+      source: at(cells, "source") || "import",
+      dealValue: Number(at(cells, "deal_value")) || 0,
+      priority: (["low", "medium", "high"].includes(prioRaw) ? prioRaw : "medium") as CrmPriority,
+      tags: at(cells, "tags").split(";").map((t) => t.trim()).filter(Boolean),
+    });
+  }
+  return out;
+}
+
+/** CSV import — har row createContact (dedupe lock) se jati hai.
+ *  Result: imported / skipped (duplicates) / errors ki counts. */
+export async function importContactsCsv(
+  text: string,
+  existing: CrmContact[]
+): Promise<{ imported: number; skipped: number; errors: number }> {
+  const rows = parseContactsCsv(text);
+  const seenIg = new Set(existing.map((c) => normIg(c.instagramUsername)).filter(Boolean) as string[]);
+  const seenEmail = new Set(existing.map((c) => normEmail(c.email)).filter(Boolean) as string[]);
+  let imported = 0, skipped = 0, errors = 0;
+  for (const r of rows) {
+    const ig = normIg(r.instagramUsername);
+    const em = normEmail(r.email);
+    if (!r.name && !ig && !em) { errors++; continue; }
+    if ((ig && seenIg.has(ig)) || (em && seenEmail.has(em))) { skipped++; continue; }
+    try {
+      await createContact({ ...r, name: r.name || ig || em || "Unnamed" });
+      imported++;
+      if (ig) seenIg.add(ig);
+      if (em) seenEmail.add(em);
+    } catch (e) {
+      if (e instanceof CrmDuplicateError) skipped++;
+      else errors++;
+    }
+  }
+  return { imported, skipped, errors };
 }
 
 // ── posts queue ────────────────────────────────────────────────────────────
@@ -453,6 +714,7 @@ export function subscribeCrm(onChange: () => void): () => void {
       .on("postgres_changes", { event: "*", schema: "public", table: "crm_contacts" }, onChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "crm_outreach_log" }, onChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "crm_posts" }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "crm_activities" }, onChange)
       .subscribe();
     return () => {
       try { supabase().removeChannel(ch); } catch { /* ignore */ }

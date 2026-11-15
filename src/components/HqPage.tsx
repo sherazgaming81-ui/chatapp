@@ -7,16 +7,18 @@
 // UI language: English only (owner rule).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, Trash2, Check, Copy, Link2 } from "lucide-react";
+import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, List, Trash2, Check, Copy, Link2, Download, Upload, Search, FileText, Info, ArrowLeftRight, Clock } from "lucide-react";
 import { useStore, toast } from "@/lib/store";
 import {
-  CRM_KINDS, CRM_STAGES, KIND_LABEL, STAGE_LABEL,
+  CRM_KINDS, CRM_STAGES, KIND_LABEL, STAGE_LABEL, PRIORITY_LABEL,
   listContacts, createContact, updateContact, moveStage, deleteContact,
   listOutreach, canSendTo, recordOutreach, outreachTemplate,
   listPosts, queuePost, setPostStatus, deletePost,
   getDailyReport, upsertDailyReport, computeTodayStats, todayKey, subscribeCrm, crmTablesReady,
   getThreadsAccount, getThreadsAccounts, type SocialAccountStatus,
-  type CrmContact, type CrmKind, type CrmStage, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
+  computeLeadScore, LEAD_SCORE_RULE, addActivity, listActivities,
+  exportContactsCsv, importContactsCsv,
+  type CrmContact, type CrmKind, type CrmStage, type CrmPriority, type CrmActivity, type CrmOutreach, type CrmPost, type OutreachChannel, type PostPlatform,
 } from "@/lib/crm";
 import { supabase } from "@/lib/supabase";
 import NotificationsBell from "@/components/NotificationsBell";
@@ -32,6 +34,20 @@ const KIND_COLOR: Record<CrmKind, string> = {
 
 const inputCls = "field w-full px-3 py-2 text-sm";
 const labelCls = "mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]";
+
+/* Phase 2 helpers */
+const PRIORITY_DOT: Record<CrmPriority, string> = {
+  high: "bg-[#ed4245]",
+  medium: "bg-[#f5a623]",
+  low: "bg-[#93A0B4]",
+};
+const fmtNum = (n: number) => (Number(n) || 0).toLocaleString("en-US");
+/** ms epoch → datetime-local input value (local time) */
+const toLocalInput = (ms: number): string => {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 export default function HqPage() {
   const meId = useStore((s) => s.me);
@@ -146,7 +162,7 @@ export default function HqPage() {
             {[0, 1, 2].map((i) => <div key={i} className="skel h-16 w-full" />)}
           </div>
         ) : tab === "crm" ? (
-          <CrmBoard contacts={contacts} onAdd={async (c) => { setContacts((p) => [c, ...p]); }} onSelect={setSelected} formNonce={formNonce} />
+          <CrmBoard contacts={contacts} onAdd={async (c) => { setContacts((p) => [c, ...p]); }} onSelect={setSelected} formNonce={formNonce} refresh={refresh} />
         ) : tab === "outreach" ? (
           <OutreachTab contacts={contacts} outreach={outreach} refresh={refresh} />
         ) : tab === "posting" ? (
@@ -169,7 +185,7 @@ export default function HqPage() {
 }
 
 /* ─────────────────────────── CRM BOARD ─────────────────────────── */
-function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0 }: { contacts: CrmContact[]; onAdd: (c: CrmContact) => void; onSelect: (c: CrmContact) => void; formNonce?: number }) {
+function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0, refresh }: { contacts: CrmContact[]; onAdd: (c: CrmContact) => void; onSelect: (c: CrmContact) => void; formNonce?: number; refresh: () => Promise<void> }) {
   const [formOpen, setFormOpen] = useState(false);
   // Command Center "Add Lead" — signal aye to form khol do
   useEffect(() => {
@@ -183,6 +199,16 @@ function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0 }: { contacts: CrmC
   const [source, setSource] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Phase 2 — view, filters, drag-and-drop, import
+  const [view, setView] = useState<"kanban" | "list">("kanban");
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | CrmKind>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | CrmPriority>("all");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropStage, setDropStage] = useState<CrmStage | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const submit = async () => {
     setErr("");
@@ -202,13 +228,129 @@ function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0 }: { contacts: CrmC
     }
   };
 
+  const filtered = useMemo(() => contacts.filter((c) => {
+    if (kindFilter !== "all" && c.kind !== kindFilter) return false;
+    if (priorityFilter !== "all" && c.priority !== priorityFilter) return false;
+    const q = query.trim().toLowerCase();
+    if (q) {
+      const hay = `${c.name} ${c.instagramUsername || ""} ${c.email || ""} ${c.whatsapp || ""} ${c.tags.join(" ")}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }), [contacts, kindFilter, priorityFilter, query]);
+
+  // Metrics — sab asal data se (koi fake number nahi)
+  const metrics = useMemo(() => {
+    const total = contacts.length;
+    const pipelineValue = contacts.filter((c) => c.stage !== "done" && c.stage !== "lost").reduce((s, c) => s + (c.dealValue || 0), 0);
+    const won = contacts.filter((c) => c.stage === "client" || c.stage === "done").length;
+    const lost = contacts.filter((c) => c.stage === "lost").length;
+    const conversion = total ? Math.round((won / total) * 100) : 0;
+    return { total, pipelineValue, won, lost, conversion };
+  }, [contacts]);
+
+  // Follow-ups due: follow_up_at aaj ya pehle, aur stage done/lost nahi
+  const dueFollowUps = useMemo(() => {
+    const now = Date.now();
+    return contacts
+      .filter((c) => c.followUpAt && c.followUpAt <= now && c.stage !== "done" && c.stage !== "lost")
+      .sort((a, b) => (a.followUpAt || 0) - (b.followUpAt || 0));
+  }, [contacts]);
+
+  const dropOnStage = async (stage: CrmStage) => {
+    const id = dragId;
+    setDragId(null);
+    setDropStage(null);
+    if (!id) return;
+    const c = contacts.find((x) => x.id === id);
+    if (!c || c.stage === stage) return;
+    try {
+      await moveStage(id, stage);
+      toast("Stage changed", `${c.name} → ${STAGE_LABEL[stage]}`);
+      refresh();
+    } catch (e: any) {
+      toast("Couldn't move the card", e?.message || "");
+    }
+  };
+
+  const doImport = async (f: File) => {
+    setImporting(true);
+    try {
+      const text = await f.text();
+      const res = await importContactsCsv(text, contacts);
+      toast("Import finished", `${res.imported} imported · ${res.skipped} duplicates skipped · ${res.errors} errors`);
+      refresh();
+    } catch {
+      toast("Import failed", "Couldn't read that file");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const metricCards: [string, string][] = [
+    ["Total contacts", fmtNum(metrics.total)],
+    ["Pipeline value", fmtNum(metrics.pipelineValue)],
+    ["Conversion rate", `${metrics.conversion}%`],
+    ["Clients won", fmtNum(metrics.won)],
+    ["Lost", fmtNum(metrics.lost)],
+  ];
+
   return (
     <div className="p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[#93A0B4]">Pipeline — click a card to open its details. Duplicate usernames and emails are blocked by the database itself.</p>
+      {/* Metrics row — real data only */}
+      <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+        {metricCards.map(([label, v]) => (
+          <div key={label} className="rounded-2xl border border-[#27334D] bg-[#1B2638] px-3.5 py-3">
+            <p className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">{v}</p>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#93A0B4]">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Follow-ups due strip */}
+      {dueFollowUps.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-[#f5a623]/30 bg-[#f5a623]/10 px-4 py-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[13px] font-extrabold text-[#fbbf24]"><Clock size={14} /> Follow-ups due ({dueFollowUps.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {dueFollowUps.map((c) => (
+              <button key={c.id} onClick={() => onSelect(c)} className="rounded-full border border-[#f5a623]/30 bg-black/20 px-3 py-1.5 text-xs font-bold text-[#f4f6f8] transition hover:border-[#f5a623]/60">
+                {c.name} <span className="font-semibold text-[#fbbf24]">· {new Date(c.followUpAt!).toLocaleDateString()}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-[13px] font-semibold text-[#93A0B4]">Pipeline — drag a card to change its stage, or click to open details. Duplicate usernames and emails are blocked by the database itself.</p>
         <button onClick={() => setFormOpen((v) => !v)} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3.5 py-2 text-[13px]">
           <Plus size={15} /> New contact
         </button>
+      </div>
+
+      {/* Toolbar: search + filters + view toggle + import/export */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[180px] flex-1 sm:max-w-[260px]">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#93A0B4]" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} className={`${inputCls} pl-8`} placeholder="Search name, @username, email, tag…" />
+        </div>
+        <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "all" | CrmKind)} className="field px-2.5 py-2 text-[13px]">
+          <option value="all">All types</option>
+          {CRM_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+        <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | CrmPriority)} className="field px-2.5 py-2 text-[13px]">
+          <option value="all">All priorities</option>
+          {(["high", "medium", "low"] as CrmPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+        </select>
+        <div className="flex overflow-hidden rounded-lg border border-[#27334D]">
+          <button onClick={() => setView("kanban")} className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold transition ${view === "kanban" ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06]"}`} title="Kanban view"><LayoutGrid size={14} /> Kanban</button>
+          <button onClick={() => setView("list")} className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold transition ${view === "list" ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06]"}`} title="List view"><List size={14} /> List</button>
+        </div>
+        <span className="mx-0.5 hidden h-6 w-px bg-[#27334D] sm:block" />
+        <button onClick={() => exportContactsCsv(contacts)} className="btn btn-ghost flex items-center gap-1.5 px-3 py-2 text-[13px]"><Download size={14} /> Export CSV</button>
+        <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn btn-ghost flex items-center gap-1.5 px-3 py-2 text-[13px] disabled:opacity-60"><Upload size={14} /> {importing ? "Importing…" : "Import CSV"}</button>
+        <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport(f); }} />
       </div>
 
       {formOpen && (
@@ -233,30 +375,101 @@ function CrmBoard({ contacts, onAdd, onSelect, formNonce = 0 }: { contacts: CrmC
         </div>
       )}
 
-      <div className="flex gap-3 overflow-x-auto pb-2 thin-scroll">
-        {CRM_STAGES.map((stage) => {
-          const list = contacts.filter((c) => c.stage === stage);
-          return (
-            <div key={stage} className="flex w-[240px] shrink-0 flex-col rounded-2xl border border-white/[0.07] bg-white/[0.02] p-2.5">
-              <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">{STAGE_LABEL[stage]} — {list.length}</p>
-              <div className="space-y-2">
-                {list.map((c) => (
-                  <button key={c.id} onClick={() => onSelect(c)} className="w-full rounded-xl border border-[#27334D] bg-[#1B2638] p-3 text-left transition hover:border-[#4f8cff]/50">
-                    <span className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f4f6f8]">{c.name || "—"}</span>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
-                    </span>
-                    {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#93A0B4]">@{c.instagramUsername}</span>}
-                    {c.email && <span className="block truncate text-xs text-[#93A0B4]">{c.email}</span>}
-                    {c.source && <span className="mt-1.5 block text-[11px] text-[#93A0B4]/70">via {c.source}</span>}
-                  </button>
-                ))}
-                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#93A0B4]/60">Empty</p>}
+      {view === "kanban" ? (
+        <div className="flex gap-3 overflow-x-auto pb-2 thin-scroll">
+          {CRM_STAGES.map((stage) => {
+            const list = filtered.filter((c) => c.stage === stage);
+            const stageValue = list.reduce((s, c) => s + (c.dealValue || 0), 0);
+            return (
+              <div
+                key={stage}
+                onDragOver={(e) => { e.preventDefault(); if (dropStage !== stage) setDropStage(stage); }}
+                onDragLeave={() => { if (dropStage === stage) setDropStage(null); }}
+                onDrop={(e) => { e.preventDefault(); dropOnStage(stage); }}
+                className={`flex w-[240px] shrink-0 flex-col rounded-2xl border p-2.5 transition ${dropStage === stage ? "border-[#4f8cff] bg-[#4f8cff]/[0.07]" : "border-white/[0.07] bg-white/[0.02]"}`}
+              >
+                <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">
+                  {STAGE_LABEL[stage]} — {list.length}
+                  {stageValue > 0 && <span className="normal-case tracking-normal text-[#8dbcff]"> · {fmtNum(stageValue)}</span>}
+                </p>
+                <div className="min-h-[40px] space-y-2">
+                  {list.map((c) => {
+                    const score = computeLeadScore(c);
+                    const overdue = c.followUpAt ? c.followUpAt <= Date.now() : false;
+                    return (
+                      <div
+                        key={c.id}
+                        draggable
+                        onDragStart={(e) => { setDragId(c.id); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", c.id); } catch { /* ignore */ } }}
+                        onDragEnd={() => { setDragId(null); setDropStage(null); }}
+                        onClick={() => onSelect(c)}
+                        className={`w-full cursor-pointer rounded-xl border border-[#27334D] bg-[#1B2638] p-3 text-left transition hover:border-[#4f8cff]/50 ${dragId === c.id ? "opacity-50" : ""}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[c.priority]}`} title={`${PRIORITY_LABEL[c.priority]} priority`} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#f4f6f8]">{c.name || "—"}</span>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
+                        </span>
+                        {c.instagramUsername && <span className="mt-1 block truncate text-xs text-[#93A0B4]">@{c.instagramUsername}</span>}
+                        {c.email && <span className="block truncate text-xs text-[#93A0B4]">{c.email}</span>}
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {c.dealValue > 0 && <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-[#b6bcc7]">{fmtNum(c.dealValue)}</span>}
+                          {score > 0 && <span className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[10px] font-bold text-[#8dbcff]">Score {score}</span>}
+                          {c.followUpAt && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${overdue ? "bg-[#ed4245]/15 text-[#ff8589]" : "bg-white/[0.06] text-[#93A0B4]"}`}>
+                              Follow-up {new Date(c.followUpAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </span>
+                        {c.source && <span className="mt-1.5 block text-[11px] text-[#93A0B4]/70">via {c.source}</span>}
+                      </div>
+                    );
+                  })}
+                  {list.length === 0 && <p className="px-1 py-2 text-xs text-[#93A0B4]/60">Empty — drop cards here</p>}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.07] thin-scroll">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-[#27334D] text-[11px] uppercase tracking-[0.08em] text-[#93A0B4]">
+                <th className="px-3.5 py-2.5 font-bold">Name</th>
+                <th className="px-3 py-2.5 font-bold">Type</th>
+                <th className="px-3 py-2.5 font-bold">Stage</th>
+                <th className="px-3 py-2.5 font-bold">Priority</th>
+                <th className="px-3 py-2.5 font-bold">Deal value</th>
+                <th className="px-3 py-2.5 font-bold">Score</th>
+                <th className="px-3 py-2.5 font-bold">Follow-up</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => {
+                const overdue = c.followUpAt ? c.followUpAt <= Date.now() : false;
+                return (
+                  <tr key={c.id} onClick={() => onSelect(c)} className="cursor-pointer border-b border-white/[0.04] transition hover:bg-white/[0.03]">
+                    <td className="px-3.5 py-2.5">
+                      <span className="font-bold text-[#f4f6f8]">{c.name || "—"}</span>
+                      {(c.instagramUsername || c.email) && <span className="block text-xs text-[#93A0B4]">{c.instagramUsername ? `@${c.instagramUsername}` : c.email}</span>}
+                    </td>
+                    <td className="px-3 py-2.5"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span></td>
+                    <td className="px-3 py-2.5 text-[#b6bcc7]">{STAGE_LABEL[c.stage]}</td>
+                    <td className="px-3 py-2.5"><span className="flex items-center gap-1.5 text-[#b6bcc7]"><span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[c.priority]}`} />{PRIORITY_LABEL[c.priority]}</span></td>
+                    <td className="px-3 py-2.5 text-[#b6bcc7]">{c.dealValue > 0 ? fmtNum(c.dealValue) : "—"}</td>
+                    <td className="px-3 py-2.5 text-[#b6bcc7]">{computeLeadScore(c) || "—"}</td>
+                    <td className={`px-3 py-2.5 ${overdue ? "font-bold text-[#ff8589]" : "text-[#b6bcc7]"}`}>{c.followUpAt ? new Date(c.followUpAt).toLocaleDateString() : "—"}</td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="px-3.5 py-6 text-center text-[13px] text-[#93A0B4]">No contacts match the current search/filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -330,22 +543,107 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
 function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmContact; outreach: CrmOutreach[]; onClose: () => void; refresh: () => Promise<void> }) {
   const [notes, setNotes] = useState(contact.notes);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setNotes(contact.notes); }, [contact.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Phase 2 fields
+  const [dealValue, setDealValue] = useState(contact.dealValue ? String(contact.dealValue) : "");
+  const [priority, setPriority] = useState<CrmPriority>(contact.priority);
+  const [tags, setTags] = useState<string[]>(contact.tags);
+  const [tagInput, setTagInput] = useState("");
+  const [followUp, setFollowUp] = useState(contact.followUpAt ? toLocalInput(contact.followUpAt) : "");
+  const [source, setSource] = useState(contact.source);
+  const [activities, setActivities] = useState<CrmActivity[]>([]);
+  const [noteText, setNoteText] = useState("");
+  const [noteBusy, setNoteBusy] = useState(false);
 
-  const saveNotes = async () => {
+  useEffect(() => {
+    setNotes(contact.notes);
+    setDealValue(contact.dealValue ? String(contact.dealValue) : "");
+    setPriority(contact.priority);
+    setTags(contact.tags);
+    setTagInput("");
+    setFollowUp(contact.followUpAt ? toLocalInput(contact.followUpAt) : "");
+    setSource(contact.source);
+    setNoteText("");
+  }, [contact.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let live = true;
+    listActivities(contact.id).then((a) => { if (live) setActivities(a); }).catch(() => {});
+    return () => { live = false; };
+  }, [contact.id]);
+
+  const saveDetails = async () => {
     setBusy(true);
-    try { await updateContact(contact.id, { notes }); toast("Notes saved", ""); refresh(); }
-    catch (e: any) { toast("Couldn't save", e?.message || ""); }
+    try {
+      await updateContact(contact.id, {
+        notes,
+        source: source.trim(),
+        dealValue: Number(dealValue) || 0,
+        priority,
+        tags,
+        followUpAt: followUp ? new Date(followUp).getTime() : null,
+      });
+      toast("Details saved", "");
+      refresh();
+    } catch (e: any) { toast("Couldn't save", e?.message || ""); }
     setBusy(false);
   };
   const changeStage = async (stage: CrmStage) => {
-    try { await moveStage(contact.id, stage); toast("Stage changed", STAGE_LABEL[stage]); refresh(); }
-    catch (e: any) { toast("Stage couldn't be changed", e?.message || ""); }
+    try {
+      await moveStage(contact.id, stage);
+      toast("Stage changed", STAGE_LABEL[stage]);
+      refresh();
+      listActivities(contact.id).then(setActivities).catch(() => {});
+    } catch (e: any) { toast("Stage couldn't be changed", e?.message || ""); }
   };
   const remove = async () => {
     try { await deleteContact(contact.id); toast("Contact deleted", contact.name); onClose(); refresh(); }
     catch (e: any) { toast("Couldn't delete", e?.message || ""); }
   };
+
+  const addTag = (raw: string) => {
+    const t = raw.trim().replace(/,+$/, "").trim();
+    if (t && !tags.some((x) => x.toLowerCase() === t.toLowerCase())) setTags((p) => [...p, t]);
+    setTagInput("");
+  };
+
+  const addNote = async () => {
+    if (!noteText.trim()) return;
+    setNoteBusy(true);
+    try {
+      await addActivity(contact.id, "note", noteText.trim());
+      setNoteText("");
+      setActivities(await listActivities(contact.id));
+      toast("Note added", "");
+    } catch { toast("Couldn't add the note", ""); }
+    setNoteBusy(false);
+  };
+
+  const score = computeLeadScore(contact);
+
+  // Unified timeline: activities + outreach log, newest first
+  type TimelineItem = { key: string; at: number; kind: string; title: string; body: string };
+  const timeline: TimelineItem[] = [
+    ...activities.map((a): TimelineItem => ({
+      key: `a-${a.id}`,
+      at: a.createdAt,
+      kind: a.kind,
+      title: a.kind === "stage" ? "Stage" : a.kind === "outreach" ? "Outreach" : a.kind === "system" ? "System" : "Note",
+      body: a.body,
+    })),
+    ...outreach.map((o): TimelineItem => ({
+      key: `o-${o.id}`,
+      at: o.sentAt,
+      kind: "outreach-log",
+      title: `${o.channel} — first message`,
+      body: o.body,
+    })),
+  ].sort((x, y) => y.at - x.at);
+
+  const timelineIcon = (kind: string) =>
+    kind === "stage" ? <ArrowLeftRight size={13} /> :
+    kind === "note" ? <FileText size={13} /> :
+    kind === "system" ? <Info size={13} /> :
+    <Send size={13} />;
 
   return (
     <>
@@ -363,8 +661,22 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
           {contact.instagramUsername && <p>Instagram: <span className="font-semibold text-[#f4f6f8]">@{contact.instagramUsername}</span></p>}
           {contact.email && <p>Email: <span className="font-semibold text-[#f4f6f8]">{contact.email}</span></p>}
           {contact.whatsapp && <p>WhatsApp: <span className="font-semibold text-[#f4f6f8]">{contact.whatsapp}</span></p>}
-          {contact.source && <p className="text-xs text-[#93A0B4]">Source: {contact.source}</p>}
           <p className="text-xs text-[#93A0B4]">Added: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Last contacted: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
+        </div>
+
+        {/* Lead score */}
+        <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">Lead score</p>
+            <p className="text-sm font-extrabold text-[#f4f6f8]">{score}<span className="text-xs font-bold text-[#93A0B4]"> / 100</span></p>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+            <div className="h-full rounded-full bg-[#4f8cff] transition-all" style={{ width: `${score}%` }} />
+          </div>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-semibold text-[#8dbcff]">How is this calculated?</summary>
+            <p className="mt-1 text-xs leading-relaxed text-[#93A0B4]">{LEAD_SCORE_RULE}</p>
+          </details>
         </div>
 
         <label className={`${labelCls} mt-5`}>Stage</label>
@@ -376,23 +688,61 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
           ))}
         </div>
 
-        <label className={`${labelCls} mt-5`}>Notes</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={inputCls} placeholder="Notes about this person…" />
-        <button onClick={saveNotes} disabled={busy} className="btn btn-blurple mt-2 px-4 py-2 text-sm disabled:opacity-60">Save notes</button>
+        {/* Phase 2 fields */}
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div><label className={labelCls}>Deal value</label><input type="number" min="0" step="any" value={dealValue} onChange={(e) => setDealValue(e.target.value)} className={inputCls} placeholder="0" /></div>
+          <div><label className={labelCls}>Priority</label>
+            <select value={priority} onChange={(e) => setPriority(e.target.value as CrmPriority)} className={inputCls}>
+              {(["low", "medium", "high"] as CrmPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+            </select>
+          </div>
+          <div><label className={labelCls}>Source</label><input value={source} onChange={(e) => setSource(e.target.value)} className={inputCls} placeholder="instagram / website / referral" /></div>
+          <div><label className={labelCls}>Follow-up date</label><input type="datetime-local" value={followUp} onChange={(e) => setFollowUp(e.target.value)} className={inputCls} /></div>
+        </div>
+
+        <label className={`${labelCls} mt-4`}>Tags</label>
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+          {tags.map((t) => (
+            <span key={t} className="flex items-center gap-1 rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-xs font-bold text-[#8dbcff]">
+              {t}
+              <button onClick={() => setTags((p) => p.filter((x) => x !== t))} className="text-[#8dbcff]/70 hover:text-[#f4f6f8]" aria-label={`Remove tag ${t}`}><X size={11} /></button>
+            </span>
+          ))}
+          <input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); } }}
+            onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
+            className="min-w-[110px] flex-1 bg-transparent text-sm text-[#f4f6f8] outline-none placeholder:text-[#93A0B4]/60"
+            placeholder={tags.length ? "Add tag…" : "Type a tag, press Enter…"}
+          />
+        </div>
+
+        <label className={`${labelCls} mt-4`}>Notes</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} placeholder="Notes about this person…" />
+        <button onClick={saveDetails} disabled={busy} className="btn btn-blurple mt-2 px-4 py-2 text-sm disabled:opacity-60">{busy ? "Saving…" : "Save details"}</button>
 
         {(contact.kind === "partner" || contact.kind === "affiliate") && (
           <PartnerThreadsLink contactId={contact.id} />
         )}
 
-        <label className={`${labelCls} mt-6`}>Outreach timeline (first-touch log)</label>
-        {outreach.length === 0 ? (
-          <p className="text-[13px] text-[#93A0B4]">No message sent yet — send the first one from the Outreach tab.</p>
+        {/* Add note → activity */}
+        <label className={`${labelCls} mt-6`}>Add a note</label>
+        <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={2} className={inputCls} placeholder="Called them, they asked for the demo link…" />
+        <button onClick={addNote} disabled={noteBusy || !noteText.trim()} className="btn btn-ghost mt-2 px-4 py-2 text-sm disabled:opacity-60">{noteBusy ? "Adding…" : "Add note"}</button>
+
+        {/* Activity timeline — activities + outreach log merged */}
+        <label className={`${labelCls} mt-6`}>Activity timeline</label>
+        {timeline.length === 0 ? (
+          <p className="text-[13px] text-[#93A0B4]">Nothing yet — notes, stage changes and sent messages will appear here.</p>
         ) : (
           <div className="space-y-2">
-            {outreach.map((o) => (
-              <div key={o.id} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8dbcff]">{o.channel} · {new Date(o.sentAt).toLocaleString()}</p>
-                <p className="mt-1 whitespace-pre-wrap text-[13px] text-[#b6bcc7]">{o.body}</p>
+            {timeline.map((it) => (
+              <div key={it.key} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#8dbcff]">
+                  {timelineIcon(it.kind)} {it.title} <span className="font-semibold normal-case tracking-normal text-[#93A0B4]">· {new Date(it.at).toLocaleString()}</span>
+                </p>
+                {it.body && <p className="mt-1 whitespace-pre-wrap text-[13px] text-[#b6bcc7]">{it.body}</p>}
               </div>
             ))}
           </div>
