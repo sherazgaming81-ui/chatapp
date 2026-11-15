@@ -1,10 +1,10 @@
 "use client";
 // ═══════════════════════════════════════════════════════════════════════════
-// Business HQ — sirf OWNER ke liye (Symbiote Systems ka control room)
+// Business HQ — OWNER only (Symbiote Systems control room)
 // Tabs: CRM (pipeline board) · Outreach (email/DM queues) · Posting · Report
-// Data: src/lib/crm.ts → supabase/crm-upgrade.sql wali tables.
-// Members ko ye page kabhi render hi nahi hota (App.tsx me owner check +
-// yahan bhi guard hai).
+// Data: src/lib/crm.ts → supabase/crm-upgrade.sql tables.
+// Members never render this page (owner check in App.tsx + guard here).
+// UI language: English only (owner rule).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, Trash2, Check, Copy, Link2 } from "lucide-react";
@@ -58,7 +58,7 @@ export default function HqPage() {
   useEffect(() => {
     if (!isOwner) return;
     refresh();
-    // Realtime (Upgrade 10) — crm tables par change aye to refresh (halka debounce)
+    // Realtime — refresh when the CRM tables change (light debounce)
     const off = subscribeCrm(() => {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(refresh, 400);
@@ -66,13 +66,13 @@ export default function HqPage() {
     return off;
   }, [isOwner, refresh]);
 
-  // selected contact ki taza copy (stage change ke baad drawer update rahe)
+  // fresh copy of the selected contact (drawer stays current after stage changes)
   const selectedLive = selected ? contacts.find((c) => c.id === selected.id) || null : null;
 
   if (!isOwner) {
     return (
       <div className="panel flex flex-1 items-center justify-center rounded-2xl p-8 text-center">
-        <p className="text-sm font-semibold text-[#8b93a1]">Ye section sirf owner ke liye hai.</p>
+        <p className="text-sm font-semibold text-[#8b93a1]">This section is for the owner only.</p>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function HqPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Business HQ</h1>
-          <p className="truncate text-xs text-[#8b93a1]">Symbiote Systems — CRM · Outreach · Posting · Report (sirf owner)</p>
+          <p className="truncate text-xs text-[#8b93a1]">Symbiote Systems — CRM · Outreach · Posting · Report (owner only)</p>
         </div>
         <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b6bcc7] sm:block">
           {contacts.length} contacts · {stats.postsQueued} posts queued
@@ -114,7 +114,7 @@ export default function HqPage() {
 
       {!tablesReady && !loading && (
         <div className="mx-3 mt-3 shrink-0 rounded-xl border border-[#f5a623]/30 bg-[#f5a623]/10 px-4 py-3 text-[13px] font-semibold text-[#fbbf24]">
-          CRM tables abhi database me nahi lage — pehle <span className="font-mono">supabase/crm-upgrade.sql</span> chalana hai (Round 2). Tab tak lists khaali dikhengi, app theek chalegi.
+          The CRM tables aren't in the database yet — run <span className="font-mono">supabase/crm-upgrade.sql</span> first. Lists will appear empty until then; the app itself works fine.
         </div>
       )}
 
@@ -160,17 +160,17 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
 
   const submit = async () => {
     setErr("");
-    if (!name.trim() && !ig.trim() && !email.trim()) { setErr("Naam, username ya email — kam az kam aik cheez do."); return; }
+    if (!name.trim() && !ig.trim() && !email.trim()) { setErr("Give at least one of: name, Instagram username, or email."); return; }
     setBusy(true);
     try {
       const c = await createContact({ kind, name: name.trim() || ig.trim() || email.trim(), instagramUsername: ig, email, whatsapp: wa, source: source.trim() || "manual" });
       onAdd(c);
       setName(""); setIg(""); setEmail(""); setWa(""); setSource("");
       setFormOpen(false);
-      toast("Contact add ho gaya", c.name);
+      toast("Contact added", c.name);
     } catch (e: any) {
-      // Dedupe lock ka dostana error yahin dikhta hai
-      setErr(e?.message || "Add nahi hua");
+      // The dedupe lock's friendly error shows up here
+      setErr(e?.message || "Couldn't add the contact");
     } finally {
       setBusy(false);
     }
@@ -179,29 +179,29 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[#8b93a1]">Pipeline — card par click karo, details khulengi. Repeat username/email database khud rokta hai.</p>
+        <p className="text-[13px] font-semibold text-[#8b93a1]">Pipeline — click a card to open its details. Duplicate usernames and emails are blocked by the database itself.</p>
         <button onClick={() => setFormOpen((v) => !v)} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3.5 py-2 text-[13px]">
-          <Plus size={15} /> Naya contact
+          <Plus size={15} /> New contact
         </button>
       </div>
 
       {formOpen && (
         <div className="pop-in mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className={labelCls}>Naam</label><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Masalan: Ahmed Raza" /></div>
+            <div><label className={labelCls}>Name</label><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="e.g. Ahmed Raza" /></div>
             <div><label className={labelCls}>Type</label>
               <select value={kind} onChange={(e) => setKind(e.target.value as CrmKind)} className={inputCls}>
                 {CRM_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
               </select>
             </div>
-            <div><label className={labelCls}>Instagram username</label><input value={ig} onChange={(e) => setIg(e.target.value)} className={inputCls} placeholder="@ ke baghair" /></div>
+            <div><label className={labelCls}>Instagram username</label><input value={ig} onChange={(e) => setIg(e.target.value)} className={inputCls} placeholder="without @" /></div>
             <div><label className={labelCls}>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="name@example.com" /></div>
             <div><label className={labelCls}>WhatsApp</label><input value={wa} onChange={(e) => setWa(e.target.value)} className={inputCls} placeholder="+92..." /></div>
             <div><label className={labelCls}>Source</label><input value={source} onChange={(e) => setSource(e.target.value)} className={inputCls} placeholder="instagram / website / referral" /></div>
           </div>
           {err && <p className="mt-3 rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">{err}</p>}
           <div className="mt-3 flex gap-2">
-            <button onClick={submit} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Add ho raha…" : "Add karo"}</button>
+            <button onClick={submit} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Adding…" : "Add contact"}</button>
             <button onClick={() => setFormOpen(false)} className="btn btn-ghost px-4 py-2 text-sm">Cancel</button>
           </div>
         </div>
@@ -225,7 +225,7 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
                     {c.source && <span className="mt-1.5 block text-[11px] text-[#8b93a1]/70">via {c.source}</span>}
                   </button>
                 ))}
-                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#8b93a1]/60">Khaali</p>}
+                {list.length === 0 && <p className="px-1 py-2 text-xs text-[#8b93a1]/60">Empty</p>}
               </div>
             </div>
           );
@@ -235,11 +235,11 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   );
 }
 
-/* ─────────── Partner one-tap posts link ───────────
-   Sirf partner/affiliate contacts ke liye. Signed link SERVER route se
-   ata hai (HMAC secret client par kabhi nahi ata) — owner ye link copy
-   karke partner ko bhejta hai; partner us page par apni ready posts
-   one-tap se lagata hai (OAuth NAHI — one-tap model). */
+/* ─────────── Partner one-tap posting link ───────────
+   Partner/affiliate contacts only. The signed link comes from a SERVER
+   route (the HMAC secret never reaches the client) — the owner copies it
+   and sends it to the partner; on that page the partner sees their ready
+   posts and posts them one-tap (no OAuth — the one-tap model). */
 function PartnerThreadsLink({ contactId }: { contactId: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState("");
@@ -252,7 +252,7 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
       try {
         const { data } = await supabase().auth.getSession();
         const token = data.session?.access_token;
-        if (!token) { if (live) setErr("Session nahi mila — dobara login karo."); return; }
+        if (!token) { if (live) setErr("Session not found — please log in again."); return; }
         const r = await fetch("/api/partners/connect-link", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -261,9 +261,9 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
         const j: any = await r.json().catch(() => null);
         if (!live) return;
         if (r.ok && j?.url) setUrl(j.url);
-        else if (j?.error === "not_configured") setErr("Server par setup abhi baqi hai (POSTING_CRON_SECRET) — pehle THREADS-SETUP.md mukammal karo.");
-        else setErr("Link nahi bana — dobara try karo.");
-      } catch { if (live) setErr("Link nahi bana — network check karo."); }
+        else if (j?.error === "not_configured") setErr("Server setup is incomplete (POSTING_CRON_SECRET) — finish the steps in THREADS-SETUP.md first.");
+        else setErr("Couldn't generate the link — please try again.");
+      } catch { if (live) setErr("Couldn't generate the link — check your connection."); }
     })();
     return () => { live = false; };
   }, [contactId]);
@@ -273,16 +273,16 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      toast("Link copy ho gaya", "Partner ko WhatsApp par bhej do");
+      toast("Link copied", "Send it to the partner on WhatsApp");
       setTimeout(() => setCopied(false), 2000);
-    } catch { toast("Copy nahi hua", "Link select karke haath se copy karo"); }
+    } catch { toast("Couldn't copy", "Select the link and copy it manually"); }
   };
 
   return (
     <div className="mt-6">
-      <label className={labelCls}>Partner posts link (one-tap)</label>
+      <label className={labelCls}>Partner posting link (one-tap)</label>
       <p className="mb-2 text-xs leading-relaxed text-[#8b93a1]">
-        Ye signed link partner ko bhejo — is page par use us ki aaj ki ready posts dikhengi; wo "Threads par lagao" dabakar post lagayega aur "Ho gaya" mark karega. Koi account connect NAHI karna padta. (Ye feature sirf partners/affiliates ke liye hai.)
+        Send this signed link to the partner — on that page they'll see today's ready posts, post each one with "Post on Threads", and mark it as posted. No account connection needed. (Partners/affiliates only.)
       </p>
       {err ? (
         <p className="rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">{err}</p>
@@ -290,11 +290,11 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
         <div className="flex items-center gap-2">
           <input readOnly value={url} onFocus={(e) => e.target.select()} className={`${inputCls} flex-1 font-mono text-xs`} />
           <button onClick={copy} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3 py-2 text-[13px]">
-            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copy!" : "Copy"}
+            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied!" : "Copy"}
           </button>
         </div>
       ) : (
-        <p className="flex items-center gap-2 text-[13px] text-[#8b93a1]"><Link2 size={14} /> Link ban raha hai…</p>
+        <p className="flex items-center gap-2 text-[13px] text-[#8b93a1]"><Link2 size={14} /> Generating link…</p>
       )}
     </div>
   );
@@ -308,17 +308,17 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
 
   const saveNotes = async () => {
     setBusy(true);
-    try { await updateContact(contact.id, { notes }); toast("Notes save", ""); refresh(); }
-    catch (e: any) { toast("Save nahi hua", e?.message || ""); }
+    try { await updateContact(contact.id, { notes }); toast("Notes saved", ""); refresh(); }
+    catch (e: any) { toast("Couldn't save", e?.message || ""); }
     setBusy(false);
   };
   const changeStage = async (stage: CrmStage) => {
-    try { await moveStage(contact.id, stage); toast("Stage badla", STAGE_LABEL[stage]); refresh(); }
-    catch (e: any) { toast("Stage nahi badla", e?.message || ""); }
+    try { await moveStage(contact.id, stage); toast("Stage changed", STAGE_LABEL[stage]); refresh(); }
+    catch (e: any) { toast("Stage couldn't be changed", e?.message || ""); }
   };
   const remove = async () => {
-    try { await deleteContact(contact.id); toast("Contact delete", contact.name); onClose(); refresh(); }
-    catch (e: any) { toast("Delete nahi hua", e?.message || ""); }
+    try { await deleteContact(contact.id); toast("Contact deleted", contact.name); onClose(); refresh(); }
+    catch (e: any) { toast("Couldn't delete", e?.message || ""); }
   };
 
   return (
@@ -330,15 +330,15 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
             <h3 className="truncate text-lg font-extrabold text-[#f4f6f8]">{contact.name || "—"}</h3>
             <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[contact.kind]}`}>{KIND_LABEL[contact.kind]}</span>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]" aria-label="Band karo"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#f4f6f8]" aria-label="Close"><X size={18} /></button>
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm text-[#b6bcc7]">
-          {contact.instagramUsername && <p>📸 @{contact.instagramUsername}</p>}
-          {contact.email && <p>✉️ {contact.email}</p>}
-          {contact.whatsapp && <p>💬 {contact.whatsapp}</p>}
+          {contact.instagramUsername && <p>Instagram: <span className="font-semibold text-[#f4f6f8]">@{contact.instagramUsername}</span></p>}
+          {contact.email && <p>Email: <span className="font-semibold text-[#f4f6f8]">{contact.email}</span></p>}
+          {contact.whatsapp && <p>WhatsApp: <span className="font-semibold text-[#f4f6f8]">{contact.whatsapp}</span></p>}
           {contact.source && <p className="text-xs text-[#8b93a1]">Source: {contact.source}</p>}
-          <p className="text-xs text-[#8b93a1]">Add hua: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Aakhri rabta: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
+          <p className="text-xs text-[#8b93a1]">Added: {new Date(contact.createdAt).toLocaleDateString()}{contact.lastContactedAt ? ` · Last contacted: ${new Date(contact.lastContactedAt).toLocaleDateString()}` : ""}</p>
         </div>
 
         <label className={`${labelCls} mt-5`}>Stage</label>
@@ -351,8 +351,8 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
         </div>
 
         <label className={`${labelCls} mt-5`}>Notes</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={inputCls} placeholder="Is bande ke baare me notes…" />
-        <button onClick={saveNotes} disabled={busy} className="btn btn-blurple mt-2 px-4 py-2 text-sm disabled:opacity-60">Notes save karo</button>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={inputCls} placeholder="Notes about this person…" />
+        <button onClick={saveNotes} disabled={busy} className="btn btn-blurple mt-2 px-4 py-2 text-sm disabled:opacity-60">Save notes</button>
 
         {(contact.kind === "partner" || contact.kind === "affiliate") && (
           <PartnerThreadsLink contactId={contact.id} />
@@ -360,7 +360,7 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
 
         <label className={`${labelCls} mt-6`}>Outreach timeline (first-touch log)</label>
         {outreach.length === 0 ? (
-          <p className="text-[13px] text-[#8b93a1]">Abhi koi message nahi gaya — Outreach tab se pehla message bhejo.</p>
+          <p className="text-[13px] text-[#8b93a1]">No message sent yet — send the first one from the Outreach tab.</p>
         ) : (
           <div className="space-y-2">
             {outreach.map((o) => (
@@ -373,7 +373,7 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
         )}
 
         <button onClick={remove} className="mt-6 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold text-[#ff8589] transition hover:bg-[#ed4245]/10">
-          <Trash2 size={15} /> Contact delete karo
+          <Trash2 size={15} /> Delete contact
         </button>
       </div>
     </>
@@ -392,12 +392,12 @@ function OutreachTab({ contacts, outreach, refresh }: { contacts: CrmContact[]; 
   return (
     <div className="space-y-6 p-3 sm:p-4">
       <p className="text-[13px] font-semibold text-[#8b93a1]">
-        Aaj ki queues — jo banda aik channel par pehle hi ja chuka hai, wo queue me dobara NAHI aata (dedupe lock). "Mark sent" dabate hi log ho jata hai aur stage Contacted ho jati hai.
-        <br />Note: asal bhejna Round 2 me Gmail/social connectors se lagega — abhi message tayyar + log pakka hota hai.
+        Today's queues — anyone who has already received a first message on a channel never appears in that queue again (dedupe lock). Pressing "Mark sent" logs it and moves the stage to Contacted.
+        <br />Note: actual sending will connect via the Gmail/social connectors — for now the message is prepared and the log is kept.
       </p>
-      <QueueList title="✉️ Email queue" channel="email" list={queueFor("email")} refresh={refresh} />
-      <QueueList title="📸 Instagram DM queue" channel="dm" list={queueFor("dm")} refresh={refresh} />
-      <QueueList title="💬 WhatsApp queue" channel="whatsapp" list={queueFor("whatsapp")} refresh={refresh} />
+      <QueueList title="Email queue" channel="email" list={queueFor("email")} refresh={refresh} />
+      <QueueList title="Instagram DM queue" channel="dm" list={queueFor("dm")} refresh={refresh} />
+      <QueueList title="WhatsApp queue" channel="whatsapp" list={queueFor("whatsapp")} refresh={refresh} />
     </div>
   );
 }
@@ -409,10 +409,10 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
     try {
       await recordOutreach(c.id, channel, outreachTemplate(c, channel), "first-touch");
       if (c.stage === "new") { try { await moveStage(c.id, "contacted"); } catch { /* ignore */ } }
-      toast("Sent mark ho gaya", `${c.name} — ${channel}`);
+      toast("Marked as sent", `${c.name} — ${channel}`);
       refresh();
     } catch (e: any) {
-      toast("Nahi hua", e?.message || "");
+      toast("Couldn't do it", e?.message || "");
     }
     setBusyId(null);
   };
@@ -420,7 +420,7 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
     <section>
       <h3 className="mb-2 text-sm font-extrabold text-[#f4f6f8]">{title} <span className="text-[#8b93a1]">({list.length})</span></h3>
       {list.length === 0 ? (
-        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#8b93a1]">Queue khaali hai — sab ko is channel par pehla message ja chuka hai, ya eligible contacts nahi hain.</p>
+        <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#8b93a1]">The queue is empty — everyone eligible has already received a first message on this channel, or there are no eligible contacts.</p>
       ) : (
         <div className="space-y-2">
           {list.map((c) => (
@@ -430,7 +430,7 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_COLOR[c.kind]}`}>{KIND_LABEL[c.kind]}</span>
                 <span className="text-xs text-[#8b93a1]">{channel === "email" ? c.email : channel === "dm" ? `@${c.instagramUsername}` : c.whatsapp}</span>
                 <button onClick={() => markSent(c)} disabled={busyId === c.id} className="btn btn-blurple ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:opacity-60">
-                  {channel === "email" ? <Mail size={13} /> : <MessageCircle size={13} />} {busyId === c.id ? "Ho raha…" : "Mark sent"}
+                  {channel === "email" ? <Mail size={13} /> : <MessageCircle size={13} />} {busyId === c.id ? "Working…" : "Mark sent"}
                 </button>
               </div>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-black/25 px-3 py-2 text-[13px] leading-relaxed text-[#b6bcc7]">{outreachTemplate(c, channel)}</p>
@@ -443,10 +443,10 @@ function QueueList({ title, channel, list, refresh }: { title: string; channel: 
 }
 
 /* ─────────────────────────── POSTING TAB ─────────────────────────── */
-/* ─────────── Connect Threads card ───────────
-   OAuth se apna Threads account joro — phir queue ki Threads posts usi
-   account se API se publish hongi (permission connect ke waqt milti hai).
-   Token client ko kabhi nahi dikhta — sirf username/status ata hai. */
+/* ─────────── Connect Threads card (owner's own account — optional) ───────
+   Connect your own Threads account via OAuth — queued Threads posts then
+   publish from that account through the API. The token never reaches the
+   client — only the username/status comes back. */
 function ThreadsCard() {
   const [account, setAccount] = useState<SocialAccountStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -464,7 +464,7 @@ function ThreadsCard() {
       const p = new URLSearchParams(window.location.search).get("threads");
       if (p) {
         setParam(p);
-        // param saaf kar do taake refresh par purana message na dikhe
+        // clean the param so a refresh doesn't show a stale message
         const url = new URL(window.location.href);
         url.searchParams.delete("threads");
         window.history.replaceState({}, "", url.toString());
@@ -477,18 +477,18 @@ function ThreadsCard() {
     try {
       const { data } = await supabase().auth.getSession();
       const token = data.session?.access_token;
-      if (!token) { toast("Session nahi mila", "Dobara login karo"); setBusy(false); return; }
+      if (!token) { toast("Session not found", "Please log in again"); setBusy(false); return; }
       const r = await fetch("/api/threads/disconnect", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (r.ok) {
-        toast("Threads disconnect ho gaya", "");
+        toast("Threads disconnected", "");
         setAccount(null);
       } else {
-        toast("Disconnect nahi hua", "Dobara try karo");
+        toast("Disconnect failed", "Please try again");
       }
-    } catch { toast("Disconnect nahi hua", "Network check karo"); }
+    } catch { toast("Disconnect failed", "Check your connection"); }
     setBusy(false);
   };
 
@@ -496,35 +496,35 @@ function ThreadsCard() {
     <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-[#f4f6f8]">Threads account</p>
+          <p className="text-sm font-extrabold text-[#f4f6f8]">Threads account (yours — optional)</p>
           {!loaded ? (
-            <p className="text-[13px] text-[#8b93a1]">Check ho raha hai…</p>
+            <p className="text-[13px] text-[#8b93a1]">Checking…</p>
           ) : account ? (
             <p className="text-[13px] text-[#b6bcc7]">
               <span className="font-bold text-[#4ade80]">● Connected</span>
               {account.username ? <> — <span className="font-bold text-[#f4f6f8]">@{account.username}</span></> : null}
-              {account.tokenExpiresAt ? <span className="text-[#8b93a1]"> · token expiry {new Date(account.tokenExpiresAt).toLocaleDateString()}</span> : null}
+              {account.tokenExpiresAt ? <span className="text-[#8b93a1]"> · token expires {new Date(account.tokenExpiresAt).toLocaleDateString()}</span> : null}
             </p>
           ) : (
-            <p className="text-[13px] text-[#8b93a1]">Koi Threads account connected nahi — posts publish nahi hongi jab tak connect na ho.</p>
+            <p className="text-[13px] text-[#8b93a1]">No Threads account connected — your own API posts won't publish until one is connected. Partner one-tap posts don't need this.</p>
           )}
         </div>
         {account ? (
           <button onClick={disconnect} disabled={busy} className="btn btn-ghost px-4 py-2 text-sm text-[#ff8589] disabled:opacity-60">
-            {busy ? "Ho raha…" : "Disconnect"}
+            {busy ? "Working…" : "Disconnect"}
           </button>
         ) : (
           <a href="/api/threads/connect" className="btn btn-blurple px-4 py-2 text-sm">Connect Threads</a>
         )}
       </div>
       {param === "connected" && (
-        <p className="mt-3 rounded-lg bg-[#23a55a]/15 px-3 py-2 text-[13px] font-bold text-[#4ade80]">Threads connect ho gaya — ab queue ki posts is account se jayengi.</p>
+        <p className="mt-3 rounded-lg bg-[#23a55a]/15 px-3 py-2 text-[13px] font-bold text-[#4ade80]">Threads connected — queued posts will now publish from this account.</p>
       )}
       {param === "not_configured" && (
-        <p className="mt-3 rounded-lg bg-[#f5a623]/15 px-3 py-2 text-[13px] font-bold text-[#fbbf24]">Server par Threads app abhi configure nahi hai — pehle THREADS-SETUP.md wale steps mukammal karo (Meta app + Vercel env).</p>
+        <p className="mt-3 rounded-lg bg-[#f5a623]/15 px-3 py-2 text-[13px] font-bold text-[#fbbf24]">The Threads app isn't configured on the server yet — complete the steps in THREADS-SETUP.md first (Meta app + Vercel env).</p>
       )}
       {param === "error" && (
-        <p className="mt-3 rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">Connect nahi hua — dobara try karo. Masla rahe to THREADS-SETUP.md dobara check karo.</p>
+        <p className="mt-3 rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">Connection failed — please try again. If it keeps failing, re-check THREADS-SETUP.md.</p>
       )}
     </div>
   );
@@ -533,8 +533,8 @@ function ThreadsCard() {
 function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: CrmContact[]; refresh: () => Promise<void> }) {
   const [platform, setPlatform] = useState<PostPlatform>("threads");
   const [body, setBody] = useState("");
-  const [accountId, setAccountId] = useState(""); // "" = default (pehla connected)
-  const [partnerId, setPartnerId] = useState(""); // "" = owner ki post; warna one-tap partner post
+  const [accountId, setAccountId] = useState(""); // "" = default (first connected)
+  const [partnerId, setPartnerId] = useState(""); // "" = owner's own post; otherwise a one-tap partner post
   const [accounts, setAccounts] = useState<SocialAccountStatus[]>([]);
   const partners = contacts.filter((ct) => ct.kind === "partner" || ct.kind === "affiliate");
   const partnerOf = (id: string | null) => (id ? contacts.find((ct) => ct.id === id) || null : null);
@@ -556,9 +556,9 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
     try {
       await queuePost(platform, body, new Date(when).getTime() || Date.now(), platform === "threads" ? accountId || null : null, partnerId || null);
       setBody("");
-      toast("Post queue ho gayi", platform);
+      toast("Post queued", platform);
       refresh();
-    } catch (e: any) { toast("Queue nahi hui", e?.message || ""); }
+    } catch (e: any) { toast("Couldn't queue the post", e?.message || ""); }
     setBusy(false);
   };
 
@@ -568,7 +568,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-4 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-bold text-[#8dbcff]">
-        Posts bina approval jayengi (owner order) — queue me jo dala, wahi schedule par live hoga. Threads posts select kiye hue account se Threads API se publish hoti hain (Default = sab se pehla connected account — owner ka ya partner ka).
+        Posts will go out WITHOUT approval (owner's order) — whatever is queued here goes live on schedule. Threads posts publish via the Threads API from the selected account (Default = the first connected account). Partner posts are different: the partner posts those themselves, one-tap, from their signed page.
       </div>
       <ThreadsCard />
       {accounts.length > 0 && (
@@ -589,7 +589,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-[#8b93a1]">Partner ko jorna ho to CRM me us ka contact kholo — wahan us ka signed connect link milega.</p>
+          <p className="mt-2 text-xs text-[#8b93a1]">Partners don't connect accounts — open a partner's contact in the CRM and send them their signed posting link instead.</p>
         </div>
       )}
       <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -601,11 +601,11 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
               <option value="facebook">Facebook</option>
             </select>
           </div>
-          <div><label className={labelCls}>Post text</label><input value={body} onChange={(e) => setBody(e.target.value)} className={inputCls} placeholder="Post ka text…" /></div>
+          <div><label className={labelCls}>Post text</label><input value={body} onChange={(e) => setBody(e.target.value)} className={inputCls} placeholder="Write the post…" /></div>
           <div><label className={labelCls}>Schedule</label><input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Threads account</label>
             <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputCls} disabled={platform !== "threads"}>
-              <option value="">Default (pehla connected)</option>
+              <option value="">Default (first connected)</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>{accountName(a)}{a.username && a.label ? ` (@${a.username})` : ""}</option>
               ))}
@@ -615,21 +615,21 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label className={labelCls}>Partner (one-tap — optional)</label>
             <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className={inputCls}>
-              <option value="">Koi nahi — meri apni post</option>
+              <option value="">None — my own post</option>
               {partners.map((ct) => (
                 <option key={ct.id} value={ct.id}>{ct.name} ({KIND_LABEL[ct.kind]})</option>
               ))}
             </select>
           </div>
           <p className="flex items-end pb-1 text-xs leading-relaxed text-[#8b93a1]">
-            Partner select karo to post us ke signed page par jayegi — wo "Threads par lagao" se khud lagakar "Ho gaya" mark karega (API se NAHI jayegi).
+            If you pick a partner, the post goes to their signed page — they'll post it themselves with "Post on Threads" and mark it as posted (it will NOT go via the API).
           </p>
         </div>
-        <button onClick={add} disabled={busy || !body.trim()} className="btn btn-blurple mt-3 px-4 py-2 text-sm disabled:opacity-60">{busy ? "Queue ho rahi…" : "Queue me dalo"}</button>
+        <button onClick={add} disabled={busy || !body.trim()} className="btn btn-blurple mt-3 px-4 py-2 text-sm disabled:opacity-60">{busy ? "Queueing…" : "Add to queue"}</button>
       </div>
 
       <div className="space-y-2">
-        {posts.length === 0 && <p className="text-[13px] text-[#8b93a1]">Abhi koi post queue me nahi.</p>}
+        {posts.length === 0 && <p className="text-[13px] text-[#8b93a1]">No posts in the queue yet.</p>}
         {posts.map((p) => (
           <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-[#111114] px-3.5 py-3">
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b6bcc7]">{p.platform}</span>
@@ -637,8 +637,8 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
               <span className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8dbcff]">{accountName(accountOf(p.socialAccountId)!)}</span>
             )}
             {p.crmContactId && (
-              <span className="rounded-full bg-[#f5a623]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#fbbf24]" title="One-tap — partner khud lagayega">
-                {partnerOf(p.crmContactId)?.name || "Partner"} · one-tap (partner khud lagayega)
+              <span className="rounded-full bg-[#f5a623]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#fbbf24]" title="One-tap — the partner posts this themselves">
+                {partnerOf(p.crmContactId)?.name || "Partner"} · One-tap — the partner posts this themselves
               </span>
             )}
             <span className="min-w-0 flex-1 truncate text-sm text-[#f4f6f8]">{p.body}</span>
@@ -646,8 +646,8 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge(p.status)}`}>{p.status}</span>
             {p.status === "queued" && (
               <>
-                <button onClick={async () => { await setPostStatus(p.id, "posted"); refresh(); }} className="rounded-md p-1.5 text-[#4ade80] hover:bg-white/[0.06]" title="Posted mark karo"><Check size={15} /></button>
-                <button onClick={async () => { await setPostStatus(p.id, "failed"); refresh(); }} className="rounded-md p-1.5 text-[#ff8589] hover:bg-white/[0.06]" title="Failed mark karo"><X size={15} /></button>
+                <button onClick={async () => { await setPostStatus(p.id, "posted"); refresh(); }} className="rounded-md p-1.5 text-[#4ade80] hover:bg-white/[0.06]" title="Mark as posted"><Check size={15} /></button>
+                <button onClick={async () => { await setPostStatus(p.id, "failed"); refresh(); }} className="rounded-md p-1.5 text-[#ff8589] hover:bg-white/[0.06]" title="Mark as failed"><X size={15} /></button>
               </>
             )}
             <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
@@ -682,25 +682,25 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
         summary,
       });
       setSaved(todayKey());
-      toast("Daily report save", todayKey());
-    } catch (e: any) { toast("Report save nahi hui", e?.message || ""); }
+      toast("Daily report saved", todayKey());
+    } catch (e: any) { toast("Report couldn't be saved", e?.message || ""); }
     setBusy(false);
   };
 
   const cards: [string, number][] = [
-    ["Aaj naye leads/contacts", stats.leadsNew],
-    ["Aaj emails sent", stats.emailsSent],
-    ["Aaj DMs sent", stats.dmsQueued],
-    ["Aaj WhatsApp sent", stats.whatsappSent],
+    ["New leads/contacts today", stats.leadsNew],
+    ["Emails sent today", stats.emailsSent],
+    ["DMs sent today", stats.dmsQueued],
+    ["WhatsApp sent today", stats.whatsappSent],
     ["Posts queued", stats.postsQueued],
-    ["Aaj posts posted", stats.postsPosted],
-    ["Stage: Replied (aaj)", stats.replies],
+    ["Posts posted today", stats.postsPosted],
+    ["Stage: Replied (today)", stats.replies],
     ["Total contacts", stats.totalContacts],
   ];
 
   return (
     <div className="p-3 sm:p-4">
-      <p className="mb-3 text-[13px] font-semibold text-[#8b93a1]">Aaj ({todayKey()}) ka hisab — data se khud gina gaya. Roz raat summary likh kar save kar do, yahi daily CRM update hai.</p>
+      <p className="mb-3 text-[13px] font-semibold text-[#8b93a1]">Today ({todayKey()}) — counted from the data itself. Write the summary and save it each night; this is the daily CRM update.</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(([label, v]) => (
           <div key={label} className="rounded-2xl border border-white/[0.07] bg-[#111114] p-4">
@@ -709,11 +709,11 @@ function ReportTab({ contacts, outreach, posts }: { contacts: CrmContact[]; outr
           </div>
         ))}
       </div>
-      <label className={`${labelCls} mt-5`}>Aaj ki summary</label>
-      <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} className={inputCls} placeholder="Aaj kya hua, kal kya karna hai…" />
+      <label className={`${labelCls} mt-5`}>Today's summary</label>
+      <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} className={inputCls} placeholder="What happened today, what's next tomorrow…" />
       <div className="mt-2 flex items-center gap-3">
-        <button onClick={save} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Save ho raha…" : "Report save karo"}</button>
-        {saved && <span className="text-xs font-semibold text-[#4ade80]">Aakhri save: {saved}</span>}
+        <button onClick={save} disabled={busy} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Saving…" : "Save report"}</button>
+        {saved && <span className="text-xs font-semibold text-[#4ade80]">Last saved: {saved}</span>}
       </div>
     </div>
   );

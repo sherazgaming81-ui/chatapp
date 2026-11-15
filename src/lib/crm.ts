@@ -153,11 +153,11 @@ function mapError(e: any): Error {
   const msg = String(e?.message || e || "");
   const code = String(e?.code || "");
   if (code === "23505" || /duplicate key|unique/i.test(msg)) {
-    if (/ig_unique|instagram/i.test(msg)) return new CrmDuplicateError("instagram", "Ye Instagram username pehle se hai — repeat nahi ho sakta.");
-    if (/email_unique|email/i.test(msg)) return new CrmDuplicateError("email", "Ye email pehle se hai — repeat nahi ho sakta.");
-    return new CrmDuplicateError("generic", "Ye contact pehle se hai (username ya email repeat hai).");
+    if (/ig_unique|instagram/i.test(msg)) return new CrmDuplicateError("instagram", "This Instagram username already exists — duplicates aren't allowed.");
+    if (/email_unique|email/i.test(msg)) return new CrmDuplicateError("email", "This email already exists — duplicates aren't allowed.");
+    return new CrmDuplicateError("generic", "This contact already exists (duplicate username or email).");
   }
-  return e instanceof Error ? e : new Error(msg || "Kuch ghalat ho gaya");
+  return e instanceof Error ? e : new Error(msg || "Something went wrong");
 }
 const isMissingTable = (e: any) => {
   const m = String(e?.message || "");
@@ -255,7 +255,7 @@ export async function recordOutreach(contactId: string, channel: OutreachChannel
     .single();
   if (error) {
     // UNIQUE(contact_id, channel) — matlab pehle hi bheja ja chuka hai
-    if (String(error.code || "") === "23505") throw new CrmDuplicateError("generic", "Is channel par pehla message pehle hi ja chuka hai — repeat nahi hoga.");
+    if (String(error.code || "") === "23505") throw new CrmDuplicateError("generic", "A first message has already been sent on this channel — repeats aren't allowed.");
     throw mapError(error);
   }
   // last_contacted_at bhi update kar do (best-effort)

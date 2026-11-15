@@ -1,162 +1,173 @@
-# Threads Posting — Setup Guide (Owner ke liye)
+# Threads Posting — Setup Guide (for the Owner)
 
-ChatsApp me Threads posting ke **do model** hain:
+ChatsApp has **two Threads posting models**:
 
-**1) Partners ke liye — ONE-TAP (ye asal model hai, koi setup NAHI chahiye)**
-Partner ko sirf aik signed link milta hai. Us page par us ki ready-made
-posts aati hain — "Threads par lagao" button se Threads composer (pehle
-se bhara hua) khulta hai, partner sirf **Post** dabata hai aur wapas
-aakar **"Ho gaya ✓"** mark kar deta hai. Na Meta app, na token, na
-account connect. Is ke liye neeche wala Meta app setup **bilkul zaroori
-NAHI** — sirf `supabase/crm-upgrade.sql` ke baad
-`supabase/social-accounts.sql` chalana hai (us me `crm_posts` par
-partner wala column hai) aur Vercel env me `POSTING_CRON_SECRET` +
-`SUPABASE_SERVICE_ROLE_KEY` hone chahiye (signed link aur partner page
-inhi se chalte hain). Partner wala poora flow neeche "Partners ko posts
-lagwana (one-tap)" me hai.
+**1) For partners — ONE-TAP (the main model, NO setup needed)**
+The partner simply receives a signed link. Their page shows their
+ready-made posts — tapping **"Post on Threads"** opens the Threads
+composer with the post already written; the partner just presses
+**Post**, comes back, and taps **"Mark as Posted ✓"**. No Meta app, no
+token, no account connection. For this model you do NOT need the Meta
+app setup below at all — you only need:
+- `supabase/crm-upgrade.sql` run first, then `supabase/social-accounts.sql`
+  (it adds the partner column on `crm_posts`), and
+- the Vercel env vars `POSTING_CRON_SECRET` and
+  `SUPABASE_SERVICE_ROLE_KEY` (the signed links and the partner page run
+  on these).
+The full partner flow is under "Getting partners to post (one-tap)" below.
 
-**2) Owner ke apne account ke liye — Connect Threads / API auto-posting
-(OPTIONAL, baad me)**
-HQ → Posting tab me **Connect Threads** button se tum apna Threads
-account jod sakte ho — phir tumhari apni queue posts Threads API se khud
-publish hongi. Is ke liye Meta developer app wali aik-dafa setup
-zaroori hai (neeche Steps 1–7). Ye dormant feature hai — jab dil kare
-tab kar lena, partners wala kaam is ke baghair bhi pura chalta hai.
+**2) For your own account — Connect Threads / API auto-posting
+(OPTIONAL, later)**
+The **Connect Threads** button in HQ → Posting connects your own
+Threads account — your own queued posts then publish automatically via
+the Threads API. This needs the one-time Meta developer app setup
+(Steps 1–7 below). It is a dormant feature — do it whenever you like;
+partner posting works fully without it.
 
-> ⚠️ **SAKHT RULE:** App Secret, service role key aur cron secret **sirf
-> Vercel env me** dalne hain. Chat me kabhi mat bhejna, code me kabhi mat
-> likhna. Jo banda secret chat me bhej de, wo compromised samjho — foran
-> rotate karo.
+> ⚠️ **HARD RULE:** App secrets, the service role key, and the cron
+> secret go **only into Vercel env**. Never send them in chat, never
+> write them in code. If a secret is ever shared in chat, treat it as
+> compromised and rotate it immediately.
 
 ---
 
 ## (Optional) Owner auto-posting — Meta app setup
 
-> Ye poora hissa SIRF owner ke apne API auto-posting ke liye hai.
-> Partners ke one-tap ke liye ye sab SKIP kar do.
+> This whole section is ONLY for your own API auto-posting.
+> Skip all of it for partner one-tap posting.
 
-## Step 1 — Meta developer app banao
+## Step 1 — Create the Meta developer app
 
-1. Browser me [developers.facebook.com](https://developers.facebook.com) kholo
-   aur apne Meta/Facebook account se login karo (wohi account jis ka Threads
-   hai — behtar hai).
-2. Upar **My Apps → Create App** par click karo.
-3. App type/use case me **Threads** wala use case chuno
-   ("Access the Threads API" / "Threads API" use case). Agar use case ki list
-   aye to Threads wala select karke aage barho.
-4. App ka naam do, masalan: `Symbiote ChatsApp` — aur **Create App** kar do.
+1. Open [developers.facebook.com](https://developers.facebook.com) and
+   log in with your Meta/Facebook account (ideally the one that owns
+   your Threads account).
+2. Click **My Apps → Create App**.
+3. For the app type/use case, pick the **Threads** one
+   ("Access the Threads API" / "Threads API"). If a use-case list
+   appears, select Threads and continue.
+4. Name the app, e.g. `Symbiote ChatsApp`, and create it.
 
 ## Step 2 — Threads API product + permissions
 
-1. App dashboard me **Add Product / Use cases** me ja kar **Threads API**
-   product add/configure karo.
-2. Permissions me ye do lazmi hon:
+1. In the app dashboard, go to **Add Product / Use cases** and
+   add/configure the **Threads API** product.
+2. These two permissions are required:
    - `threads_basic`
    - `threads_content_publish`
-3. Threads API Settings me **App ID** aur **App Secret** nazar ayenge — ye
-   Step 5 me chahiye honge. (Secret abhi kahin share NAHI karna.)
+3. In the Threads API settings you'll see the **App ID** and
+   **App Secret** — you'll need them in Step 5. (Do NOT share the
+   secret anywhere yet.)
 
-## Step 3 — OAuth Redirect URI set karo
+## Step 3 — Set the OAuth Redirect URI
 
-Threads API settings me **Redirect Callback URL / OAuth Redirect URI** wale
-khane me **bilkul yehi** URI dalo (aik harf ka farq bhi nahi):
+In the Threads API settings, in the **Redirect Callback URL / OAuth
+Redirect URI** field, enter **exactly** this URI (not a single
+character different):
 
 ```
 https://chatapp0071.vercel.app/api/threads/callback
 ```
 
-Save kar do.
+Save it.
 
-## Step 4 — Apna Threads account tester banao
+## Step 4 — Make your Threads account a tester
 
-App abhi "Development mode" me hoga — is mode me sirf **tester** accounts
-connect kar sakte hain (public ke liye baad me Meta App Review lagega, wo
-alag marhala hai).
+The app starts in "Development mode" — in this mode only **tester**
+accounts can connect (public use needs Meta App Review, a later stage).
 
-1. App dashboard → **Roles / Testers** (Threads tester invites) me apna
-   Threads username add karo as **Threads Tester**.
-2. Phir apne Threads account me jao: **Settings → Account → Website
-   permissions / Invites** — wahan invite ayega, **Accept** kar do.
-3. Invite accept kiye baghair connect karne par Meta error dega.
+1. In the app dashboard → **Roles / Testers** (Threads tester invites),
+   add your Threads username as a **Threads Tester**.
+2. Then in your Threads account go to: **Settings → Account → Website
+   permissions / Invites** — the invite will be there; **Accept** it.
+3. Without accepting the invite, Meta will reject the connection.
 
-## Step 5 — Vercel env me values dalo
+## Step 5 — Put the values into Vercel env
 
-Vercel → project **chatapp** (chatapp0071) → **Settings → Environment
-Variables** me ye 5 variables add karo (Production par lazmi):
+In Vercel → project **chatapp** (chatapp0071) → **Settings →
+Environment Variables**, add these 5 variables (Production at minimum):
 
-| Name | Value kahan se |
+| Name | Where the value comes from |
 |---|---|
-| `THREADS_APP_ID` | Step 2 wali Threads App ID |
-| `THREADS_APP_SECRET` | Step 2 wali App Secret |
+| `THREADS_APP_ID` | The Threads App ID from Step 2 |
+| `THREADS_APP_SECRET` | The App Secret from Step 2 |
 | `THREADS_REDIRECT_URI` | `https://chatapp0071.vercel.app/api/threads/callback` |
-| `POSTING_CRON_SECRET` | Khud banao — lamba random text (masalan password generator se 32+ characters). Ye posting runner ka password hai, kisi ko mat do. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → apna project → **Project Settings → API** → **service_role** secret key |
+| `POSTING_CRON_SECRET` | Make it yourself — a long random string (e.g. 32+ characters from a password generator). This is the posting runner's password; don't give it to anyone. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → your project → **Project Settings → API** → the **service_role** secret key |
 
-> `NEXT_PUBLIC_SUPABASE_URL` pehle se Vercel me mojood hai — use mat chherna.
+> `NEXT_PUBLIC_SUPABASE_URL` already exists in Vercel — don't touch it.
+> Note: `POSTING_CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` are ALSO
+> required for partner one-tap links — if you only do one-tap, add at
+> least those two.
 
 ## Step 6 — Redeploy
 
-Env dalne ke baad Vercel me **Deployments → latest deployment → ⋯ →
-Redeploy** karo, warna naye env purani deployment ko nahi milenge.
+After adding env vars, go to Vercel → **Deployments → latest
+deployment → ⋯ → Redeploy**, otherwise the running deployment won't
+see the new variables.
 
-Aur aik zaroori kaam main agent se karwana hai: Supabase SQL Editor me
-`supabase/social-accounts.sql` chalana (table + RLS). Bina is ke connect
-fail hoga.
+One more thing to arrange via the main agent: run
+`supabase/social-accounts.sql` in the Supabase SQL Editor (tables +
+columns + RLS). Without it, connecting and partner pages will fail.
 
-## Step 7 — Connect karke test karo
+## Step 7 — Connect and test
 
-1. ChatsApp kholo (owner account se login).
-2. **HQ → Posting** tab me jao — upar **Threads account** wala card hoga.
-3. **Connect Threads** button dabao → Meta ki screen khulegi → apne Threads
-   account se permission do.
-4. Wapas ChatsApp par aoge aur card par **@username — Connected** dikhega.
-5. Test ke liye Posting tab me aik Threads post queue karo (schedule abhi ka
-   rakho) — posting runner chalne par wo post tumhare Threads account par
-   live ho jayegi aur queue me **posted** mark ho jayegi.
+1. Open ChatsApp (logged in as the owner).
+2. Go to **HQ → Posting** — at the top there's the **Threads account**
+   card.
+3. Press **Connect Threads** → Meta's screen opens → give permission
+   with your Threads account.
+4. You'll return to ChatsApp and the card will show
+   **@username — Connected**.
+5. To test, queue a Threads post in the Posting tab (schedule it for
+   now) — when the posting runner runs, the post will go live on your
+   Threads account and be marked **posted** in the queue.
 
-## Masla ho to?
+## Troubleshooting
 
-- **"Server par Threads app abhi configure nahi"** — Vercel env missing hai
-  ya redeploy nahi hua (Step 5/6 dobara check karo).
-- **Meta error / connect fail** — redirect URI ghalat hai (Step 3) ya tester
-  invite accept nahi hua (Step 4).
-- **Connect ho gaya magar post nahi gayi** — account card par "Connected"
-  check karo; post ka schedule time guzar chuka ho; runner cron-secret ke
-  baghair nahi chalta (ye main agent setup karega).
-- Account badalna ho to **Disconnect** karke dobara Connect kar do.
+- **"The Threads app isn't configured on the server yet"** — Vercel
+  env is missing or you didn't redeploy (re-check Steps 5/6).
+- **Meta error / connection fails** — the redirect URI is wrong
+  (Step 3) or the tester invite wasn't accepted (Step 4).
+- **Connected but the post didn't go out** — check the card shows
+  "Connected"; make sure the post's scheduled time has passed; the
+  runner doesn't run without the cron secret (the main agent sets
+  that up).
+- To switch accounts, **Disconnect** and connect again.
 
-## Partners ko posts lagwana (one-tap)
+## Getting partners to post (one-tap)
 
-Ye feature **tamam clients/public ke liye NAHI hai — sirf tumhare partners
-aur affiliates ke liye hai** (owner ki shart). Partner ko na ChatsApp
-account chahiye, na Threads connect karna hai — sirf aik signed link
-chahiye:
+This feature is **NOT for all clients/public — only for your partners
+and affiliates** (owner's rule). The partner needs neither a ChatsApp
+account nor a Threads connection — just one signed link:
 
-**Owner ka kaam:**
-1. **HQ → Posting** me post likho aur **Partner (one-tap)** wale dropdown
-   se partner select karke queue kar do. (Partner select na karo to post
-   tumhari apni samjhi jayegi — partner ke page par NAHI jayegi.)
-2. **HQ → CRM** me partner ka contact kholo (type **Partner** ya
-   **Affiliate** hona chahiye — sirf inhi par link banta hai). Drawer me
-   **"Partner posts link (one-tap)"** wala section hai — link copy karo.
-3. Link partner ko bhej do (masalan WhatsApp par). Link aik hi dafa
-   bhejna hai — partner roz yehi link kholega.
+**Your job (owner):**
+1. In **HQ → Posting**, write the post and pick the partner in the
+   **Partner (one-tap)** dropdown, then queue it. (If you don't pick a
+   partner, the post counts as your own and will NOT appear on any
+   partner's page.)
+2. In **HQ → CRM**, open the partner's contact (the type must be
+   **Partner** or **Affiliate** — links are only generated for those).
+   In the drawer there's a **"Partner posting link (one-tap)"**
+   section — copy the link.
+3. Send the link to the partner (e.g. on WhatsApp). You only send it
+   once — the partner opens the same link every day.
 
-**Partner ka kaam (roz):**
-1. Link khole — page par **"<Naam> — Aaj ki posts"** ayega, us ki aaj ki
-   ready posts list hongi.
-2. Har post par **"Threads par lagao"** dabaye — Threads khulega, post
-   pehle se likhi hogi — sirf **Post** dabana hai.
-3. Wapas page par aakar **"Ho gaya ✓"** dabaye — post HQ me **posted**
-   mark ho jayegi, taake tumhein pata chal jaye ke partner ne laga di.
+**The partner's job (daily):**
+1. Open the link — the page shows **"<Name> — Today's Posts"** with
+   today's ready posts listed.
+2. On each post, tap **"Post on Threads"** — Threads opens with the
+   post already written — just press **Post**.
+3. Come back to the page and tap **"Mark as Posted ✓"** — the post is
+   marked **posted** in HQ, so you can see the partner actually did it.
 
-**Note:** partner wali posts API/runner se NAHI jati — runner un ko
-haath nahi lagata. Partner "Ho gaya" na dabaye to post HQ me queued hi
-dikhegi, wahi asal check hai ke partner ne kaam kiya ya nahi.
+**Note:** partner posts do NOT go through the API/runner — the runner
+never touches them. If the partner doesn't tap "Mark as Posted", the
+post stays **queued** in HQ — that's your real check of whether the
+partner did the work.
 
-## Public clients ke liye
+## Public clients
 
-One-tap model technically har kisi ke liye chal sakta hai, lekin owner
-ki policy hai: **sirf partners/affiliates** ko link milega. Aam clients
-ke liye ye feature NAHI kholna. (API auto-posting wala Connect Threads
-bhi filhal sirf owner ke apne account ke liye dormant hai.)
+Technically the one-tap model could work for anyone, but the owner's
+policy is: **only partners/affiliates** get a link. Do not open this
+feature to general clients. (API auto-posting via Connect Threads also
+stays dormant, for the owner's own account only, for now.)

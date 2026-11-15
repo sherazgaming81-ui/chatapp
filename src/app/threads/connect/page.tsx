@@ -1,15 +1,15 @@
 "use client";
 // ═══════════════════════════════════════════════════════════════════════════
-// Partner one-tap posting page — PUBLIC (ChatsApp login NAHI chahiye)
+// Partner one-tap posting page — PUBLIC (no ChatsApp login needed)
 // ═══════════════════════════════════════════════════════════════════════════
-// Owner CRM se partner ko signed link bhejta hai:
+// The owner sends the partner a signed link:
 //   /threads/connect?c=<contactId>&s=<signature>
-// Page par partner ki AAJ ki ready-made posts aati hain. Har post par:
-//   "Threads par lagao" → Threads ka official intent link khulta hai
-//   (composer pehle se bhara hua) → partner sirf Post dabata hai →
-//   wapas aakar "Ho gaya ✓" mark kar deta hai.
-// Koi OAuth, koi Meta app, koi token partner ke liye NAHI — one-tap model.
-// Data /api/partners/posts se ata hai (server signature verify karta hai).
+// The page lists the partner's ready posts for today. On each post:
+//   "Post on Threads" → opens the official Threads intent link (composer
+//   pre-filled) → the partner just presses Post → comes back and taps
+//   "Mark as Posted ✓".
+// No OAuth, no Meta app, no token for partners — the one-tap model.
+// Data comes from /api/partners/posts (server verifies the signature).
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, ExternalLink } from "lucide-react";
@@ -72,15 +72,15 @@ function PartnerPosts() {
       if (r.ok && j?.ok) {
         setDoneIds((prev) => new Set(prev).add(post.id));
       }
-    } catch { /* neeche button dobara try ho sakta hai */ }
+    } catch { /* the button can simply be tried again */ }
     setMarkingId(null);
   };
 
   if (state === "loading") {
     return (
       <Shell>
-        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Posts aa rahi hain…</h1>
-        <p className="mt-2 text-sm text-[#b6bcc7]">Thora intezar karein.</p>
+        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Loading your posts…</h1>
+        <p className="mt-2 text-sm text-[#b6bcc7]">Please wait a moment.</p>
       </Shell>
     );
   }
@@ -89,9 +89,9 @@ function PartnerPosts() {
     return (
       <Shell>
         <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
-          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Link ghalat hai</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">This link isn't valid</h1>
           <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-            Ye link ghalat ya purana lag raha hai. Symbiote Systems se dobara naya link mang lein — wahi link kaam karega jo aap ko bheja gaya tha.
+            This link looks incorrect or outdated. Please ask Symbiote Systems for a fresh link — only the exact link sent to you will work.
           </p>
         </div>
       </Shell>
@@ -102,11 +102,11 @@ function PartnerPosts() {
     return (
       <Shell>
         <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
-          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Thora intezar karein</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Please try again shortly</h1>
           <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-            Posts abhi nahi aa saki. Kuch dair baad yehi link dobara kholein, ya Symbiote Systems ko bata dein.
+            Your posts couldn't be loaded right now. Please open the same link again in a little while, or let Symbiote Systems know.
           </p>
-          <button onClick={load} className="btn btn-blurple mt-4 px-4 py-2 text-sm">Dobara try karein</button>
+          <button onClick={load} className="btn btn-blurple mt-4 px-4 py-2 text-sm">Try again</button>
         </div>
       </Shell>
     );
@@ -115,16 +115,16 @@ function PartnerPosts() {
   return (
     <Shell>
       <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8] sm:text-2xl">
-        {name ? `${name} — ` : ""}Aaj ki posts
+        {name ? `${name} — ` : ""}Today's Posts
       </h1>
       <p className="mt-2 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-semibold leading-relaxed text-[#8dbcff]">
-        Button dabao, Threads khulega (post pehle se likhi hogi) — sirf <b>Post</b> dabana hai. Phir wapas aakar <b>“Ho gaya ✓”</b> dabao.
+        Tap the button, Threads will open with your post ready — just press <b>Post</b>. Then come back here and tap <b>"Mark as Posted ✓"</b>.
       </p>
 
       {posts.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
           <p className="text-sm leading-relaxed text-[#b6bcc7]">
-            Aaj ke liye koi post tayyar nahi hai. Jab Symbiote Systems nayi post queue karega, wo yahan aa jayegi — yehi link kal dobara khol lein.
+            No posts are ready for today. When Symbiote Systems queues a new post for you, it will appear here — just open this same link again tomorrow.
           </p>
         </div>
       ) : (
@@ -139,7 +139,7 @@ function PartnerPosts() {
                 <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f4f6f8]">{post.body}</p>
                 {done ? (
                   <p className="mt-4 flex items-center gap-2 rounded-lg bg-[#23a55a]/15 px-3 py-2.5 text-sm font-bold text-[#4ade80]">
-                    <Check size={16} /> Posted ✓ — shukriya!
+                    <Check size={16} /> Posted ✓ — thank you!
                   </p>
                 ) : (
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -150,11 +150,11 @@ function PartnerPosts() {
                         rel="noopener noreferrer"
                         className="btn btn-blurple flex flex-1 items-center justify-center gap-2 px-4 py-3 text-[15px] font-bold"
                       >
-                        Threads par lagao <ExternalLink size={16} />
+                        Post on Threads <ExternalLink size={16} />
                       </a>
                     ) : (
                       <p className="flex flex-1 items-center rounded-lg bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold text-[#b6bcc7]">
-                        Ye {post.platform} post hai — is ke liye Symbiote Systems se rabta karein.
+                        This is a {post.platform} post — please contact Symbiote Systems for this one.
                       </p>
                     )}
                     <button
@@ -162,7 +162,7 @@ function PartnerPosts() {
                       disabled={markingId === post.id}
                       className="btn btn-ghost flex items-center justify-center gap-1.5 px-4 py-3 text-[15px] font-bold text-[#4ade80] disabled:opacity-60"
                     >
-                      <Check size={16} /> {markingId === post.id ? "Ho raha…" : "Ho gaya ✓"}
+                      <Check size={16} /> {markingId === post.id ? "Marking…" : "Mark as Posted ✓"}
                     </button>
                   </div>
                 )}
@@ -172,7 +172,7 @@ function PartnerPosts() {
         </div>
       )}
       <p className="pb-4 text-center text-xs text-[#8b93a1]">
-        Ye page sirf aap ke liye hai — link kisi aur ko na bhejein.
+        This page is private to you — please don't share the link with anyone else.
       </p>
     </Shell>
   );
@@ -183,7 +183,7 @@ export default function PartnerThreadsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4">
-          <p className="text-sm text-[#8b93a1]">Posts aa rahi hain…</p>
+          <p className="text-sm text-[#8b93a1]">Loading your posts…</p>
         </div>
       }
     >
