@@ -1,21 +1,30 @@
+"use client";
 // ═══════════════════════════════════════════════════════════════════════════
-// Partner Threads connect page — PUBLIC (ChatsApp login NAHI chahiye)
+// Partner one-tap posting page — PUBLIC (ChatsApp login NAHI chahiye)
 // ═══════════════════════════════════════════════════════════════════════════
 // Owner CRM se partner ko signed link bhejta hai:
 //   /threads/connect?c=<contactId>&s=<signature>
-// Ye page signature verify karke partner ko salaam karke "Connect Threads"
-// button deti hai — button seedha Threads (Meta) ki official login screen
-// par le jata hai. Permission milte hi account us partner ke naam par
-// save ho jata hai aur us ki posts usi account se jati hain.
-import { verifyPartnerLink } from "@/lib/partnerLink";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+// Page par partner ki AAJ ki ready-made posts aati hain. Har post par:
+//   "Threads par lagao" → Threads ka official intent link khulta hai
+//   (composer pehle se bhara hua) → partner sirf Post dabata hai →
+//   wapas aakar "Ho gaya ✓" mark kar deta hai.
+// Koi OAuth, koi Meta app, koi token partner ke liye NAHI — one-tap model.
+// Data /api/partners/posts se ata hai (server signature verify karta hai).
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, ExternalLink } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+interface PartnerPost {
+  id: string;
+  platform: string;
+  body: string;
+  scheduled_at: string;
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow sm:p-8">
+    <div className="thin-scroll min-h-0 w-full flex-1 overflow-y-auto p-4">
+      <div className="mx-auto w-full max-w-xl">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#4f8cff]">Symbiote Systems</p>
         {children}
       </div>
@@ -23,108 +32,162 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function PartnerThreadsConnectPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ c?: string; s?: string; done?: string; error?: string }>;
-}) {
-  const { c, s, done, error } = await searchParams;
+function PartnerPosts() {
+  const params = useSearchParams();
+  const c = params.get("c") || "";
+  const s = params.get("s") || "";
 
-  if (!c || !s || !verifyPartnerLink(c, s)) {
-    return (
-      <Shell>
-        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Link ghalat hai</h1>
-        <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-          Ye connect link ghalat ya purana lag raha hai. Symbiote Systems se dobara naya link mang lein — wahi link kaam karega jo aap ko bheja gaya tha.
-        </p>
-      </Shell>
-    );
-  }
+  const [state, setState] = useState<"loading" | "invalid" | "error" | "ready">("loading");
+  const [name, setName] = useState("");
+  const [posts, setPosts] = useState<PartnerPost[]>([]);
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
-  let contactName: string | null = null;
-  let connectedUsername: string | null = null;
-  let serverOk = true;
-  try {
-    const admin = supabaseAdmin();
-    const { data: contact } = await admin.from("crm_contacts").select("name").eq("id", c).maybeSingle();
-    contactName = contact?.name || null;
-    if (!contactName) {
-      return (
-        <Shell>
-          <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Link ghalat hai</h1>
-          <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-            Is link ke sath koi partner record nahi mila. Symbiote Systems se dobara naya link mang lein.
-          </p>
-        </Shell>
-      );
+  const load = useCallback(async () => {
+    if (!c || !s) { setState("invalid"); return; }
+    try {
+      const r = await fetch(`/api/partners/posts?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}`);
+      const j: any = await r.json().catch(() => null);
+      if (r.status === 401 || j?.error === "invalid_link") { setState("invalid"); return; }
+      if (!r.ok || !j?.ok) { setState("error"); return; }
+      setName(j.partner?.name || "");
+      setPosts(j.posts || []);
+      setState("ready");
+    } catch {
+      setState("error");
     }
-    const { data: acc } = await admin
-      .from("social_accounts")
-      .select("username")
-      .eq("platform", "threads")
-      .eq("crm_contact_id", c)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    connectedUsername = acc?.username || null;
-  } catch {
-    serverOk = false;
-  }
+  }, [c, s]);
 
-  if (!serverOk) {
+  useEffect(() => { load(); }, [load]);
+
+  const markDone = async (post: PartnerPost) => {
+    setMarkingId(post.id);
+    try {
+      const r = await fetch("/api/partners/mark-posted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: post.id, c, s }),
+      });
+      const j: any = await r.json().catch(() => null);
+      if (r.ok && j?.ok) {
+        setDoneIds((prev) => new Set(prev).add(post.id));
+      }
+    } catch { /* neeche button dobara try ho sakta hai */ }
+    setMarkingId(null);
+  };
+
+  if (state === "loading") {
     return (
       <Shell>
-        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Thora intezar karein</h1>
-        <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-          Server abhi tayyar nahi hai. Kuch dair baad yehi link dobara kholein, ya Symbiote Systems ko bata dein.
-        </p>
+        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Posts aa rahi hain…</h1>
+        <p className="mt-2 text-sm text-[#b6bcc7]">Thora intezar karein.</p>
       </Shell>
     );
   }
 
-  if (done === "1") {
+  if (state === "invalid") {
     return (
       <Shell>
-        <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">Ho gaya! 🎉</h1>
-        <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-          {contactName} — aap ka Threads account connect ho gaya hai
-          {connectedUsername ? <> (<span className="font-bold text-[#f4f6f8]">@{connectedUsername}</span>)</> : null}.
-          Ab Symbiote Systems aap ke liye jo posts queue karega, wo aap ke isi account se publish hongi. Aap ye page band kar sakte hain.
-        </p>
+        <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Link ghalat hai</h1>
+          <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
+            Ye link ghalat ya purana lag raha hai. Symbiote Systems se dobara naya link mang lein — wahi link kaam karega jo aap ko bheja gaya tha.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <Shell>
+        <div className="rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+          <h1 className="text-xl font-extrabold tracking-tight text-[#f4f6f8]">Thora intezar karein</h1>
+          <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
+            Posts abhi nahi aa saki. Kuch dair baad yehi link dobara kholein, ya Symbiote Systems ko bata dein.
+          </p>
+          <button onClick={load} className="btn btn-blurple mt-4 px-4 py-2 text-sm">Dobara try karein</button>
+        </div>
       </Shell>
     );
   }
 
   return (
     <Shell>
-      <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8]">
-        Assalam-o-Alaikum {contactName}!
+      <h1 className="mt-2 text-xl font-extrabold tracking-tight text-[#f4f6f8] sm:text-2xl">
+        {name ? `${name} — ` : ""}Aaj ki posts
       </h1>
-      <p className="mt-2 text-sm leading-relaxed text-[#b6bcc7]">
-        Apna <span className="font-bold text-[#f4f6f8]">Threads account</span> connect karein — Symbiote Systems ki posting ke liye.
-        Neeche wala button Threads ki official screen par le jayega, wahan login karke <span className="font-bold text-[#f4f6f8]">Allow</span> kar dein. Bas itna hi kaam hai.
+      <p className="mt-2 rounded-xl border border-[#4f8cff]/30 bg-[#4f8cff]/10 px-4 py-3 text-[13px] font-semibold leading-relaxed text-[#8dbcff]">
+        Button dabao, Threads khulega (post pehle se likhi hogi) — sirf <b>Post</b> dabana hai. Phir wapas aakar <b>“Ho gaya ✓”</b> dabao.
       </p>
-      {connectedUsername && (
-        <p className="mt-3 rounded-lg bg-[#23a55a]/15 px-3 py-2 text-[13px] font-bold text-[#4ade80]">
-          ● @{connectedUsername} pehle se connected hai — account badalna ho to neeche se dobara connect kar lein.
-        </p>
+
+      {posts.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[#111114] p-6 soft-shadow">
+          <p className="text-sm leading-relaxed text-[#b6bcc7]">
+            Aaj ke liye koi post tayyar nahi hai. Jab Symbiote Systems nayi post queue karega, wo yahan aa jayegi — yehi link kal dobara khol lein.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3 pb-6">
+          {posts.map((post) => {
+            const done = doneIds.has(post.id);
+            return (
+              <div
+                key={post.id}
+                className={`rounded-2xl border p-5 soft-shadow transition ${done ? "border-[#23a55a]/40 bg-[#23a55a]/[0.06] opacity-70" : "border-white/10 bg-[#111114]"}`}
+              >
+                <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f4f6f8]">{post.body}</p>
+                {done ? (
+                  <p className="mt-4 flex items-center gap-2 rounded-lg bg-[#23a55a]/15 px-3 py-2.5 text-sm font-bold text-[#4ade80]">
+                    <Check size={16} /> Posted ✓ — shukriya!
+                  </p>
+                ) : (
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    {post.platform === "threads" ? (
+                      <a
+                        href={`https://www.threads.net/intent/post?text=${encodeURIComponent(post.body)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-blurple flex flex-1 items-center justify-center gap-2 px-4 py-3 text-[15px] font-bold"
+                      >
+                        Threads par lagao <ExternalLink size={16} />
+                      </a>
+                    ) : (
+                      <p className="flex flex-1 items-center rounded-lg bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold text-[#b6bcc7]">
+                        Ye {post.platform} post hai — is ke liye Symbiote Systems se rabta karein.
+                      </p>
+                    )}
+                    <button
+                      onClick={() => markDone(post)}
+                      disabled={markingId === post.id}
+                      className="btn btn-ghost flex items-center justify-center gap-1.5 px-4 py-3 text-[15px] font-bold text-[#4ade80] disabled:opacity-60"
+                    >
+                      <Check size={16} /> {markingId === post.id ? "Ho raha…" : "Ho gaya ✓"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
-      {error === "not_configured" && (
-        <p className="mt-3 rounded-lg bg-[#f5a623]/15 px-3 py-2 text-[13px] font-bold text-[#fbbf24]">
-          Server par Threads abhi configure nahi hua — Symbiote Systems ko bata dein, phir yehi link dobara kholein.
-        </p>
-      )}
-      {error === "error" && (
-        <p className="mt-3 rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">
-          Connect nahi hua — dobara try karein. Threads login ke doran Allow lazmi dabana hai.
-        </p>
-      )}
-      <a href={`/api/threads/connect?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}`} className="btn btn-blurple mt-5 flex w-full items-center justify-center px-4 py-3 text-[15px] font-bold">
-        Connect Threads
-      </a>
-      <p className="mt-3 text-center text-xs leading-relaxed text-[#8b93a1]">
-        Aap ka password hamare paas kabhi nahi ata — connection Meta ki official permission se banta hai, aur aap jab chahein Threads settings se hata sakte hain.
+      <p className="pb-4 text-center text-xs text-[#8b93a1]">
+        Ye page sirf aap ke liye hai — link kisi aur ko na bhejein.
       </p>
     </Shell>
+  );
+}
+
+export default function PartnerThreadsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4">
+          <p className="text-sm text-[#8b93a1]">Posts aa rahi hain…</p>
+        </div>
+      }
+    >
+      <PartnerPosts />
+    </Suspense>
   );
 }

@@ -14,12 +14,19 @@
 --
 -- PARTNERS-ONLY (owner ki shart): ye feature tamam clients/public ke liye
 -- NAHI hai. Sirf owner ke partners/affiliates (crm_contacts me kind =
--- 'partner' ya 'affiliate') apna Threads jodte hain — owner CRM se un ko
--- aik signed connect link bhejta hai, partner us link se connect karta hai
--- (ChatsApp login ki zaroorat NAHI). Har partner ki posts USI ke account
--- se jati hain — crm_posts.social_account_id se account select hota hai.
--- Owner ka apna account bhi connect ho sakta hai (default account —
--- crm_contact_id NULL wali row).
+-- 'partner' ya 'affiliate') ke liye hai.
+--
+-- PARTNER MODEL = ONE-TAP (owner ka faisla): partners ke liye OAuth /
+-- Connect Threads NAHI hai. Owner CRM se partner ko aik signed link
+-- bhejta hai; partner us page par apni ready-made queued posts dekhta
+-- hai, "Threads par lagao" button se Threads composer (pehle se bhara
+-- hua) khulta hai, wo sirf Post dabata hai aur "Ho gaya" mark kar deta
+-- hai. Partner ki posts crm_posts.crm_contact_id se us se judti hain.
+--
+-- social_accounts / OAuth wala hissa sirf OWNER ke apne auto-posting ke
+-- liye hai (optional — kabhi Meta app banaya to kaam ayega, dormant hai).
+-- Owner ka account connect ho to crm_contact_id NULL wali row banti hai
+-- aur crm_posts.social_account_id se account select hota hai.
 --
 -- SECURITY: access_token SIRF server (service role) parh sakta hai.
 -- Client (HQ page) sirf username / platform / token_expires_at dekhta hai —
@@ -68,6 +75,12 @@ alter table public.social_accounts add column if not exists label text;
 -- NULL = default (sab se pehla connected account).
 alter table public.crm_posts
   add column if not exists social_account_id uuid references public.social_accounts(id) on delete set null;
+
+-- Har post kis partner ki hai (one-tap model) — Posting tab me partner
+-- select hota hai; partner apne signed page par sirf APNI posts dekhta
+-- hai aur khud laga kar "Ho gaya" mark karta hai. NULL = owner ki post.
+alter table public.crm_posts
+  add column if not exists crm_contact_id uuid references public.crm_contacts(id) on delete set null;
 
 drop trigger if exists social_accounts_touch on public.social_accounts;
 create trigger social_accounts_touch

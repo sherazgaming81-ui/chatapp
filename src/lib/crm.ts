@@ -72,6 +72,8 @@ export interface CrmPost {
   createdAt: number;
   /** Kis connected account se jayegi — null = default (pehla connected) */
   socialAccountId: string | null;
+  /** Kis partner ki post hai (one-tap) — null = owner ki apni post */
+  crmContactId: string | null;
 }
 
 export interface CrmDailyReport {
@@ -135,6 +137,7 @@ function rowToPost(r: any): CrmPost {
     postedAt: r.posted_at ? toMs(r.posted_at) : null,
     createdAt: toMs(r.created_at),
     socialAccountId: r.social_account_id || null,
+    crmContactId: r.crm_contact_id || null,
   };
 }
 
@@ -288,7 +291,8 @@ export async function queuePost(
   platform: PostPlatform,
   body: string,
   scheduledAt: number,
-  socialAccountId?: string | null
+  socialAccountId?: string | null,
+  crmContactId?: string | null
 ): Promise<CrmPost> {
   const { data, error } = await supabase()
     .from("crm_posts")
@@ -298,6 +302,7 @@ export async function queuePost(
       scheduled_at: new Date(scheduledAt).toISOString(),
       status: "queued",
       social_account_id: socialAccountId || null,
+      crm_contact_id: crmContactId || null,
     })
     .select("*")
     .single();

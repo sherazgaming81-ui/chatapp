@@ -1,12 +1,27 @@
-# Connect Threads — Setup Guide (Owner ke liye)
+# Threads Posting — Setup Guide (Owner ke liye)
 
-ChatsApp ke HQ → Posting tab me **Connect Threads** ka button hai. Us se banda
-apna Threads account jodta hai, aur phir queue ki Threads posts **usi account
-se, Threads API se, bina approval** publish hoti hain (permission connect
-karte waqt hi mil jati hai).
+ChatsApp me Threads posting ke **do model** hain:
 
-Lekin pehle **aik dafa ki setup** zaroori hai: Meta par developer app banana
-aur us ki keys Vercel me dalna. Neeche saare steps hain.
+**1) Partners ke liye — ONE-TAP (ye asal model hai, koi setup NAHI chahiye)**
+Partner ko sirf aik signed link milta hai. Us page par us ki ready-made
+posts aati hain — "Threads par lagao" button se Threads composer (pehle
+se bhara hua) khulta hai, partner sirf **Post** dabata hai aur wapas
+aakar **"Ho gaya ✓"** mark kar deta hai. Na Meta app, na token, na
+account connect. Is ke liye neeche wala Meta app setup **bilkul zaroori
+NAHI** — sirf `supabase/crm-upgrade.sql` ke baad
+`supabase/social-accounts.sql` chalana hai (us me `crm_posts` par
+partner wala column hai) aur Vercel env me `POSTING_CRON_SECRET` +
+`SUPABASE_SERVICE_ROLE_KEY` hone chahiye (signed link aur partner page
+inhi se chalte hain). Partner wala poora flow neeche "Partners ko posts
+lagwana (one-tap)" me hai.
+
+**2) Owner ke apne account ke liye — Connect Threads / API auto-posting
+(OPTIONAL, baad me)**
+HQ → Posting tab me **Connect Threads** button se tum apna Threads
+account jod sakte ho — phir tumhari apni queue posts Threads API se khud
+publish hongi. Is ke liye Meta developer app wali aik-dafa setup
+zaroori hai (neeche Steps 1–7). Ye dormant feature hai — jab dil kare
+tab kar lena, partners wala kaam is ke baghair bhi pura chalta hai.
 
 > ⚠️ **SAKHT RULE:** App Secret, service role key aur cron secret **sirf
 > Vercel env me** dalne hain. Chat me kabhi mat bhejna, code me kabhi mat
@@ -14,6 +29,11 @@ aur us ki keys Vercel me dalna. Neeche saare steps hain.
 > rotate karo.
 
 ---
+
+## (Optional) Owner auto-posting — Meta app setup
+
+> Ye poora hissa SIRF owner ke apne API auto-posting ke liye hai.
+> Partners ke one-tap ke liye ye sab SKIP kar do.
 
 ## Step 1 — Meta developer app banao
 
@@ -105,38 +125,38 @@ fail hoga.
   baghair nahi chalta (ye main agent setup karega).
 - Account badalna ho to **Disconnect** karke dobara Connect kar do.
 
-## Partners ko connect karwana
+## Partners ko posts lagwana (one-tap)
 
 Ye feature **tamam clients/public ke liye NAHI hai — sirf tumhare partners
-aur affiliates ke liye hai** (owner ki shart). Partner ko ChatsApp account
-bhi NAHI chahiye — wo sirf aik signed link se apna Threads jodta hai:
+aur affiliates ke liye hai** (owner ki shart). Partner ko na ChatsApp
+account chahiye, na Threads connect karna hai — sirf aik signed link
+chahiye:
 
-1. ChatsApp me **HQ → CRM** kholo aur partner ka contact kholo (contact ka
-   type **Partner** ya **Affiliate** hona chahiye — sirf inhi par link
-   banta hai).
-2. Drawer me **"Threads connect link (partner ke liye)"** wala section
-   hoga — wahan link khud ban jata hai. **Copy** dabao.
-3. Wo link partner ko bhej do (masalan WhatsApp par).
-4. Partner link kholega — use apna naam ke sath salaam aur bara
-   **Connect Threads** button milega. Button dabate hi Threads ki official
-   screen khulegi → wo apne Threads account se login karke **Allow**
-   karega → "Ho gaya!" wala page aa jayega. Khatam — us ka account us ke
-   CRM contact ke sath jud gaya.
-5. Ab **HQ → Posting** me us partner ki post queue karte waqt
-   **Threads account** wale dropdown se **us partner ka account** select
-   karna — post usi ke account se jayegi. "Default" rehne do to post sab
-   se pehle connected account (aam tor par tumhare apne) se jayegi.
-   Connected accounts ki poori list bhi Posting tab me dikhti hai.
+**Owner ka kaam:**
+1. **HQ → Posting** me post likho aur **Partner (one-tap)** wale dropdown
+   se partner select karke queue kar do. (Partner select na karo to post
+   tumhari apni samjhi jayegi — partner ke page par NAHI jayegi.)
+2. **HQ → CRM** me partner ka contact kholo (type **Partner** ya
+   **Affiliate** hona chahiye — sirf inhi par link banta hai). Drawer me
+   **"Partner posts link (one-tap)"** wala section hai — link copy karo.
+3. Link partner ko bhej do (masalan WhatsApp par). Link aik hi dafa
+   bhejna hai — partner roz yehi link kholega.
 
-**Dev mode ki note:** jab tak Meta app Development mode me hai, partner
-ko bhi pehle Step 4 ki tarah **Threads Tester** add karke invite accept
-karwana hoga, warna Meta connect rok dega. Har partner ke liye ye aik
-dafa ka kaam hai. (App Review ke baad ye shart khatam ho jati hai.)
+**Partner ka kaam (roz):**
+1. Link khole — page par **"<Naam> — Aaj ki posts"** ayega, us ki aaj ki
+   ready posts list hongi.
+2. Har post par **"Threads par lagao"** dabaye — Threads khulega, post
+   pehle se likhi hogi — sirf **Post** dabana hai.
+3. Wapas page par aakar **"Ho gaya ✓"** dabaye — post HQ me **posted**
+   mark ho jayegi, taake tumhein pata chal jaye ke partner ne laga di.
 
-## Public clients ke liye (baad ka marhala)
+**Note:** partner wali posts API/runner se NAHI jati — runner un ko
+haath nahi lagata. Partner "Ho gaya" na dabaye to post HQ me queued hi
+dikhegi, wahi asal check hai ke partner ne kaam kiya ya nahi.
 
-Abhi app Development mode me hai — sirf tester accounts (tumhare apne +
-partners jin ko tester banaya ho) connect honge. Jab ChatsApp aam clients
-ko dena ho to Meta **App Review** ke liye submit karna hoga taake har
-banda apna Threads jod sake. Wo marhala alag hai — filhal apne aur
-partners ke accounts par poora system test kar lo.
+## Public clients ke liye
+
+One-tap model technically har kisi ke liye chal sakta hai, lekin owner
+ki policy hai: **sirf partners/affiliates** ko link milega. Aam clients
+ke liye ye feature NAHI kholna. (API auto-posting wala Connect Threads
+bhi filhal sirf owner ke apne account ke liye dormant hai.)

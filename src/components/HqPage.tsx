@@ -235,10 +235,11 @@ function CrmBoard({ contacts, onAdd, onSelect }: { contacts: CrmContact[]; onAdd
   );
 }
 
-/* ─────────── Partner Threads connect link ───────────
+/* ─────────── Partner one-tap posts link ───────────
    Sirf partner/affiliate contacts ke liye. Signed link SERVER route se
    ata hai (HMAC secret client par kabhi nahi ata) — owner ye link copy
-   karke partner ko bhejta hai, partner us se apna Threads jodta hai. */
+   karke partner ko bhejta hai; partner us page par apni ready posts
+   one-tap se lagata hai (OAuth NAHI — one-tap model). */
 function PartnerThreadsLink({ contactId }: { contactId: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState("");
@@ -279,9 +280,9 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
 
   return (
     <div className="mt-6">
-      <label className={labelCls}>Threads connect link (partner ke liye)</label>
+      <label className={labelCls}>Partner posts link (one-tap)</label>
       <p className="mb-2 text-xs leading-relaxed text-[#8b93a1]">
-        Ye signed link partner ko bhejo — wo is se apna Threads account connect karega, phir us ki posts usi ke account se jayengi. (Ye feature sirf partners/affiliates ke liye hai.)
+        Ye signed link partner ko bhejo — is page par use us ki aaj ki ready posts dikhengi; wo "Threads par lagao" dabakar post lagayega aur "Ho gaya" mark karega. Koi account connect NAHI karna padta. (Ye feature sirf partners/affiliates ke liye hai.)
       </p>
       {err ? (
         <p className="rounded-lg bg-[#ed4245]/15 px-3 py-2 text-[13px] font-bold text-[#ff8589]">{err}</p>
@@ -533,7 +534,10 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
   const [platform, setPlatform] = useState<PostPlatform>("threads");
   const [body, setBody] = useState("");
   const [accountId, setAccountId] = useState(""); // "" = default (pehla connected)
+  const [partnerId, setPartnerId] = useState(""); // "" = owner ki post; warna one-tap partner post
   const [accounts, setAccounts] = useState<SocialAccountStatus[]>([]);
+  const partners = contacts.filter((ct) => ct.kind === "partner" || ct.kind === "affiliate");
+  const partnerOf = (id: string | null) => (id ? contacts.find((ct) => ct.id === id) || null : null);
   const [when, setWhen] = useState(() => {
     const d = new Date(Date.now() + 3600e3);
     const p = (n: number) => String(n).padStart(2, "0");
@@ -550,7 +554,7 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
     if (!body.trim()) return;
     setBusy(true);
     try {
-      await queuePost(platform, body, new Date(when).getTime() || Date.now(), platform === "threads" ? accountId || null : null);
+      await queuePost(platform, body, new Date(when).getTime() || Date.now(), platform === "threads" ? accountId || null : null, partnerId || null);
       setBody("");
       toast("Post queue ho gayi", platform);
       refresh();
@@ -608,6 +612,19 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
             </select>
           </div>
         </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><label className={labelCls}>Partner (one-tap — optional)</label>
+            <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className={inputCls}>
+              <option value="">Koi nahi — meri apni post</option>
+              {partners.map((ct) => (
+                <option key={ct.id} value={ct.id}>{ct.name} ({KIND_LABEL[ct.kind]})</option>
+              ))}
+            </select>
+          </div>
+          <p className="flex items-end pb-1 text-xs leading-relaxed text-[#8b93a1]">
+            Partner select karo to post us ke signed page par jayegi — wo "Threads par lagao" se khud lagakar "Ho gaya" mark karega (API se NAHI jayegi).
+          </p>
+        </div>
         <button onClick={add} disabled={busy || !body.trim()} className="btn btn-blurple mt-3 px-4 py-2 text-sm disabled:opacity-60">{busy ? "Queue ho rahi…" : "Queue me dalo"}</button>
       </div>
 
@@ -618,6 +635,11 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#b6bcc7]">{p.platform}</span>
             {p.socialAccountId && accountOf(p.socialAccountId) && (
               <span className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8dbcff]">{accountName(accountOf(p.socialAccountId)!)}</span>
+            )}
+            {p.crmContactId && (
+              <span className="rounded-full bg-[#f5a623]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#fbbf24]" title="One-tap — partner khud lagayega">
+                {partnerOf(p.crmContactId)?.name || "Partner"} · one-tap (partner khud lagayega)
+              </span>
             )}
             <span className="min-w-0 flex-1 truncate text-sm text-[#f4f6f8]">{p.body}</span>
             <span className="text-xs text-[#8b93a1]">{new Date(p.scheduledAt).toLocaleString()}</span>

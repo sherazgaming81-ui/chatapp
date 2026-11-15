@@ -7,12 +7,16 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // uthao → har post ke account ke token se Threads API par publish →
 // status posted/failed update.
 //
-// ACCOUNT SELECTION (partners system): post.social_account_id ho to post
-// USI account se jati hai (partner ki post partner ke account se); na ho
-// to default = sab se pehla connected account (created_at sab se pehla —
-// aam tor par owner ka account). Koi account hi connected na ho to posts
-// queued hi rehti hain (failed NAHI karte), summary me "no_account".
-// Token expiry 7 din se kam ho to pehle refresh karte hain.
+// ACCOUNT SELECTION: post.social_account_id ho to post USI account se
+// jati hai; na ho to default = sab se pehla connected account (created_at
+// sab se pehla — aam tor par owner ka account). Koi account hi connected
+// na ho to posts queued hi rehti hain (failed NAHI karte), summary me
+// "no_account". Token expiry 7 din se kam ho to pehle refresh karte hain.
+//
+// PARTNER POSTS (one-tap model): jin posts par crm_contact_id laga hai wo
+// partners ki hain — wo API se NAHI jati, partner apne signed page se
+// khud lagata hai. Is liye due posts me sirf owner wali posts (crm_contact_id
+// NULL) aati hain — runner partner posts ko haath NAHI lagata.
 
 type AccountRow = {
   id: string;
@@ -51,12 +55,13 @@ export async function POST(req: Request) {
   const defaultAccount = usable[0];
   const byId = new Map(usable.map((a) => [a.id, a]));
 
-  // 2) due posts
+  // 2) due posts — sirf owner wali (partner posts one-tap hain, exclude)
   const { data: posts, error: postErr } = await admin
     .from("crm_posts")
     .select("id, body, social_account_id")
     .eq("platform", "threads")
     .eq("status", "queued")
+    .is("crm_contact_id", null)
     .lte("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: true })
     .limit(5);
