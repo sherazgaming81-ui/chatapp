@@ -22,7 +22,7 @@ export default function ServerRail() {
           <span className={`grid h-12 w-12 place-items-center overflow-hidden bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] text-2xl font-bold text-white soft-shadow transition-all duration-200 ${activeChatId === group.id ? "rounded-2xl" : "rounded-full group-hover:rounded-2xl"}`}>
             {group.photo ? (
               <img src={group.photo} alt="" className={`h-12 w-12 object-cover transition-all duration-200 ${activeChatId === group.id ? "rounded-2xl" : "rounded-full group-hover:rounded-2xl"}`} draggable={false} />
-            ) : "م"}
+            ) : "M"}
           </span>
           {activeChatId === group.id && tab === "chat" && <span className="absolute -left-[13px] top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full bg-[#4f8cff]" />}
         </button>

@@ -11,13 +11,13 @@ let admin: SupabaseClient | null = null;
 
 export function supabaseAdmin(): SupabaseClient {
   if (typeof window !== "undefined") {
-    throw new Error("supabaseAdmin sirf server par istemal ho sakta hai");
+    throw new Error("supabaseAdmin can only be used on the server");
   }
   if (admin) return admin;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL env missing hai");
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL env vars are missing");
   }
   admin = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

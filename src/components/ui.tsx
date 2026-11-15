@@ -92,29 +92,29 @@ export function fmtDayLabel(at: number): string {
   const now = new Date();
   const day = (x: Date) => x.getFullYear() * 1000 + Math.floor(x.getMonth() * 30 + x.getDate());
   const diff = day(now) - day(d);
-  if (diff <= 0) return "aaj";
-  if (diff === 1) return "kal";
-  return d.toLocaleDateString("ur-Latn", { day: "numeric", month: "short" });
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 export function fmtDayHeader(at: number): string {
   const d = new Date(at);
   const now = new Date();
   const day = (x: Date) => x.getFullYear() * 1000 + Math.floor(x.getMonth() * 30 + x.getDate());
   const diff = day(now) - day(d);
-  if (diff <= 0) return "Aaj";
-  if (diff === 1) return "Kal";
-  return d.toLocaleDateString("ur-Latn", { day: "numeric", month: "short" });
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 export function fmtFull(at: number): string {
   return `${fmtDayLabel(at)} ${fmtTime(at)}`;
 }
 export function fmtLastSeen(at: number): string {
-  if (!at) return "kabhi nahi";
+  if (!at) return "never";
   const mins = Math.floor((Date.now() - at) / 60000);
-  if (mins < 1) return "abhi";
-  if (mins < 60) return `${mins} min pehle`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} ghante pehle`;
+  if (hrs < 24) return `${hrs} hours ago`;
   return fmtDayLabel(at);
 }
 

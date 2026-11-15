@@ -132,7 +132,7 @@ function VoiceBubble({ m }: { m: Message }) {
 function BlurImage({ src, onOpen }: { src: string; onOpen: () => void }) {
   const [loaded, setLoaded] = useState(false);
   return (
-    <button onClick={onOpen} className="mt-1.5 block cursor-zoom-in" title="Bara dekho">
+    <button onClick={onOpen} className="mt-1.5 block cursor-zoom-in" title="View larger">
       <span className={`block overflow-hidden rounded-xl border border-white/10 soft-shadow ${loaded ? "" : "skel"}`}>
         <img
           src={src}
@@ -258,17 +258,17 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
   const doDeleteForMe = () => {
     setConfirmDel(false);
     hideMessageForMe(m.id);
-    toast("Message hata diya", "Sirf aapke liye");
+    toast("Message removed", "Only for you");
   };
 
   if (m.deleted) {
     return (
       <div className="msg-row group flex items-center gap-2 px-4 py-0.5">
-        <p className="flex-1 text-sm italic text-[#8b93a1]">Message delete kar diya gaya</p>
+        <p className="flex-1 text-sm italic text-[#8b93a1]">This message was deleted</p>
         {(mine || staff) && (
           <button
             onClick={() => hardDeleteMessage(m.id)}
-            title="Hamesha ke liye hatao"
+            title="Delete permanently"
             className="rounded-lg p-1.5 text-[#8b93a1] opacity-0 transition hover:bg-[#ed4245]/10 hover:text-[#ed4245] group-hover:opacity-100"
           >
             <Trash2 size={14} />
@@ -316,7 +316,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
             )}
             {/* TASK 2: member dusre ka msg bhi "mere liye" hata sakta hai */}
             {!mine && !staff && (
-              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b6bcc7] active:bg-white/[0.06]"><Trash2 size={20} /><span className="text-[10px] font-bold">Hatao</span></button>
+              <button onClick={() => { setActionsPinned(false); setConfirmDel(true); }} className="flex flex-col items-center gap-1 rounded-xl p-2.5 text-[#b6bcc7] active:bg-white/[0.06]"><Trash2 size={20} /><span className="text-[10px] font-bold">Remove</span></button>
             )}
           </div>
         </>
@@ -327,7 +327,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
         <button title="Reply" onClick={() => patchUI({ replyTo: m })} className="p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]"><Reply size={16} /></button>
         <button title={starred ? "Unstar" : "Star"} onClick={() => toggleStar(m.id)} className={`p-2 hover:bg-white/[0.06] ${starred ? "text-[#f5a623]" : "text-[#b6bcc7] hover:text-[#f4f6f8]"}`}>{starred ? <StarOff size={16} /> : <Star size={16} />}</button>
         {(mine || staff) && (
-          <button title="Dekha kisne" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]"><Info size={16} /></button>
+          <button title="Seen by" onClick={() => patchUI({ infoMsg: m.id })} className="p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]"><Info size={16} /></button>
         )}
         {canEdit && (
           <button title="Edit" onClick={() => patchUI({ editingMsg: m, replyTo: null })} className="p-2 text-[#b6bcc7] hover:bg-white/[0.06] hover:text-[#f4f6f8]"><Pencil size={16} /></button>
@@ -347,7 +347,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
               <button key={e} onClick={() => react(e)} title={e} className="rounded-lg p-1.5 text-xl transition hover:bg-white/[0.06] active:scale-90">{e}</button>
             ))}
             <button
-              title="Aur emojis…"
+              title="More emojis…"
               onClick={() => { setReactOpen(false); setFullReactOpen(true); }}
               className="grid h-9 w-9 place-items-center rounded-lg text-[#8b93a1] transition hover:bg-white/[0.06] hover:text-[#8dbcff] active:scale-90"
             >
@@ -371,14 +371,14 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setConfirmDel(false)} />
           <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-[#111114] p-5 soft-shadow">
-            <h3 className="text-lg font-extrabold text-[#f4f6f8]">Message delete karein?</h3>
-            <p className="mt-1 text-sm text-[#b6bcc7]">{(mine || staff) ? "Apne liye hatao ya sab ke liye delete karo." : "Ye message sirf aapke liye hatayega."}</p>
+            <h3 className="text-lg font-extrabold text-[#f4f6f8]">Delete message?</h3>
+            <p className="mt-1 text-sm text-[#b6bcc7]">{(mine || staff) ? "Remove it for yourself or delete it for everyone." : "This will only remove the message for you."}</p>
             <div className="mt-4 space-y-2">
-              <button onClick={doDeleteForMe} className="btn btn-ghost w-full px-4 py-2.5 text-sm">Mere liye hatao</button>
+              <button onClick={doDeleteForMe} className="btn btn-ghost w-full px-4 py-2.5 text-sm">Delete for me</button>
               {(mine || staff) && (
-                <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Sab ke liye delete</button>
+                <button onClick={doDelete} className="btn btn-danger w-full px-4 py-2.5 text-sm">Delete for everyone</button>
               )}
-              <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#8b93a1] hover:text-[#f4f6f8]">Rehne do</button>
+              <button onClick={() => setConfirmDel(false)} className="w-full px-4 py-2 text-sm font-semibold text-[#8b93a1] hover:text-[#f4f6f8]">Cancel</button>
             </div>
           </div>
         </>
@@ -387,7 +387,7 @@ function MessageItem({ m, member, prevSame, query = "", replySrc = null }: { m: 
 
       {m.type === "announcement" ? (
         <div className="card my-2 border-[#4f8cff]/30 bg-gradient-to-r from-[#4f8cff]/[0.07] to-[#3b76d6]/[0.07] p-3.5">
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-[#8dbcff]">📢 Elaan · {name}</p>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-[#8dbcff]">📢 Announcement · {name}</p>
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#f4f6f8]">{m.text}</p>
         </div>
       ) : m.type === "text" ? (
@@ -472,7 +472,7 @@ function MsgBody({ m, query = "", mine = false }: { m: Message; query?: string; 
   if (m.type === "location") return <LocationCard m={m} />;
   if (m.type === "contact") return <ContactCard m={m} />;
   if (m.type === "file") return <FileCard m={m} />;
-  if (m.type !== "text" && m.text && m.text.startsWith("{")) return <p className="text-sm italic text-[#8b93a1]">Ye message ab supported nahi hai</p>;
+  if (m.type !== "text" && m.text && m.text.startsWith("{")) return <p className="text-sm italic text-[#8b93a1]">This message is no longer supported</p>;
   const urls = extractUrls(m.text);
   return (
     <>
@@ -512,7 +512,7 @@ function LocationCard({ m }: { m: Message }) {
           <span className="block text-sm font-bold text-[#f4f6f8]">Location</span>
           <span className="block truncate text-xs tabular-nums text-[#8b93a1]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
         </span>
-        <span className="shrink-0 text-xs font-bold text-[#8dbcff]">Kholo →</span>
+        <span className="shrink-0 text-xs font-bold text-[#8dbcff]">Open →</span>
       </span>
       <span className="block px-3.5 pb-2 text-[10px] text-[#8b93a1]">© OpenStreetMap contributors</span>
     </a>
@@ -554,13 +554,13 @@ function Reactions({ m, meId, onReact }: { m: Message; meId: string; onReact?: (
             <button
               key={emoji}
               onClick={() => { toggleReaction(m.id, emoji); onReact?.(emoji); }}
-              title={mine ? "Hatane ke liye tap karo" : "React karo"}
+              title={mine ? "Tap to remove your reaction" : "React"}
               className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm ${mine ? "border-[#4f8cff] bg-[#4f8cff]/15" : "border-white/10 bg-white/[0.04] hover:border-black/25"}`}
             >
               <span>{emoji}</span>
               <span
                 onClick={(e) => { e.stopPropagation(); setListFor(emoji); }}
-                title="Dekho kisne react kiya"
+                title="See who reacted"
                 className="cursor-pointer text-xs font-bold tabular-nums text-[#b6bcc7] hover:text-[#8dbcff] hover:underline"
               >
                 {users.length}
@@ -582,7 +582,7 @@ function ReactionListModal({ m, meId, focusEmoji, onClose }: { m: Message; meId:
     ? [...entries].sort((a, b) => (a[0] === focusEmoji ? -1 : b[0] === focusEmoji ? 1 : 0))
     : entries;
   const nameOf = (id: string) => {
-    if (id === meId) return "Aap";
+    if (id === meId) return "You";
     return members.find((x) => x.id === id)?.name || "Member";
   };
   return (
@@ -606,7 +606,7 @@ function ReactionListModal({ m, meId, focusEmoji, onClose }: { m: Message; meId:
                     <div key={id} className="flex items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-white/[0.05]">
                       {mb ? <Avatar m={mb} size={28} role={mb.role} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-xs"><User size={14} /></span>}
                       <span className="text-sm font-semibold text-[#f4f6f8]">{nameOf(id)}</span>
-                      {id === meId && <span className="text-[11px] text-[#8b93a1]">(aap)</span>}
+                      {id === meId && <span className="text-[11px] text-[#8b93a1]">(you)</span>}
                     </div>
                   );
                 })}
@@ -628,10 +628,10 @@ function SeenByModal({ m, onClose }: { m: Message; onClose: () => void }) {
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[70vh] w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/10 bg-[#111114] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-[#f4f6f8]">Dekha</h3>
+          <h3 className="text-lg font-extrabold text-[#f4f6f8]">Seen by</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
-        <p className="mt-0.5 text-sm text-[#8b93a1]">{readers.length === 0 ? "Abhi kisi ne nahi dekha" : `${readers.length} ne dekha`}</p>
+        <p className="mt-0.5 text-sm text-[#8b93a1]">{readers.length === 0 ? "No one has seen this yet" : `${readers.length} seen`}</p>
         <div className="mt-3 space-y-1">
           {readers.map((id) => {
             const mb = members.find((x) => x.id === id);
@@ -640,7 +640,7 @@ function SeenByModal({ m, onClose }: { m: Message; onClose: () => void }) {
               <div key={id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.05]">
                 <Avatar m={mb} size={32} role={mb.role} />
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#f4f6f8]">{mb.name}</span>
-                <span className="text-xs font-bold text-[#8dbcff]">✓ Dekh liya</span>
+                <span className="text-xs font-bold text-[#8dbcff]">✓ Seen</span>
               </div>
             );
           })}

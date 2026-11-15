@@ -415,7 +415,7 @@ async function insertMessageRow(m: Message, row: Record<string, unknown>, failTi
   }
   // dono attempts fail — rollback
   update({ messages: getState().messages.filter((x) => x.id !== m.id) });
-  toast(failTitle, "Dobara try karo — message save nahi hua");
+  toast(failTitle, "Try again — message wasn't saved");
   return false;
 }
 
@@ -423,14 +423,14 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
   if (!text.trim() || !chatId) return null;
   // Ban check — banned user message nahi bhej sakta
   const meMember = s.members.find((m) => m.id === s.me);
-  if (meMember?.banned) { toast("🚫 Aap ban ho", "Owner ne ban kiya hai"); return null; }
+  if (meMember?.banned) { toast("🚫 You're banned", "The owner banned you"); return null; }
   // Phase 8 — slow mode + auto-mod (owner.ts se, lazy import taake circular na ho)
   try {
     const ow = await import("./owner");
     const slowSec = ow.getCachedSlowMode(chatId);
     if (slowSec > 0) {
       const wait = ow.checkSlowMode(chatId, s.me, slowSec);
-      if (wait > 0) { toast(`Slow mode 🐢`, `${wait}s ruko phir bhejo`); return null; }
+      if (wait > 0) { toast(`Slow mode 🐢`, `${wait}s left — wait before sending`); return null; }
     }
     const bw = ow.getCachedBadWords(chatId);
     if (bw.words.length > 0) {
@@ -441,11 +441,11 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
         if (!staff) {
           if (bw.action === "warn" || bw.action === "both") {
             // chatId pass karo taake system message sahi group me jaye + audit log me entry ho
-            addWarn(s.me, `Banned lafz: "${hit}"`, chatId).catch(() => {});
-            toast("⚠️ Warning", `Mana lafz istemal kiya: "${hit}"`);
+            addWarn(s.me, `Banned word: "${hit}"`, chatId).catch(() => {});
+            toast("⚠️ Warning", `You used a banned word: "${hit}"`);
           }
           if (bw.action === "delete" || bw.action === "both") {
-            toast("Message delete hua 🚫", "Banned lafz tha");
+            toast("Message deleted 🚫", "It contained a banned word");
             return null;
           }
         }
@@ -457,7 +457,7 @@ export async function sendText(chatId: string, text: string, replyTo?: string): 
     id: m.id, chat_id: chatId, sender_id: m.from, type: "text",
     text: m.text, media_url: "", reply_to: replyTo || null,
     created_at: m.at, read_by: [],
-  }, "Message nahi gaya");
+  }, "Message didn't send");
   if (!ok) return null;
   return m;
 }
@@ -479,7 +479,7 @@ export async function sendMedia(chatId: string, file: File, kind: "image" | "voi
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: kind,
     text: caption, media_url: dataUrl, reply_to: null, created_at: m.at, read_by: [],
-  }, "Media nahi gaya");
+  }, "Media didn't send");
   if (!ok) return null;
   return m;
 }
@@ -496,7 +496,7 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
   const s = getState();
   if (!chatId || !file) return null;
   const mb = file.size / (1024 * 1024);
-  if (mb > MAX_FILE_MB) { toast("File bohat bari", `${fmtSize(file.size)} — max ${MAX_FILE_MB}MB`); return null; }
+  if (mb > MAX_FILE_MB) { toast("File too large", `${fmtSize(file.size)} — max ${MAX_FILE_MB}MB`); return null; }
   // Supabase Storage try karo, fail ho to data URL fallback.
   // NOTE: `chat-files` bucket abhi Supabase me bana hi nahi — is liye storage hamesha
   // fail hota hai aur asal files data-URL par atki rehti theen (bari file = insert fail).
@@ -513,7 +513,7 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
   } catch { /* fallback below */ }
   if (!url) {
     if (file.size > 5 * 1024 * 1024) {
-      toast("File nahi gayi", `${file.name} (${fmtSize(file.size)}) — abhi itni bari file nahi ja sakti`);
+      toast("File didn't send", `${file.name} (${fmtSize(file.size)}) — files this large can't be sent yet`);
       return null;
     }
     try {
@@ -524,7 +524,7 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
         r.readAsDataURL(file);
       });
     } catch {
-      toast("File nahi gayi", file.name);
+      toast("File didn't send", file.name);
       return null;
     }
   }
@@ -537,7 +537,7 @@ export async function sendFile(chatId: string, file: File): Promise<Message | nu
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "file",
     text: meta, media_url: url, reply_to: null, created_at: m.at, read_by: [],
-  }, "File nahi gayi");
+  }, "File didn't send");
   if (!ok) return null;
   return m;
 }
@@ -646,7 +646,7 @@ function modChatId(chatId?: string): string {
 }
 export async function setMute(userId: string, until: number | null | undefined, chatId?: string) {
   const cid = modChatId(chatId);
-  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  if (!cid) { toast("Group not found", "Please try again"); return; }
   const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
     if (until === undefined) {
@@ -664,17 +664,17 @@ export async function setMute(userId: string, until: number | null | undefined, 
       if (error) throw error;
     }
   } catch (e: any) {
-    toast("Mute fail hua", e?.message || "Dobara try karo");
+    toast("Mute failed", e?.message || "Please try again");
     return;
   }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, mutedUntil: until } : m)) });
-  try { const { logAudit } = await import("./owner"); await logAudit(until === undefined ? "unmute" : "mute", userId, until === null ? "hamesha" : until === undefined ? "unmute" : new Date(until).toLocaleString(), cid); } catch { /* ignore */ }
+  try { const { logAudit } = await import("./owner"); await logAudit(until === undefined ? "unmute" : "mute", userId, until === null ? "forever" : until === undefined ? "unmute" : new Date(until).toLocaleString(), cid); } catch { /* ignore */ }
   // visibility: group me system message
-  try { await postSystem(cid, until === undefined ? `🔊 ${targetName} unmute ho gaya` : `🔇 ${targetName} mute ho gaya (${until === null ? "hamesha" : "1 ghanta"})`); } catch { /* ignore */ }
+  try { await postSystem(cid, until === undefined ? `🔊 ${targetName} was unmuted` : `🔇 ${targetName} was muted (${until === null ? "forever" : "1 hour"})`); } catch { /* ignore */ }
 }
 export async function setBan(userId: string, banned: boolean, reason = "", chatId?: string) {
   const cid = modChatId(chatId);
-  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  if (!cid) { toast("Group not found", "Please try again"); return; }
   const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
     if (banned) {
@@ -688,16 +688,16 @@ export async function setBan(userId: string, banned: boolean, reason = "", chatI
       if (error) throw error;
     }
   } catch (e: any) {
-    toast("Ban fail hua", e?.message || "Dobara try karo");
+    toast("Ban failed", e?.message || "Please try again");
     return;
   }
   update({ members: getState().members.map((m) => (m.id === userId ? { ...m, banned } : m)) });
   try { const { logAudit } = await import("./owner"); await logAudit(banned ? "ban" : "unban", userId, reason || (banned ? "ban" : "unban"), cid); } catch { /* ignore */ }
-  try { await postSystem(cid, banned ? `🚫 ${targetName} ban ho gaya${reason ? `: ${reason}` : ""}` : `✅ ${targetName} unban ho gaya`); } catch { /* ignore */ }
+  try { await postSystem(cid, banned ? `🚫 ${targetName} was banned${reason ? `: ${reason}` : ""}` : `✅ ${targetName} was unbanned`); } catch { /* ignore */ }
 }
 export async function addWarn(userId: string, reason: string, chatId?: string, silent = false) {
   const cid = modChatId(chatId);
-  if (!cid) { toast("Group nahi mila", "Dobara try karo"); return; }
+  if (!cid) { toast("Group not found", "Please try again"); return; }
   const targetName = getState().members.find((m) => m.id === userId)?.name || "Member";
   try {
     const { data } = await sb().from("warns").select("count").eq("chat_id", cid).eq("user_id", userId).maybeSingle();
@@ -707,7 +707,7 @@ export async function addWarn(userId: string, reason: string, chatId?: string, s
     const { error } = await sb().from("warns").insert({ chat_id: cid, user_id: userId, count: c, reason });
     if (error) throw error;
   } catch (e: any) {
-    if (!silent) toast("Warning fail hui", e?.message || "Dobara try karo");
+    if (!silent) toast("Warning failed", e?.message || "Please try again");
     return;
   }
   const ms = getState().members.map((m) => (m.id === userId ? { ...m, warns: [...m.warns, { reason, at: Date.now() }] } : m));
@@ -715,12 +715,12 @@ export async function addWarn(userId: string, reason: string, chatId?: string, s
   try { const { logAudit } = await import("./owner"); await logAudit("warn", userId, reason, cid); } catch { /* ignore */ }
   // visibility: group me system message — kisne, kya word, warn mili
   if (!silent) {
-    try { await postSystem(cid, `⚠️ ${targetName} ko warning mili: ${reason}`); } catch { /* ignore */ }
+    try { await postSystem(cid, `⚠️ ${targetName} got a warning: ${reason}`); } catch { /* ignore */ }
   }
   const target = ms.find((m) => m.id === userId);
   if (target && target.warns.length >= 3) {
     await setMute(userId, Date.now() + 3600e3, cid);
-    try { await postSystem(cid, `🔇 ${targetName} auto-mute ho gaya (3 warnings)`); } catch { /* ignore */ }
+    try { await postSystem(cid, `🔇 ${targetName} was auto-muted (3 warnings)`); } catch { /* ignore */ }
   }
 }
 export async function setRole(userId: string, role: Role) {
@@ -765,7 +765,7 @@ export async function sendPoll(chatId: string, q: string, opts: string[], endsAt
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "poll",
     text: payload, media_url: "", reply_to: null, created_at: m.at, read_by: [],
-  }, "Poll nahi gaya");
+  }, "Poll didn't send");
   if (!ok) return null;
   return m;
 }
@@ -813,7 +813,7 @@ export async function sendLocation(chatId: string, lat: number, lng: number): Pr
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "location",
     text: m.caption, media_url: "", reply_to: null, created_at: m.at, read_by: [],
-  }, "Location nahi gayi");
+  }, "Location didn't send");
   if (!ok) return null;
   return m;
 }
@@ -826,7 +826,7 @@ export async function sendContact(chatId: string, name: string, phone: string): 
   const ok = await insertMessageRow(m, {
     id: m.id, chat_id: chatId, sender_id: m.from, type: "contact",
     text: m.caption, media_url: "", reply_to: null, created_at: m.at, read_by: [],
-  }, "Contact nahi gaya");
+  }, "Contact didn't send");
   if (!ok) return null;
   return m;
 }
@@ -921,7 +921,7 @@ export async function setGroupPhoto(chatId: string, dataUrl: string) {
   try {
     await sb().from("chats").update({ photo_url: dataUrl }).eq("id", chatId);
   } catch {
-    toast("Photo save nahi hui", "Dobara koshish karo");
+    toast("Photo couldn't be saved", "Please try again");
   }
 }
 
@@ -950,7 +950,7 @@ export async function maybeWelcomeMember(chatId: string, newUserId: string, newU
     const s = getState();
     const m: Message = {
       id: uid("m"), from: me, chatId, type: "text",
-      text: `Assalam-o-Alaikum ${newUserName}! 🌙 Madrasa Group me khush amdeed!`,
+      text: `Welcome, ${newUserName}! 🌙 Glad to have you in the Madrasa Group!`,
       at: Date.now(), reactions: {},
     };
     update({ messages: [...s.messages, m] });
@@ -984,7 +984,7 @@ export async function getGroupInsights(chatId: string): Promise<GroupInsights | 
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      const label = i === 0 ? "Aaj" : i === 1 ? "Kal" : d.toLocaleDateString("ur-Latn", { weekday: "short" });
+      const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString("en-US", { weekday: "short" });
       days.push({ label, count: 0, key });
     }
     const perHour = new Array(24).fill(0);
@@ -1085,8 +1085,8 @@ export function startRealtime() {
         const before = new Set(((prev.reactions as any)[emoji] || []) as string[]);
         for (const u of users as string[]) {
           if (u !== st.me && !before.has(u)) {
-            const nm = st.members.find((x) => x.id === u)?.name || "Kisi ne";
-            toast(`${nm} ne ${emoji} react kiya`, "Tumhare message par");
+            const nm = st.members.find((x) => x.id === u)?.name || "Someone";
+            toast(`${nm} reacted ${emoji}`, "To your message");
             break outer;
           }
         }
@@ -1121,7 +1121,7 @@ export function startRealtime() {
         meta = { id: p.new.id, type: "dm" as const, name: other?.name || p.new.name || "Chat", photo: other?.avatar || p.new.photo_url || "", otherId, lastAt: Date.now() };
       }
       update((st) => st.chats.some((c) => c.id === meta.id) ? {} : { chats: [...st.chats, meta] });
-      toast(isGroup ? "Naya group 📢" : "Nayi DM 💬", meta.name);
+      toast(isGroup ? "New group 📢" : "New DM 💬", meta.name);
     } catch { /* ignore */ }
   });
   // chats DELETE: group delete hua — list se hatao
@@ -1136,7 +1136,7 @@ export function startRealtime() {
       messages: st.messages.filter((m) => m.chatId !== id),
     }));
     if (s.ui.activeChatId === id) patchUI({ activeChatId: s.chats.find((c) => c.id !== id)?.id || null, groupInfo: null });
-    toast("Group delete ho gaya 🗑️", gone?.name || "");
+    toast("Group deleted 🗑️", gone?.name || "");
   });
   // chat_participants INSERT: humein kisi chat me add kiya — chat details lao
   ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_participants" }, async (p: any) => {
@@ -1187,7 +1187,7 @@ export function startRealtime() {
       const meM = st.members.find((x) => x.id === st.me);
       const staff = meM && (meM.role === "owner" || meM.role === "admin" || meM.role === "mod");
       if (!staff || !MAIN_GROUP_ID) return;
-      const nm = p.new?.display_name || "Dost";
+      const nm = p.new?.display_name || "Friend";
       // thodi delay taake profile poori tarah ban jaye, phir welcome
       setTimeout(() => { maybeWelcomeMember(MAIN_GROUP_ID, p.new.id, nm); }, 4000);
     } catch { /* ignore */ }
@@ -1243,7 +1243,7 @@ export function startRealtime() {
       // Phase 8 — slow mode realtime (sab users ke local cache me)
       const cid = key.replace(/^slowmode_/, "");
       try { localStorage.setItem(`chatsapp:slowmode:${cid}`, String(Number(p.new?.value) || 0)); } catch { /* ignore */ }
-      if (Number(p.new?.value) > 0) toast("Slow mode 🐢", `Har ${p.new.value}s me 1 message`);
+      if (Number(p.new?.value) > 0) toast("Slow mode 🐢", `1 message every ${p.new.value}s`);
     } else if (typeof key === "string" && key.startsWith("badwords_")) {
       // Phase 8 — auto-mod realtime
       const cid = key.replace(/^badwords_/, "");

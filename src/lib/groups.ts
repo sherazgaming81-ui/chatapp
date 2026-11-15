@@ -51,10 +51,10 @@ export async function createGroup(name: string, desc: string, memberIds: string[
       groupDescs: desc.trim() ? { ...cur.groupDescs, [chatId]: desc.trim() } : cur.groupDescs,
     });
     patchUI({ tab: "chat", activeChatId: chatId, replyTo: null, mobileDrawer: "none", createGroupOpen: false, groupInfo: { chatId, view: "info" } });
-    toast("Group ban gaya 🎉", clean);
+    toast("Group created 🎉", clean);
     return chatId;
   } catch (e) {
-    toast("Group nahi bana", "Internet check karke dobara koshish karo");
+    toast("Couldn't create the group", "Check your internet and try again");
     return null;
   }
 }
@@ -64,7 +64,7 @@ export async function deleteGroup(chatId: string): Promise<boolean> {
   const s = getState();
   if (!chatId || chatId === MAIN_GROUP_ID) return false;
   const me = s.members.find((m) => m.id === s.me);
-  if (me?.role !== "owner") { toast("Sirf owner delete kar sakta hai"); return false; }
+  if (me?.role !== "owner") { toast("Only the owner can delete"); return false; }
   try {
     // order: participants → messages → settings → chats
     try { await sb().from("chat_participants").delete().eq("chat_id", chatId); } catch { /* ignore */ }
@@ -86,10 +86,10 @@ export async function deleteGroup(chatId: string): Promise<boolean> {
       pins, groupRules, groupDescs,
     });
     patchUI({ groupInfo: null, tab: "chat", activeChatId: MAIN_GROUP_ID || cur.chats.find((c) => c.id !== chatId)?.id || null });
-    toast("Group delete ho gaya 🗑️");
+    toast("Group deleted 🗑️");
     return true;
   } catch {
-    toast("Delete nahi hua", "Dobara koshish karo");
+    toast("Couldn't delete", "Please try again");
     return false;
   }
 }
@@ -143,8 +143,8 @@ export async function openDM(otherId: string): Promise<void> {
     const cur = getState();
     update({ chats: [...cur.chats, meta] });
     patchUI({ tab: "chat", activeChatId: chatId, replyTo: null, mobileDrawer: "none", profileId: null, groupInfo: null });
-    toast("DM khul gayi 💬", other?.name || "");
+    toast("DM opened 💬", other?.name || "");
   } catch {
-    toast("DM nahi khuli", "Internet check karke dobara koshish karo");
+    toast("Couldn't open the DM", "Check your internet and try again");
   }
 }

@@ -19,16 +19,16 @@ export default function Login() {
           className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#4f8cff] to-[#3b76d6] soft-shadow"
           style={{ animation: "floaty 4s ease-in-out infinite" }}
         >
-          <span className="text-4xl font-bold text-white">م</span>
+          <span className="text-4xl font-bold text-white">M</span>
         </div>
-        <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.14em] text-[#8dbcff]">Madrasa doston ke liye</p>
+        <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.14em] text-[#8dbcff]">For madrasa friends</p>
         <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight text-[#f4f6f8] sm:text-5xl">
-          Baatein,
+          Conversations,
           <br />
-          <span className="bg-gradient-to-r from-[#4f8cff] to-[#3b76d6] bg-clip-text text-transparent">ab aur qareeb</span>
+          <span className="bg-gradient-to-r from-[#4f8cff] to-[#3b76d6] bg-clip-text text-transparent">now closer.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-xs text-[15px] leading-relaxed text-[#b6bcc7]">
-          Apne madrasa group se juro — elaan, baatein aur dost, sab ek jagah.
+          Connect with your madrasa group — announcements, conversations and friends, all in one place.
         </p>
         <button
           onClick={go}
@@ -41,9 +41,9 @@ export default function Login() {
             <path fill="#fff" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4L1.4 6.8C.5 8.5 0 10.2 0 12s.5 3.5 1.4 5.2l3.8-2.8z" opacity=".8" />
             <path fill="#fff" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.4 0 3.4 2.6 1.4 6.8l3.8 2.9c1-2.9 3.7-5 6.8-5z" opacity=".85" />
           </svg>
-          {busy ? "Khul raha hai…" : "Google se login"}
+          {busy ? "Opening…" : "Continue with Google"}
         </button>
-        <p className="mt-5 text-xs text-[#8b93a1]">Sirf Google account se — koi password yaad rakhne ki zaroorat nahi.</p>
+        <p className="mt-5 text-xs text-[#8b93a1]">Google account only — no password to remember.</p>
       </div>
     </div>
   );

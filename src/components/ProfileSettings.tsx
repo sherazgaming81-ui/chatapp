@@ -57,25 +57,25 @@ function ProfileTab({ onClose }: { onClose: () => void }) {
   const pick = async (f: File | undefined) => {
     if (!f || !f.type.startsWith("image/")) return;
     try { setPhoto(await resizePhoto(f)); }
-    catch { toast("Photo nahi khuli", "Doosri try karo"); }
+    catch { toast("Couldn't open photo", "Try another one"); }
   };
   const save = async () => {
     const nm = name.trim();
-    if (!nm) { toast("Naam khaali nahi ho sakta", ""); return; }
+    if (!nm) { toast("Name can't be empty", ""); return; }
     setSaving(true);
     try {
       await supabase().from("profiles").update({ display_name: nm, about: about.trim(), photo_url: photo || "" }).eq("id", meId);
     } catch { /* offline — local still updates */ }
     update({ members: getState().members.map((m) => (m.id === meId ? { ...m, name: nm, about: about.trim(), avatar: photo } : m)) });
     setSaving(false);
-    toast("Profile save ho gaya", "");
+    toast("Profile saved", "");
     onClose();
   };
 
   return (
     <div>
       <div className="mb-4 flex justify-center">
-        <button onClick={() => file.current?.click()} className="group relative" title="Photo badlo">
+        <button onClick={() => file.current?.click()} className="group relative" title="Change photo">
           <Avatar m={{ id: meId, name: name || "?", avatar: photo, online: true }} size={84} />
           <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 opacity-0 transition group-hover:opacity-100">
             <Camera size={22} className="text-white" />
@@ -83,12 +83,12 @@ function ProfileTab({ onClose }: { onClose: () => void }) {
         </button>
         <input ref={file} hidden type="file" accept="image/*" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
       </div>
-      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Naam</label>
-      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="Aapka naam" className="field mb-3 w-full px-3 py-2.5 text-[15px]" />
+      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Name</label>
+      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="Your name" className="field mb-3 w-full px-3 py-2.5 text-[15px]" />
       <label className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">About</label>
-      <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={2} placeholder="Apne baare me kuch…" className="field mb-4 w-full resize-none px-3 py-2.5 text-[15px]" />
+      <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={120} rows={2} placeholder="A little about you…" className="field mb-4 w-full resize-none px-3 py-2.5 text-[15px]" />
       <button onClick={save} disabled={saving} className="btn btn-blurple flex w-full items-center justify-center gap-2 px-4 py-3 text-[15px] disabled:opacity-60">
-        <Check size={17} /> {saving ? "Save ho raha…" : "Save karo"}
+        <Check size={17} /> {saving ? "Saving…" : "Save"}
       </button>
       <button onClick={() => signOut()} className="btn mt-2 flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm text-[#ed4245] hover:bg-[#ed4245]/10">
         <LogOut size={16} /> Logout
@@ -134,12 +134,12 @@ function PrivacyTab() {
 
   return (
     <div className="space-y-2.5">
-      <p className="flex items-center gap-2 text-xs text-[#8b93a1]"><Eye size={14} /> Kaun kya dekh sakta hai — ye control karo {saving && "· saving…"}</p>
-      <AudienceRow label="Last seen" desc="Aap kab online thay" value={pr.lastSeen} onChange={(v) => change("lastSeen", v)} />
-      <AudienceRow label="Profile photo" desc="Aapki photo kaun dekhe" value={pr.photo} onChange={(v) => change("photo", v)} />
-      <AudienceRow label="About" desc="Aapka about kaun parhe" value={pr.about} onChange={(v) => change("about", v)} />
-      <AudienceRow label="Online status" desc="Online dot kaun dekhe" value={pr.online} onChange={(v) => change("online", v)} />
-      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#8b93a1]"><EyeOff size={12} /> "Nobody" par koi nahi dekh payega — aapko bhi unka nahi dikhega jinhon ne nobody kiya</p>
+      <p className="flex items-center gap-2 text-xs text-[#8b93a1]"><Eye size={14} /> Control who can see what {saving && "· saving…"}</p>
+      <AudienceRow label="Last seen" desc="When you were last online" value={pr.lastSeen} onChange={(v) => change("lastSeen", v)} />
+      <AudienceRow label="Profile photo" desc="Who sees your photo" value={pr.photo} onChange={(v) => change("photo", v)} />
+      <AudienceRow label="About" desc="Who can read your about" value={pr.about} onChange={(v) => change("about", v)} />
+      <AudienceRow label="Online status" desc="Who sees your online dot" value={pr.online} onChange={(v) => change("online", v)} />
+      <p className="flex items-center gap-1.5 pt-1 text-[11px] text-[#8b93a1]"><EyeOff size={12} /> "Nobody" means no one can see it — and you won't see theirs either if they've also chosen Nobody</p>
     </div>
   );
 }
@@ -163,12 +163,12 @@ function LockTab() {
       if (step === "set1") {
         setStep("set2");
       } else {
-        if (cur !== first) { setErr("PIN match nahi hua — dobara try karo"); setSecond(""); return; }
+        if (cur !== first) { setErr("PINs don't match — try again"); setSecond(""); return; }
         setBusy(true);
         await setPin(cur);
         setBusy(false);
         setLocked(true); setStep("idle"); setFirst(""); setSecond("");
-        toast("App Lock on ho gaya", "Ab PIN ke baghair app nahi khulegi");
+        toast("App Lock is on", "The app won't open without your PIN now");
       }
     }
   };
@@ -177,7 +177,7 @@ function LockTab() {
   const remove = () => {
     clearPin();
     setLocked(false);
-    toast("App Lock hata diya", "");
+    toast("App Lock removed", "");
   };
 
   if (!locked && step === "idle") {
@@ -185,9 +185,9 @@ function LockTab() {
       <div className="py-6 text-center">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Lock size={28} className="text-[#8dbcff]" /></span>
         <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">4-digit PIN lagao — app khulne par ya 5 min inactive ke baad PIN mangega</p>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">Set a 4-digit PIN — the app will ask for it on open, or after 5 minutes of inactivity</p>
         <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn btn-blurple mt-4 px-6 py-2.5 text-sm">
-          <KeyRound size={15} /> PIN set karo
+          <KeyRound size={15} /> Set PIN
         </button>
       </div>
     );
@@ -197,11 +197,11 @@ function LockTab() {
     return (
       <div className="py-6 text-center">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#23a55a]/10"><Shield size={28} className="text-[#23a55a]" /></span>
-        <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock ON hai</h4>
-        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">PIN bhool gaye? Logout karke Google se dobara login karo — PIN reset ho jayega</p>
+        <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">App Lock is ON</h4>
+        <p className="mx-auto mt-1 max-w-[260px] text-xs text-[#8b93a1]">Forgot your PIN? Log out and sign in with Google again — your PIN will be reset</p>
         <div className="mt-4 flex justify-center gap-2">
-          <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn px-4 py-2 text-sm">PIN badlo</button>
-          <button onClick={remove} className="btn flex items-center gap-1.5 px-4 py-2 text-sm text-[#ed4245] hover:bg-[#ed4245]/10"><Trash2 size={14} /> Hatao</button>
+          <button onClick={() => { setStep("set1"); setFirst(""); setSecond(""); setErr(""); }} className="btn px-4 py-2 text-sm">Change PIN</button>
+          <button onClick={remove} className="btn flex items-center gap-1.5 px-4 py-2 text-sm text-[#ed4245] hover:bg-[#ed4245]/10"><Trash2 size={14} /> Remove</button>
         </div>
       </div>
     );
@@ -209,7 +209,7 @@ function LockTab() {
 
   return (
     <div className="py-2 text-center">
-      <p className="text-sm font-bold text-[#f4f6f8]">{step === "set1" ? "Naya 4-digit PIN dalo" : "PIN dobara dalo (confirm)"}</p>
+      <p className="text-sm font-bold text-[#f4f6f8]">{step === "set1" ? "Enter a new 4-digit PIN" : "Re-enter PIN (confirm)"}</p>
       <div className="mt-3 flex justify-center gap-2.5">
         {[0, 1, 2, 3].map((i) => (
           <span key={i} className={`grid h-12 w-12 place-items-center rounded-xl border-2 text-xl font-extrabold ${phase[i] ? "border-[#4f8cff] bg-[#4f8cff]/5 text-[#f4f6f8]" : "border-white/10 bg-white/[0.04] text-transparent"}`}>•</span>
@@ -242,7 +242,7 @@ function AppearanceTab() {
     const v = !compact;
     setC(v);
     setCompact(v);
-    toast(v ? "Compact mode ON" : "Comfortable mode ON", v ? "Zyada messages ek screen par" : "");
+    toast(v ? "Compact mode ON" : "Comfortable mode ON", v ? "More messages on one screen" : "");
   };
 
   /* 1 — notification sound toggle 🔊 */
@@ -260,7 +260,7 @@ function AppearanceTab() {
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
           <p className="text-sm font-bold text-[#f4f6f8]">Compact mode</p>
-          <p className="text-xs text-[#8b93a1]">Chhoti bubbles, zyada messages</p>
+          <p className="text-xs text-[#8b93a1]">Smaller bubbles, more messages</p>
         </div>
         <button onClick={toggleCompact} className={`relative h-7 w-12 shrink-0 rounded-full transition ${compact ? "bg-[#4f8cff]" : "bg-white/15"}`}>
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${compact ? "left-6" : "left-1"}`} />
@@ -271,7 +271,7 @@ function AppearanceTab() {
       <div className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
         <div>
           <p className="text-sm font-bold text-[#f4f6f8]">Notification sound 🔊</p>
-          <p className="text-xs text-[#8b93a1]">Naya message aye to pop sound</p>
+          <p className="text-xs text-[#8b93a1]">Play a pop sound when a new message arrives</p>
         </div>
         <button onClick={toggleSound} className={`relative h-7 w-12 shrink-0 rounded-full transition ${sound ? "bg-[#4f8cff]" : "bg-white/15"}`} aria-label="Notification sound">
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${sound ? "left-6" : "left-1"}`} />
@@ -321,9 +321,9 @@ function BackupTab() {
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       markBackupDone();
       setLast(Date.now());
-      toast("Backup download ho gaya", `${data.meta.messageCount} messages`);
+      toast("Backup downloaded", `${data.meta.messageCount} messages`);
     } catch {
-      toast("Backup nahi hua", "Dobara try karo");
+      toast("Backup failed", "Please try again");
     }
     setBusy(false);
   };
@@ -333,15 +333,15 @@ function BackupTab() {
       <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#4f8cff]/15"><Database size={28} className="text-[#8dbcff]" /></span>
       <h4 className="mt-3 text-base font-extrabold text-[#f4f6f8]">Chat Backup</h4>
       <p className="mx-auto mt-1 max-w-[280px] text-xs text-[#8b93a1]">
-        Sari chats ka JSON backup download karo. Sirf aapke device par save hoga — server par kuch upload nahi hota.
+        Download a JSON backup of all your chats. It's saved only on your device — nothing is uploaded to a server.
       </p>
       {last > 0 && (
         <p className="mt-2 text-xs font-semibold text-[#23a55a]">
-          Aakhri backup: {new Date(last).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {new Date(last).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+          Last backup: {new Date(last).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {new Date(last).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
         </p>
       )}
       <button onClick={download} disabled={busy} className="btn btn-blurple mt-4 flex items-center gap-2 px-6 py-3 text-sm disabled:opacity-60">
-        <Download size={16} /> {busy ? "Ban raha…" : "Backup download karo"}
+        <Download size={16} /> {busy ? "Preparing…" : "Download backup"}
       </button>
     </div>
   );

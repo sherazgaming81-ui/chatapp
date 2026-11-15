@@ -131,7 +131,7 @@ export default function App() {
       try {
         await load(sess.user.id, sess.user.email || "");
       } catch {
-        toast("Load nahi hua", "Dobara try karo");
+        toast("Couldn't load", "Please try again");
       }
       if (cancelled) return;
       // premium loader stays a full 3s from boot — identical on mobile and web
@@ -233,7 +233,7 @@ export default function App() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
           </span>
-          Offline ho — reconnecting… 📡
+          You're offline — reconnecting… 📡
         </div>
       )}
       <div className={`flex min-h-0 min-w-0 flex-1 ${compactCls}`}>

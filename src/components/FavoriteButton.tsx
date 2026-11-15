@@ -22,8 +22,8 @@ export default function FavoriteButton({
   return (
     <button
       type="button"
-      aria-label={fav ? "Favorite se hatao" : "Favorite me save karo"}
-      title={fav ? "Favorite se hatao" : "Favorite me save karo"}
+      aria-label={fav ? "Remove from favorites" : "Save to favorites"}
+      title={fav ? "Remove from favorites" : "Save to favorites"}
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();

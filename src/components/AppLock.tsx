@@ -71,15 +71,15 @@ export default function AppLock() {
       setLocked(false);
       setPin("");
     } else {
-      setErr("Ghalat PIN — dobara try karo");
+      setErr("Wrong PIN — try again");
       setPin("");
     }
   };
 
   const forgot = async () => {
-    if (!window.confirm("PIN bhool gaye? Logout karke Google se dobara login karo — PIN reset ho jayega.")) return;
+    if (!window.confirm("Forgot your PIN? Log out and sign in with Google again — your PIN will be reset.")) return;
     clearPin();
-    toast("PIN reset ho gaya", "Dobara login karo");
+    toast("PIN has been reset", "Please log in again");
     await signOut();
   };
 
@@ -91,7 +91,7 @@ export default function AppLock() {
         <Lock size={36} className="text-white" />
       </span>
       <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-white">ChatsApp</h2>
-      <p className="mt-1 text-sm text-white/60">Jaari rakhne ke liye PIN dalo</p>
+      <p className="mt-1 text-sm text-white/60">Enter your PIN to continue</p>
 
       <div className="mt-6 flex gap-3">
         {[0, 1, 2, 3].map((i) => (
@@ -120,7 +120,7 @@ export default function AppLock() {
       </div>
 
       <button onClick={forgot} className="mt-6 text-sm font-bold text-white/50 hover:text-white/80">
-        PIN bhool gaye?
+        Forgot PIN?
       </button>
     </div>
   );

@@ -187,7 +187,7 @@ export function scheduleAnnouncement(text: string, chatIds: string[], at: number
     localStorage.setItem(SCHED_KEY, JSON.stringify(cur));
   } catch { /* ignore */ }
   emitSched();
-  toast("Schedule ho gaya ⏰", new Date(at).toLocaleString());
+  toast("Scheduled ⏰", new Date(at).toLocaleString());
   return item;
 }
 export function cancelScheduled(id: string): void {
@@ -221,7 +221,7 @@ export function startScheduler(): void {
         localStorage.setItem(SCHED_KEY, JSON.stringify(rest));
         for (const d of due) {
           await broadcast(d.text, d.chatIds);
-          toast("⏰ Scheduled elaan bhej diya", d.text.slice(0, 50));
+          toast("⏰ Scheduled announcement sent", d.text.slice(0, 50));
         }
         emitSched();
       }
@@ -263,17 +263,17 @@ export function topContributors(limit = 5): { id: string; name: string; count: n
 
 /* ═══════════ H14 — ROLE MANAGER ═══════════ */
 export const ROLES: { id: Role; label: string; desc: string }[] = [
-  { id: "owner", label: "Owner 👑", desc: "Sab kuch — full control" },
-  { id: "admin", label: "Admin 🛡️", desc: "Mute/ban/warn + elaan" },
+  { id: "owner", label: "Owner 👑", desc: "Everything — full control" },
+  { id: "admin", label: "Admin 🛡️", desc: "Mute/ban/warn + announcements" },
   { id: "mod", label: "Mod 🔧", desc: "Mute/warn, messages manage" },
-  { id: "member", label: "Member 🙂", desc: "Chat kar sakta hai" },
+  { id: "member", label: "Member 🙂", desc: "Can chat" },
 ];
 export async function changeRole(userId: string, role: Role): Promise<void> {
   const { setRole } = await import("./db");
   const prev = getState().members.find((m) => m.id === userId)?.role;
   await setRole(userId, role);
   await logAudit("role", userId, `${prev || "?"} → ${role}`);
-  toast("Role badal diya", `${role}`);
+  toast("Role updated", `${role}`);
 }
 
 /* ═══════════ SETTINGS PRELOAD (sab users ke liye) ═══════════ */
@@ -296,11 +296,11 @@ export async function preloadOwnerSettings(chatIds: string[]): Promise<void> {
 export const CHANGELOG: { v: string; date: string; items: string[] }[] = [
   {
     v: "Phase 8", date: "16 Oct 2026",
-    items: ["Owner superpowers: analytics, broadcast, scheduled elaan, pin manager, slow mode, role manager, auto-mod, audit log"],
+    items: ["Owner superpowers: analytics, broadcast, scheduled announcements, pin manager, slow mode, role manager, auto-mod, audit log"],
   },
   {
     v: "Phase 7", date: "16 Oct 2026",
-    items: ["Games: deen quiz, tic-tac-toe, daily paheli, Hinglish stickers", "Group banao/delete karo, direct DM"],
+    items: ["Games: religion quiz, tic-tac-toe, daily riddles, Hinglish stickers", "Create/delete groups, direct DMs"],
   },
   {
     v: "Phase 6", date: "16 Oct 2026",

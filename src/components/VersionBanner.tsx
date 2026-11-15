@@ -33,17 +33,17 @@ export default function VersionBanner() {
   return (
     <div className="version-banner z-[100] flex shrink-0 items-center justify-center gap-2.5 bg-gradient-to-r from-[#4f8cff] to-[#3b76d6] px-4 py-2.5 text-sm font-bold text-white soft-shadow">
       <Sparkles size={16} className="shrink-0" />
-      <span className="truncate">🎉 Naya version aaya hai!</span>
+      <span className="truncate">🎉 A new version is available!</span>
       <button
         onClick={() => window.location.reload()}
         className="shrink-0 rounded-full bg-white px-3.5 py-1 text-xs font-extrabold text-[#8dbcff] transition hover:bg-white/90 active:scale-95"
       >
-        Update karo
+        Update now
       </button>
       <button
         onClick={() => { dismissed.current = true; setShow(false); }}
         className="shrink-0 rounded-full p-1 text-white/80 hover:bg-white/15 hover:text-white"
-        aria-label="Band karo"
+        aria-label="Close"
       >
         <X size={14} />
       </button>

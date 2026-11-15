@@ -47,8 +47,8 @@ export default function Sidebar() {
               <button
                 onClick={() => patchUI({ createGroupOpen: true })}
                 className="rounded-md p-1 text-[#8b93a1] hover:bg-white/[0.06] hover:text-[#8dbcff]"
-                title="Naya group banao"
-                aria-label="Naya group banao"
+                title="Create new group"
+                aria-label="Create new group"
               >
                 <Plus size={15} strokeWidth={2.5} />
               </button>
@@ -68,9 +68,9 @@ export default function Sidebar() {
                 <UnreadBadge count={unread[g.id] || 0} />
               </button>
             ))}
-            <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#8b93a1]/50" title="Jald aa raha hai">
+            <button className="mb-3 flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[15px] font-medium text-[#8b93a1]/50" title="Coming soon">
               <Volume2 size={18} className="shrink-0 opacity-70" />
-              <span className="truncate">elaan-voice</span>
+              <span className="truncate">voice-announcements</span>
             </button>
           </>
         )}
@@ -97,7 +97,7 @@ export default function Sidebar() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[14px] font-semibold ${active ? "text-white" : "text-[#f4f6f8]"}`}>{other?.name || dm.name}</span>
-                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#8b93a1]"}`}>{lm.from === meId ? "Aap: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
+                    {lm && <span className={`block truncate text-xs ${active ? "text-white/70" : "text-[#8b93a1]"}`}>{lm.from === meId ? "You: " : ""}{lm.text || (lm.type === "image" ? "📷 Photo" : lm.type === "voice" ? "🎙️ Voice" : lm.type === "poll" ? "📊 Poll" : lm.type === "location" ? "📍 Location" : lm.type === "contact" ? "👤 Contact" : "")} · {fmtTime(lm.at)}</span>}
                   </span>
                   {isChatPinned(dm.id) && <Pin size={13} className="shrink-0 opacity-60" />}
                   {isChatMuted(dm.id) && <VolumeX size={13} className="shrink-0 opacity-60" />}

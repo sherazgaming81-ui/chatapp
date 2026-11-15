@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ChatsApp",
-  description: "Madrasa doston ke liye apni chat — tez, saaf, apni.",
+  description: "Your own chat for madrasa friends — fast, clean and private.",
   icons: {
     icon: "/favicon.png",
     apple: "/apple-touch-icon.png",
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ur-Latn" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

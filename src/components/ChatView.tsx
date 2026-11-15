@@ -49,7 +49,7 @@ function SelectActionBar({ activeChatId }: { activeChatId: string | undefined })
       if (mine || staff) await deleteMessage(m.id);
       else hideMessageForMe(m.id);
     }
-    toast(`${msgs.length} message delete`, "");
+    toast(`${msgs.length} messages deleted`, "");
     clear();
   };
   const doStar = () => {
@@ -63,7 +63,7 @@ function SelectActionBar({ activeChatId }: { activeChatId: string | undefined })
       if (!m || m.deleted || m.type !== "text" || !m.text) continue;
       await sendText(activeChatId, `↪️ ${m.text}`);
     }
-    toast(`${msgs.length} forward ho gaya`, "");
+    toast(`${msgs.length} messages forwarded`, "");
     clear();
   };
   return (
@@ -317,22 +317,22 @@ export default function ChatView() {
           <button
             onClick={() => activeChatId && patchUI({ groupInfo: { chatId: activeChatId, view: "info" } })}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-white/[0.05] active:scale-[0.99]"
-            aria-label="Group info kholo"
+            aria-label="Open group info"
           >
             <Hash size={20} className="shrink-0 text-[#8b93a1]" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">{activeChat?.name || "Chat"}</h1>
-              <p className="truncate text-xs text-[#8b93a1]">Group info ke liye tap karo 👆</p>
+              <p className="truncate text-xs text-[#8b93a1]">Tap to see group info 👆</p>
             </div>
           </button>
         )}
         {typer && (
           <span className="hidden items-center gap-1.5 text-xs font-semibold text-[#23a55a] sm:flex">
             <span className="flex gap-0.5"><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /><i className="tdot h-1.5 w-1.5 rounded-full bg-current" /></span>
-            {typer.name.split(" ")[0]} likh raha hai…
+            {typer.name.split(" ")[0]} is typing…
           </span>
         )}
-        <button onClick={() => patchUI({ globalSearchOpen: true })} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Global search" title="Poori app me talash">
+        <button onClick={() => patchUI({ globalSearchOpen: true })} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Global search" title="Search the whole app">
           <Globe size={20} />
         </button>
         <button onClick={() => setSearchOn((v) => !v)} className={`rounded-md p-2 hover:bg-white/[0.06] ${searchOn ? "text-[#8dbcff]" : "text-[#b6bcc7]"}`} aria-label="Search">
@@ -356,15 +356,15 @@ export default function ChatView() {
               if (e.key === "Escape") { setSearchOn(false); setQ(""); }
               if (e.key === "Enter") jumpMatch(e.shiftKey ? -1 : 1);
             }}
-            placeholder="Is chat me dhoondo…"
+            placeholder="Search in this chat…"
             className="field min-w-0 flex-1 px-3 py-1.5 text-sm"
           />
           <span className="w-12 shrink-0 text-center text-xs tabular-nums text-[#8b93a1]">
             {matchIds.length > 0 ? `${qIdx + 1}/${matchIds.length}` : q ? "0" : ""}
           </span>
-          <button onClick={() => jumpMatch(-1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Pichla"><ChevronUp size={18} /></button>
-          <button onClick={() => jumpMatch(1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Agla"><ChevronDown size={18} /></button>
-          <button onClick={() => { setSearchOn(false); setQ(""); }} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Band"><X size={18} /></button>
+          <button onClick={() => jumpMatch(-1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Previous"><ChevronUp size={18} /></button>
+          <button onClick={() => jumpMatch(1)} disabled={matchIds.length === 0} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06] disabled:opacity-30" aria-label="Next"><ChevronDown size={18} /></button>
+          <button onClick={() => { setSearchOn(false); setQ(""); }} className="rounded-md p-1.5 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Close"><X size={18} /></button>
         </div>
       )}
 
@@ -374,7 +374,7 @@ export default function ChatView() {
         <button
           onClick={() => { const p = pinnedMsgs[pinIdx % pinnedMsgs.length]; if (p) { jumpTo(p.id); setPinIdx((i) => i + 1); } }}
           className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-[#4f8cff]/10 px-4 py-1.5 text-left text-[13px] transition hover:bg-[#4f8cff]/[0.16]"
-          title="Pin par jao"
+          title="Go to pinned message"
         >
           <Pin size={14} className="shrink-0 text-[#8dbcff]" />
           <span className="min-w-0 flex-1 truncate text-[#b6bcc7]">
@@ -417,8 +417,8 @@ export default function ChatView() {
             <div className="grid h-16 w-16 place-items-center rounded-full bg-[#4f8cff]/15">
               {isDM ? <span className="text-2xl">👋</span> : <Hash size={28} className="text-[#8dbcff]" />}
             </div>
-            <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#f4f6f8]">{isDM ? `Ye ${dmOther?.name || "dost"} se baat ki shuruaat hai` : `Welcome to ${activeChat?.name || "group"}!`}</h3>
-            <p className="mt-1.5 max-w-xs text-sm text-[#8b93a1]">Pehla message bhejo — salaam se shuruaat karo 🌙</p>
+            <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#f4f6f8]">{isDM ? `This is the start of your conversation with ${dmOther?.name || "them"}` : `Welcome to ${activeChat?.name || "group"}!`}</h3>
+            <p className="mt-1.5 max-w-xs text-sm text-[#8b93a1]">Send the first message to start the conversation 🌙</p>
           </div>
         ) : (
           sections.map((sec) => (
@@ -462,7 +462,7 @@ export default function ChatView() {
         {typer && (
           <div className="flex items-center gap-3 px-4 pt-2">
             <Avatar m={typer} size={28} role={typer.role} />
-            <span className="text-xs font-semibold text-[#8b93a1]">{typer.name} likh raha hai…</span>
+            <span className="text-xs font-semibold text-[#8b93a1]">{typer.name} is typing…</span>
             <span className="flex gap-1 rounded-xl bg-white/[0.05] px-3 py-2"><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /><i className="tdot h-1.5 w-1.5 rounded-full bg-[#80848e]" /></span>
           </div>
         )}
@@ -478,8 +478,8 @@ export default function ChatView() {
             seenOthersRef.current = othersCount;
           }}
           className="absolute bottom-3 right-3 z-20 grid h-10 w-10 place-items-center rounded-full bg-white text-[#f4f6f8] soft-shadow transition hover:bg-white/[0.05] active:scale-95"
-          aria-label="Neeche jao"
-          title="Neeche jao"
+          aria-label="Scroll down"
+          title="Scroll down"
         >
           <ChevronDown size={20} />
           {newCount > 0 && (

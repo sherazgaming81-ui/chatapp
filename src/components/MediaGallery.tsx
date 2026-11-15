@@ -14,7 +14,7 @@ function senderName(members: any[], id: string) {
 }
 
 function PhotoGrid({ items, members }: { items: Message[]; members: any[] }) {
-  if (items.length === 0) return <Empty label="Koi photo nahi" />;
+  if (items.length === 0) return <Empty label="No photos" />;
   return (
     <div className="grid grid-cols-3 gap-1.5">
       {items.map((m) => (
@@ -35,7 +35,7 @@ function PhotoGrid({ items, members }: { items: Message[]; members: any[] }) {
 }
 
 function AudioList({ items, members }: { items: Message[]; members: any[] }) {
-  if (items.length === 0) return <Empty label="Koi audio nahi" />;
+  if (items.length === 0) return <Empty label="No audio" />;
   return (
     <div className="space-y-2">
       {items.map((m) => (
@@ -58,7 +58,7 @@ function AudioList({ items, members }: { items: Message[]; members: any[] }) {
 }
 
 function LinksList({ items, members }: { items: { msg: Message; url: string }[]; members: any[] }) {
-  if (items.length === 0) return <Empty label="Koi link nahi" />;
+  if (items.length === 0) return <Empty label="No links" />;
   return (
     <div className="space-y-2">
       {items.map(({ msg, url }) => {
@@ -69,7 +69,7 @@ function LinksList({ items, members }: { items: { msg: Message; url: string }[];
             <div className="mb-1 flex items-center gap-2">
               <Link2 size={14} className="shrink-0 text-[#8dbcff]" />
               <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#f4f6f8]">{domain}</p>
-              <a href={url} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-[#8dbcff] hover:bg-[#4f8cff]/15" aria-label="Kholo">
+              <a href={url} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-[#8dbcff] hover:bg-[#4f8cff]/15" aria-label="Open">
                 <ExternalLink size={15} />
               </a>
             </div>
@@ -147,7 +147,7 @@ export default function MediaGallery({ chatId, mode }: { chatId: string; mode: "
         {mode === "files" && tab === "photos" && photos.length > 0 && (
           <div className="mb-3 flex items-center justify-between rounded-2xl bg-[#4f8cff]/[0.07] px-3 py-2">
             <p className="text-xs font-bold text-[#8dbcff]">{photos.length} photos</p>
-            <p className="text-[11px] text-[#8b93a1]">Download ke liye photo kholo 👆</p>
+            <p className="text-[11px] text-[#8b93a1]">Open a photo to download it 👆</p>
           </div>
         )}
 

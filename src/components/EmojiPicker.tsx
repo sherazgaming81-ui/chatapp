@@ -84,7 +84,7 @@ export default function EmojiPicker({
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {list.length === 0 ? (
           <p className="px-2 py-10 text-center text-sm text-[#8b93a1]">
-            {q.trim() ? "Kuch nahi mila" : "Abhi koi recent emoji nahi — koi emoji bhejo!"}
+            {q.trim() ? "Nothing found" : "No recent emojis yet — send an emoji first!"}
           </p>
         ) : (
           <>

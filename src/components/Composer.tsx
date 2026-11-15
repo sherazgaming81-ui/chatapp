@@ -7,17 +7,17 @@ import { isStaff } from "@/lib/types";
 import EmojiPicker from "@/components/EmojiPicker";
 
 // ───────── command palette ─────────
-interface Cmd { name: string; desc: string; usage: string; staff: boolean; hint?: string }
+interface Cmd { name: string; alias?: string; desc: string; usage: string; staff: boolean; hint?: string }
 const COMMANDS: Cmd[] = [
-  { name: "elaan", desc: "Sab ko elaan bhejo", usage: "/elaan <text>", staff: true },
-  { name: "mute", desc: "Member ko 1 ghante ke liye mute", usage: "/mute @naam", staff: true },
-  { name: "unmute", desc: "Member ka mute hatao", usage: "/unmute @naam", staff: true },
-  { name: "warn", desc: "Member ko warning do", usage: "/warn @naam <wajah>", staff: true },
-  { name: "ban", desc: "Member ko group se nikalo", usage: "/ban @naam", staff: true },
-  { name: "unban", desc: "Ban hatao", usage: "/unban @naam", staff: true },
-  { name: "pin", desc: "Reply wale message ko pin karo", usage: "/pin", staff: true, hint: "pehle kisi message par reply karo" },
-  { name: "safai", desc: "Poori chat sab ke liye saaf karo", usage: "/safai", staff: true },
-  { name: "help", desc: "Saare commands dekho", usage: "/help", staff: false },
+  { name: "announce", alias: "elaan", desc: "Send an announcement to everyone", usage: "/announce <text>", staff: true },
+  { name: "mute", desc: "Mute a member for 1 hour", usage: "/mute @name", staff: true },
+  { name: "unmute", desc: "Remove a member's mute", usage: "/unmute @name", staff: true },
+  { name: "warn", desc: "Warn a member", usage: "/warn @name <reason>", staff: true },
+  { name: "ban", desc: "Remove a member from the group", usage: "/ban @name", staff: true },
+  { name: "unban", desc: "Remove a ban", usage: "/unban @name", staff: true },
+  { name: "pin", desc: "Pin the replied-to message", usage: "/pin", staff: true, hint: "reply to a message first" },
+  { name: "clear", alias: "safai", desc: "Clear the whole chat for everyone", usage: "/clear", staff: true },
+  { name: "help", desc: "See all commands", usage: "/help", staff: false },
 ];
 
 function findMemberByName(members: { id: string; name: string }[], raw: string) {
@@ -121,51 +121,51 @@ export default function Composer({ chatId }: { chatId: string }) {
     const parts = raw.slice(1).trim().split(/\s+/);
     const cmdName = (parts[0] || "").toLowerCase();
     const args = raw.slice(1 + parts[0].length).trim();
-    const cmd = COMMANDS.find((c) => c.name === cmdName);
-    if (!cmd) { toast("Aisa koi command nahi", "/help likho"); return true; }
+    const cmd = COMMANDS.find((c) => c.name === cmdName || c.alias === cmdName);
+    if (!cmd) { toast("No such command", "Type /help"); return true; }
     const me = members.find((m) => m.id === meId);
-    if (cmd.staff && !isStaff(me)) { toast("Ye command staff ke liye hai", ""); return true; }
-    const needUser = ["mute", "unmute", "warn", "ban", "unban"].includes(cmdName);
+    if (cmd.staff && !isStaff(me)) { toast("This command is for staff only", ""); return true; }
+    const needUser = ["mute", "unmute", "warn", "ban", "unban"].includes(cmd.name);
     const target = needUser ? findMemberByName(members, args.split(/\s+/)[0] || "") : null;
-    if (needUser && !target) { toast("Member nahi mila", "Naam @ ke sath likho, jaise /mute @Ahmed"); return true; }
-    switch (cmdName) {
-      case "elaan":
-        if (!args) { toast("Text likho", "/elaan <text>"); return true; }
-        postAnnouncement(args); toast("Elaan bhej diya", ""); break;
+    if (needUser && !target) { toast("Member not found", "Use the name with @, e.g. /mute @Ahmed"); return true; }
+    switch (cmd.name) {
+      case "announce":
+        if (!args) { toast("Write the announcement text", "/announce <text>"); return true; }
+        postAnnouncement(args); toast("Announcement sent", ""); break;
       case "mute":
-        setMute(target!.id, Date.now() + 3600e3, chatId); toast("Mute kar diya", `${target!.name} · 1 ghanta`); break;
+        setMute(target!.id, Date.now() + 3600e3, chatId); toast("Muted", `${target!.name} · 1 hour`); break;
       case "unmute":
-        setMute(target!.id, undefined, chatId); toast("Unmute kar diya", target!.name); break;
+        setMute(target!.id, undefined, chatId); toast("Unmuted", target!.name); break;
       case "warn": {
-        const reason = args.split(/\s+/).slice(1).join(" ") || "Group rules torhe";
-        addWarn(target!.id, reason, chatId); toast("Warning de di", `${target!.name} · ${reason}`); break;
+        const reason = args.split(/\s+/).slice(1).join(" ") || "Broke group rules";
+        addWarn(target!.id, reason, chatId); toast("Warning sent", `${target!.name} · ${reason}`); break;
       }
       case "ban":
-        setBan(target!.id, true, "", chatId); toast("Ban kar diya", target!.name); break;
+        setBan(target!.id, true, "", chatId); toast("Banned", target!.name); break;
       case "unban":
-        setBan(target!.id, false, "", chatId); toast("Unban kar diya", target!.name); break;
+        setBan(target!.id, false, "", chatId); toast("Unbanned", target!.name); break;
       case "pin":
-        if (!replyTo) { toast("Pehle reply karo", "Kisi message par reply karke /pin likho"); return true; }
-        togglePin(chatId, replyTo.id); toast("Pin kar diya", ""); break;
-      case "safai": {
+        if (!replyTo) { toast("Reply first", "Reply to a message, then type /pin"); return true; }
+        togglePin(chatId, replyTo.id); toast("Pinned", ""); break;
+      case "clear": {
         const arg = args.trim().toLowerCase();
         if (arg === "all" || arg === "") {
-          if (!window.confirm("Poori chat sab ke liye delete ho jayegi. Pakka saaf karni hai?")) break;
+          if (!window.confirm("The whole chat will be deleted for everyone. Are you sure?")) break;
           const n = await clearChat(chatId);
-          await postSystem(chatId, "🧹 Chat saaf kar di gayi");
-          toast("Chat saaf ho gayi", `${n} messages delete`); break;
+          await postSystem(chatId, "🧹 Chat cleared");
+          toast("Chat cleared", `${n} messages deleted`); break;
         }
         const num = parseInt(arg, 10);
         if (!isNaN(num) && num > 0) {
-          if (!window.confirm(`Aakhri ${num} messages sab ke liye delete ho jayenge. Pakka?`)) break;
+          if (!window.confirm(`The last ${num} messages will be deleted for everyone. Are you sure?`)) break;
           const n = await clearChat(chatId, num);
-          await postSystem(chatId, "🧹 Chat saaf kar di gayi");
-          toast("Chat saaf ho gayi", `${n} messages delete`); break;
+          await postSystem(chatId, "🧹 Chat cleared");
+          toast("Chat cleared", `${n} messages deleted`); break;
         }
-        toast("Ghalat command", "/safai, /safai all, ya /safai 50"); break;
+        toast("Invalid command", "/clear, /clear all, or /clear 50"); break;
       }
       case "help":
-        toast("Commands", "/elaan /mute /unmute /warn /ban /unban /pin /safai [all|N]"); break;
+        toast("Commands", "/announce /mute /unmute /warn /ban /unban /pin /clear [all|N]"); break;
     }
     return true;
   };
@@ -180,7 +180,7 @@ export default function Composer({ chatId }: { chatId: string }) {
 
   const pickCmd = (c: Cmd) => {
     if (c.name === "help") { execCommand("/help"); setText(""); return; }
-    if (c.name === "pin" || c.name === "safai") { execCommand("/" + c.name); setText(""); return; }
+    if (c.name === "pin" || c.name === "clear") { execCommand("/" + c.name); setText(""); return; }
     setText("/" + c.name + " ");
     ta.current?.focus();
   };
@@ -213,12 +213,12 @@ export default function Composer({ chatId }: { chatId: string }) {
 
   // B6 — location flow
   const shareLocation = () => {
-    if (muted || !navigator.geolocation) { toast("Location nahi mil saki", "Browser support nahi karta"); return; }
+    if (muted || !navigator.geolocation) { toast("Couldn't get your location", "Your browser doesn't support it"); return; }
     setLocBusy(true);
     setAttachOpen(false);
     navigator.geolocation.getCurrentPosition(
       (p) => { setLocBusy(false); sendLocation(chatId, p.coords.latitude, p.coords.longitude); },
-      () => { setLocBusy(false); toast("Location nahi mili", "Permission check karo"); },
+      () => { setLocBusy(false); toast("Location not found", "Check location permission"); },
       { timeout: 12000 }
     );
   };
@@ -227,7 +227,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   const pickDeviceContact = async (fill: (n: string, p: string) => void) => {
     try {
       const nav = navigator as any;
-      if (!nav.contacts?.select) { toast("Support nahi", "Naam + number khud likho"); return; }
+      if (!nav.contacts?.select) { toast("Not supported", "Enter the name and number manually"); return; }
       const list = await nav.contacts.select(["name", "tel"], { multiple: false });
       const c = list?.[0];
       if (c) fill(c.name?.[0] || "", c.tel?.[0] || "");
@@ -246,7 +246,7 @@ export default function Composer({ chatId }: { chatId: string }) {
   // Har file type: PDF, DOC, MP4, MP3, ZIP, APK...
   const pickFile = async (f: File | undefined) => {
     if (!f || muted) return;
-    toast("Upload ho rahi…", f.name);
+    toast("Uploading…", f.name);
     await sendFile(chatId, f);
   };
 
@@ -270,7 +270,7 @@ export default function Composer({ chatId }: { chatId: string }) {
       rec.start();
       setRecording(true);
     } catch {
-      toast("Mic nahi khula", "Microphone ki permission do");
+      toast("Mic didn't open", "Allow microphone permission");
     }
   };
   const stopRec = () => mr.current?.state !== "inactive" && mr.current?.stop();
@@ -301,7 +301,7 @@ export default function Composer({ chatId }: { chatId: string }) {
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 text-sm">
           <Reply size={15} className="shrink-0 text-[#8dbcff]" />
           <span className="min-w-0 flex-1 truncate text-[#b6bcc7]">
-            <b className="text-[#f4f6f8]">{replyMember?.name || "Member"}</b> ko reply: {replyTo.text?.slice(0, 60) || (replyTo.type === "image" ? "📷 Photo" : replyTo.type === "voice" ? "🎙️ Voice" : replyTo.type === "poll" ? "📊 Poll" : replyTo.type === "location" ? "📍 Location" : replyTo.type === "contact" ? "👤 Contact" : "media")}
+            <b className="text-[#f4f6f8]">Replying to {replyMember?.name || "Member"}</b>: {replyTo.text?.slice(0, 60) || (replyTo.type === "image" ? "📷 Photo" : replyTo.type === "voice" ? "🎙️ Voice" : replyTo.type === "poll" ? "📊 Poll" : replyTo.type === "location" ? "📍 Location" : replyTo.type === "contact" ? "👤 Contact" : "media")}
           </span>
           <button onClick={() => patchUI({ replyTo: null })} className="rounded-md p-1 text-[#8b93a1] hover:bg-white/10"><X size={15} /></button>
         </div>
@@ -310,25 +310,25 @@ export default function Composer({ chatId }: { chatId: string }) {
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-[#4f8cff]/25 bg-[#4f8cff]/[0.08] px-3 py-2 text-sm">
           <Pencil size={15} className="shrink-0 text-[#8dbcff]" />
           <span className="min-w-0 flex-1 truncate text-[#b6bcc7]">
-            <b className="text-[#f4f6f8]">Edit kar rahe ho</b> · 15 min ke andar
+            <b className="text-[#f4f6f8]">Editing</b> · within 15 min
           </span>
           <button onClick={() => { patchUI({ editingMsg: null }); setText(""); }} className="rounded-md p-1 text-[#8b93a1] hover:bg-white/10" aria-label="Cancel edit"><X size={15} /></button>
         </div>
       )}
       {banned ? (
         <div className="rounded-lg border border-[#ed4245]/30 bg-[#ed4245]/[0.07] px-4 py-3.5 text-center text-sm font-semibold text-[#ed4245]">
-          🚫 Aap ban ho — owner ne ban kiya hai
+          🚫 You're banned — the owner banned you
         </div>
       ) : muted ? (
         <div className="rounded-lg border border-[#ed4245]/30 bg-[#ed4245]/[0.07] px-4 py-3.5 text-center text-sm font-semibold text-[#ed4245]">
-          Aap mute ho — message nahi bhej sakte
+          You're muted — you can't send messages
         </div>
       ) : recording ? (
         <div className="glass-strong flex items-center gap-3 rounded-lg px-4 py-3">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#ed4245]" />
           <span className="text-sm font-bold tabular-nums text-[#f4f6f8]">{Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, "0")}</span>
           <span className="flex-1 text-sm text-[#8b93a1]">Recording…</span>
-          <button onClick={stopRec} className="btn btn-blurple flex items-center gap-1.5 px-4 py-2 text-sm"><Square size={14} /> Bhejo</button>
+          <button onClick={stopRec} className="btn btn-blurple flex items-center gap-1.5 px-4 py-2 text-sm"><Square size={14} /> Send</button>
         </div>
       ) : (
         <div className="glass-strong relative flex items-end gap-1.5 rounded-lg p-2 pl-2">
@@ -374,7 +374,7 @@ export default function Composer({ chatId }: { chatId: string }) {
               }
               if (e.key === "Escape" && showPalette) { setText(""); }
             }}
-            placeholder={editingMsg ? "Message edit karo…" : "Message likho…"}
+            placeholder={editingMsg ? "Edit message…" : "Type a message…"}
             className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] text-[#f4f6f8] outline-none placeholder:text-[#8b93a1]"
           />
           {/* 2 — send button morph: mic ↔ send smooth transition */}
@@ -390,7 +390,7 @@ export default function Composer({ chatId }: { chatId: string }) {
               key={text.trim() ? "send" : "mic"}
               onClick={() => (text.trim() ? send() : startRec())}
               className={`send-morph grid h-11 w-11 place-items-center rounded-full text-white soft-shadow transition ${text.trim() ? "bg-[#4f8cff]" : "bg-[#5c5e66]/70 hover:bg-[#5c5e66]"}`}
-              title={text.trim() ? (editingMsg ? "Save" : "Bhejo") : "Voice note"}
+              title={text.trim() ? (editingMsg ? "Save" : "Send") : "Voice note"}
             >
               {text.trim() ? (editingMsg ? <Check size={18} /> : <Send size={18} />) : <Mic size={18} />}
             </button>
@@ -402,11 +402,11 @@ export default function Composer({ chatId }: { chatId: string }) {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setAttachOpen(false)} />
           <div className="pop-in thin-scroll fixed inset-x-4 bottom-24 z-40 max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#111114] p-2 soft-shadow [-webkit-overflow-scrolling:touch] md:absolute md:inset-x-auto md:bottom-full md:left-2 md:mb-2 md:w-60 md:rounded-xl">
-            <AttachItem icon={<ImagePlus size={19} />} color="#4f8cff" bg="#4f8cff/10" label="Photo" desc="Gallery se chuno" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
+            <AttachItem icon={<ImagePlus size={19} />} color="#4f8cff" bg="#4f8cff/10" label="Photo" desc="Choose from gallery" onClick={() => { setAttachOpen(false); file.current?.click(); }} />
             <AttachItem icon={<FileUp size={19} />} color="#0e9f6e" bg="#0e9f6e/10" label="File" desc="PDF, video, audio, zip…" onClick={() => { setAttachOpen(false); doc.current?.click(); }} />
-            <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Sawal pucho, vote karao" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
-            <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Location le rahe hain…" : "Apni location bhejo"} onClick={shareLocation} />
-            <AttachItem icon={<User size={19} />} color="#8dbcff" bg="#8dbcff/10" label="Contact" desc="Number share karo" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
+            <AttachItem icon={<BarChart3 size={19} />} color="#f5a623" bg="#f5a623/10" label="Poll" desc="Ask a question, take votes" onClick={() => { setAttachOpen(false); setPollOpen(true); }} />
+            <AttachItem icon={locBusy ? <Loader2 size={19} className="animate-spin" /> : <MapPin size={19} />} color="#23a55a" bg="#23a55a/10" label="Location" desc={locBusy ? "Getting location…" : "Send your location"} onClick={shareLocation} />
+            <AttachItem icon={<User size={19} />} color="#8dbcff" bg="#8dbcff/10" label="Contact" desc="Share a number" onClick={() => { setAttachOpen(false); setContactOpen(true); }} />
           </div>
         </>
       )}
@@ -450,7 +450,7 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
   const send = async () => {
     if (busy.current) return;
     const clean = opts.map((o) => o.trim()).filter(Boolean);
-    if (!q.trim() || clean.length < 2) { toast("Sawal + 2 options likho", ""); return; }
+    if (!q.trim() || clean.length < 2) { toast("Write a question + at least 2 options", ""); return; }
     busy.current = true;
     const ms = dur === "1h" ? 3600e3 : dur === "1w" ? 7 * 86400e3 : 86400e3;
     await sendPoll(chatId, q, clean, Date.now() + ms);
@@ -461,10 +461,10 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><BarChart3 size={19} className="text-[#f5a623]" /> Poll banao</h3>
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><BarChart3 size={19} className="text-[#f5a623]" /> Create poll</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sawal likho…" maxLength={140}
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Write your question…" maxLength={140}
           className="field mt-4 w-full px-3.5 py-2.5 text-[15px]" />
         <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Options (2–5)</p>
         <div className="space-y-1.5">
@@ -473,7 +473,7 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
               <input value={o} onChange={(e) => setOpts(opts.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} maxLength={60}
                 className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
               {opts.length > 2 && (
-                <button onClick={() => setOpts(opts.filter((_, j) => j !== i))} className="shrink-0 rounded-lg p-2.5 text-[#ed4245] hover:bg-[#ed4245]/10" aria-label="Hatao">
+                <button onClick={() => setOpts(opts.filter((_, j) => j !== i))} className="shrink-0 rounded-lg p-2.5 text-[#ed4245] hover:bg-[#ed4245]/10" aria-label="Remove">
                   <Trash2 size={16} />
                 </button>
               )}
@@ -481,18 +481,18 @@ function PollModal({ chatId, onClose }: { chatId: string; onClose: () => void })
           ))}
         </div>
         {opts.length < 5 && (
-          <button onClick={() => setOpts([...opts, ""])} className="mt-2 text-sm font-bold text-[#8dbcff] hover:underline">+ Option add karo</button>
+          <button onClick={() => setOpts([...opts, ""])} className="mt-2 text-sm font-bold text-[#8dbcff] hover:underline">+ Add option</button>
         )}
-        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Muddat</p>
+        <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Duration</p>
         <div className="flex gap-1.5">
-          {[["1h", "1 ghanta"], ["1d", "1 din"], ["1w", "1 hafta"]].map(([v, l]) => (
+          {[["1h", "1 hour"], ["1d", "1 day"], ["1w", "1 week"]].map(([v, l]) => (
             <button key={v} onClick={() => setDur(v)}
               className={`flex-1 rounded-lg border px-2 py-2 text-sm font-bold transition ${dur === v ? "border-[#4f8cff] bg-[#4f8cff]/15 text-[#8dbcff]" : "border-white/10 text-[#b6bcc7] hover:border-black/25"}`}>
               {l}
             </button>
           ))}
         </div>
-        <button onClick={send} className="btn btn-blurple mt-5 w-full py-3 text-[15px]">Poll bhejo</button>
+        <button onClick={send} className="btn btn-blurple mt-5 w-full py-3 text-[15px]">Create poll</button>
       </div>
     </>
   );
@@ -503,7 +503,7 @@ function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDev
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const send = async () => {
-    if (!name.trim()) { toast("Naam likho", ""); return; }
+    if (!name.trim()) { toast("Enter a name", ""); return; }
     await sendContact(chatId, name, phone);
     onClose();
   };
@@ -512,18 +512,18 @@ function ContactModal({ chatId, pickDevice, onClose }: { chatId: string; pickDev
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[320px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><User size={19} className="text-[#8dbcff]" /> Contact bhejo</h3>
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><User size={19} className="text-[#8dbcff]" /> Send contact</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <button onClick={() => pickDevice((n, p) => { setName(n); setPhone(p); })}
           className="mt-4 w-full rounded-lg border border-dashed border-[#4f8cff]/40 bg-[#4f8cff]/[0.05] px-3 py-2.5 text-sm font-bold text-[#8dbcff] hover:bg-[#4f8cff]/[0.16]">
-          📱 Phone contacts se chuno
+          📱 Choose from phone contacts
         </button>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Naam" maxLength={60}
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" maxLength={60}
           className="field mt-3 w-full px-3.5 py-2.5 text-[15px]" />
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Number (optional)" inputMode="tel" maxLength={20}
           className="field mt-2 w-full px-3.5 py-2.5 text-[15px]" dir="ltr" />
-        <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Contact bhejo</button>
+        <button onClick={send} className="btn btn-blurple mt-4 w-full py-3 text-[15px]">Send contact</button>
       </div>
     </>
   );
@@ -548,11 +548,11 @@ function PhotoSendModal({ chatId, file, onClose }: { chatId: string; file: File;
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div className="pop-in fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[340px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-[#111114] p-5 soft-shadow">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><ImagePlus size={19} className="text-[#8dbcff]" /> Photo bhejo</h3>
+          <h3 className="flex items-center gap-2 text-lg font-extrabold text-[#f4f6f8]"><ImagePlus size={19} className="text-[#8dbcff]" /> Send photo</h3>
           <button onClick={onClose} className="rounded-md p-1.5 text-[#8b93a1] hover:bg-white/[0.06]"><X size={18} /></button>
         </div>
         <img src={preview} alt="" className="mt-4 max-h-56 w-full rounded-xl border border-white/10 object-cover" draggable={false} />
-        <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption likho…" maxLength={300}
+        <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Add a caption…" maxLength={300}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
           className="field mt-3 w-full px-3.5 py-2.5 text-[15px]" />
         <p className="mb-1.5 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-[#8b93a1]">Quality</p>
@@ -560,16 +560,16 @@ function PhotoSendModal({ chatId, file, onClose }: { chatId: string; file: File;
           <button onClick={() => setQuality("standard")}
             className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "standard" ? "border-[#4f8cff] bg-[#4f8cff]/15" : "border-white/10 hover:border-black/25"}`}>
             <span className={`block text-sm font-bold ${quality === "standard" ? "text-[#8dbcff]" : "text-[#f4f6f8]"}`}>Standard</span>
-            <span className="block text-xs text-[#8b93a1]">Tez, halki file</span>
+            <span className="block text-xs text-[#8b93a1]">Fast, smaller file</span>
           </button>
           <button onClick={() => setQuality("hd")}
             className={`flex-1 rounded-lg border px-2 py-2 text-left transition ${quality === "hd" ? "border-[#4f8cff] bg-[#4f8cff]/15" : "border-white/10 hover:border-black/25"}`}>
             <span className={`block text-sm font-bold ${quality === "hd" ? "text-[#8dbcff]" : "text-[#f4f6f8]"}`}>HD</span>
-            <span className="block text-xs text-[#8b93a1]">Saaf, bari file</span>
+            <span className="block text-xs text-[#8b93a1]">Clearer, larger file</span>
           </button>
         </div>
         <button onClick={send} disabled={busy} className="btn btn-blurple mt-5 flex w-full items-center justify-center gap-1.5 py-3 text-[15px] disabled:opacity-60">
-          <Send size={16} /> {busy ? "Bhej rahe hain…" : "Bhejo"}
+          <Send size={16} /> {busy ? "Sending…" : "Send"}
         </button>
       </div>
     </>

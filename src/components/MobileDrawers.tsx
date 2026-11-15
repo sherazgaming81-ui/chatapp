@@ -61,7 +61,7 @@ function SwipeRow({ children, onMute, muted, onPin, pinned, onDelete, canDelete 
 
 /** DM delete: sirf apni participation hatao (dusron ka data safe) */
 async function deleteDM(chatId: string): Promise<void> {
-  if (!confirm("Ye DM delete karein?")) return;
+  if (!confirm("Delete this DM?")) return;
   try {
     const s = getState();
     try { await supabase().from("chat_participants").delete().eq("chat_id", chatId).eq("user_id", s.me); } catch { /* ignore */ }
@@ -73,8 +73,8 @@ async function deleteDM(chatId: string): Promise<void> {
     const pins = { ...cur.pins }; delete pins[chatId];
     update({ pins });
     patchUI({ activeChatId: cur.chats.find((c) => c.id !== chatId)?.id || null });
-    toast("DM delete ho gayi 🗑️");
-  } catch { toast("Delete nahi hua", "Dobara koshish karo"); }
+    toast("DM deleted 🗑️");
+  } catch { toast("Couldn't delete", "Please try again"); }
 }
 
 function Drawer({ side, onClose, children, title }: { side: "left" | "right"; onClose(): void; children: React.ReactNode; title: string }) {
@@ -115,7 +115,7 @@ export default function MobileDrawers() {
           onClick={() => { close(); patchUI({ createGroupOpen: true }); }}
           className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#4f8cff]/15 px-3 py-2.5 text-sm font-extrabold text-[#8dbcff] transition active:scale-[0.98]"
         >
-          <Plus size={16} strokeWidth={2.5} /> Naya Group
+          <Plus size={16} strokeWidth={2.5} /> New Group
         </button>
         {groups.map((group) => {
           const isOwner = members.find((x) => x.id === meId)?.role === "owner";
@@ -123,9 +123,9 @@ export default function MobileDrawers() {
           <SwipeRow
             key={group.id}
             muted={isChatMuted(group.id)}
-            onMute={() => { toggleMuteChat(group.id); toast(isChatMuted(group.id) ? "Mute kar diya 🔇" : "Unmute kar diya 🔊"); }}
+            onMute={() => { toggleMuteChat(group.id); toast(isChatMuted(group.id) ? "Muted 🔇" : "Unmuted 🔊"); }}
             pinned={isChatPinned(group.id)}
-            onPin={() => { togglePinChat(group.id); toast(isChatPinned(group.id) ? "Pin kar diya 📌" : "Unpin kar diya"); }}
+            onPin={() => { togglePinChat(group.id); toast(isChatPinned(group.id) ? "Pinned 📌" : "Unpinned"); }}
             canDelete={isOwner}
             onDelete={() => deleteGroup(group.id)}
           >
@@ -150,9 +150,9 @@ export default function MobileDrawers() {
             <SwipeRow
               key={dm.id}
               muted={isChatMuted(dm.id)}
-              onMute={() => { toggleMuteChat(dm.id); toast(isChatMuted(dm.id) ? "Mute kar diya 🔇" : "Unmute kar diya 🔊"); }}
+              onMute={() => { toggleMuteChat(dm.id); toast(isChatMuted(dm.id) ? "Muted 🔇" : "Unmuted 🔊"); }}
               pinned={isChatPinned(dm.id)}
-              onPin={() => { togglePinChat(dm.id); toast(isChatPinned(dm.id) ? "Pin kar diya 📌" : "Unpin kar diya"); }}
+              onPin={() => { togglePinChat(dm.id); toast(isChatPinned(dm.id) ? "Pinned 📌" : "Unpinned"); }}
               canDelete
               onDelete={() => deleteDM(dm.id)}
             >
@@ -179,7 +179,7 @@ export default function MobileDrawers() {
     <button key={m.id} onClick={() => patchUI({ profileId: m.id, mobileDrawer: "none" })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/[0.06]">
       <Avatar m={m} size={36} showDot />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-[#f4f6f8]">{m.id === meId ? "Aap" : m.name}<Badge role={m.role} /></span>
+        <span className="block truncate text-sm font-semibold text-[#f4f6f8]">{m.id === meId ? "You" : m.name}<Badge role={m.role} /></span>
         <span className="block text-xs text-[#8b93a1]">{m.online ? "Online" : "Offline"}</span>
       </span>
     </button>

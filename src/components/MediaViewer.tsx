@@ -103,7 +103,7 @@ export default function MediaViewer() {
       <div className="flex shrink-0 items-center justify-between px-4 py-3 text-white">
         <span className="text-sm font-bold tabular-nums">{idx + 1} / {images.length}</span>
         <span className="truncate px-3 text-sm text-white/70">{sender?.name || "Member"} · {fmtDayLabel(m.at)} {fmtTime(m.at)}</span>
-        <button onClick={close} className="rounded-lg p-2 hover:bg-white/10" aria-label="Band karo">
+        <button onClick={close} className="rounded-lg p-2 hover:bg-white/10" aria-label="Close">
           <X size={22} />
         </button>
       </div>
@@ -126,10 +126,10 @@ export default function MediaViewer() {
         />
         {images.length > 1 && (
           <>
-            <button onClick={() => nav(-1)} className="absolute left-3 rounded-full bg-white/10 p-2.5 text-white backdrop-blur hover:bg-white/20" aria-label="Pichli">
+            <button onClick={() => nav(-1)} className="absolute left-3 rounded-full bg-white/10 p-2.5 text-white backdrop-blur hover:bg-white/20" aria-label="Previous">
               <ChevronLeft size={22} />
             </button>
-            <button onClick={() => nav(1)} className="absolute right-3 rounded-full bg-white/10 p-2.5 text-white backdrop-blur hover:bg-white/20" aria-label="Agli">
+            <button onClick={() => nav(1)} className="absolute right-3 rounded-full bg-white/10 p-2.5 text-white backdrop-blur hover:bg-white/20" aria-label="Next">
               <ChevronRight size={22} />
             </button>
           </>

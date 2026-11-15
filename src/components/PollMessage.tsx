@@ -9,11 +9,11 @@ import type { Message } from "@/lib/types";
 const EMPTY_OBJ: Record<string, string[]> = {};
 
 function fmtLeft(ms: number): string {
-  if (ms <= 0) return "Band ho gaya";
+  if (ms <= 0) return "Closed";
   const h = Math.floor(ms / 3600e3), m = Math.floor((ms % 3600e3) / 60e3);
-  if (h >= 24) return `${Math.floor(h / 24)} din baqi`;
-  if (h > 0) return `${h}h ${m}m baqi`;
-  return `${m}m baqi`;
+  if (h >= 24) return `${Math.floor(h / 24)} days left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
 }
 
 export default function PollMessage({ m }: { m: Message }) {
@@ -25,7 +25,7 @@ export default function PollMessage({ m }: { m: Message }) {
     return () => clearInterval(t);
   }, []);
 
-  if (!poll) return <p className="text-sm italic text-[#8b93a1]">Poll load nahi hua</p>;
+  if (!poll) return <p className="text-sm italic text-[#8b93a1]">Couldn't load this poll</p>;
   const closed = poll.endsAt < Date.now();
   const { counts, total, mine } = pollVotes({ ...m, reactions });
 
@@ -54,7 +54,7 @@ export default function PollMessage({ m }: { m: Message }) {
               />
               <span className="relative flex items-center justify-between px-3 py-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#f4f6f8]">
-                  {opt} {isMine && <span className="ml-1 text-xs font-bold text-[#8dbcff]">✓ aapka vote</span>}
+                  {opt} {isMine && <span className="ml-1 text-xs font-bold text-[#8dbcff]">✓ your vote</span>}
                 </span>
                 <span className="ml-2 shrink-0 text-xs font-bold tabular-nums text-[#b6bcc7]">{pct}% · {counts[i]}</span>
               </span>
@@ -64,7 +64,7 @@ export default function PollMessage({ m }: { m: Message }) {
       </div>
       <p className="mt-2.5 flex items-center gap-1.5 text-xs text-[#8b93a1]">
         <Clock size={12} /> {fmtLeft(poll.endsAt - Date.now())} · {total} vote{total === 1 ? "" : "s"}
-        {!closed && mine >= 0 && <span> · vote badalne ke liye dobara tap karo</span>}
+        {!closed && mine >= 0 && <span> · tap again to change your vote</span>}
       </p>
     </div>
   );

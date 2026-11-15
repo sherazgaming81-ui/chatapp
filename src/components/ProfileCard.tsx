@@ -45,7 +45,7 @@ export default function ProfileCard({
             </div>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-[#8b93a1]">
               <span className={`h-2 w-2 rounded-full ${online ? "bg-[#23a55a]" : "bg-[#80848e]/50"}`} />
-              {online ? "Online hai" : lastSeen > 0 ? fmtLastSeen(lastSeen) : "Offline"}
+              {online ? "Online" : lastSeen > 0 ? fmtLastSeen(lastSeen) : "Offline"}
             </p>
           </div>
         </div>

@@ -77,10 +77,10 @@ export default function GlobalSearch() {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Messages aur members talash karo…"
+            placeholder="Search messages and members…"
             className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#f4f6f8] outline-none placeholder:text-[#a0a3ab]"
           />
-          <button onClick={close} className="rounded-lg p-1.5 text-[#8b93a1] hover:bg-white/[0.06]" aria-label="Band karo">
+          <button onClick={close} className="rounded-lg p-1.5 text-[#8b93a1] hover:bg-white/[0.06]" aria-label="Close">
             <X size={18} />
           </button>
         </div>
@@ -102,10 +102,10 @@ export default function GlobalSearch() {
 
         <div className="thin-scroll max-h-[55vh] min-h-[180px] overflow-y-auto p-2">
           {q.trim().length < 2 ? (
-            <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">Kam az kam 2 harf likho 🔍</p>
+            <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">Type at least 2 characters 🔍</p>
           ) : tab === "msgs" ? (
             msgHits.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">Koi message nahi mila 📭</p>
+              <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">No messages found 📭</p>
             ) : (
               msgHits.map((m) => {
                 const s = senderOf(m.from);
@@ -133,7 +133,7 @@ export default function GlobalSearch() {
               })
             )
           ) : memberHits.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">Koi member nahi mila 📭</p>
+            <p className="px-3 py-8 text-center text-sm text-[#a0a3ab]">No members found 📭</p>
           ) : (
             memberHits.map((m) => (
               <button

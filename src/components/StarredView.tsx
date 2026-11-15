@@ -57,7 +57,7 @@ export default function StarredView() {
   return (
     <div className="glass relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
       <header className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3.5">
-        <button onClick={() => patchUI({ starredOpen: false })} className="rounded-lg p-1.5 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Wapas">
+        <button onClick={() => patchUI({ starredOpen: false })} className="rounded-lg p-1.5 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Back">
           <ArrowLeft size={20} />
         </button>
         <Star size={18} className="text-[#f5a623]" />
@@ -70,8 +70,8 @@ export default function StarredView() {
             <span className="grid h-16 w-16 place-items-center rounded-full bg-[#f5a623]/15 text-[#f5a623]">
               <SearchX size={28} />
             </span>
-            <p className="mt-4 text-[15px] font-bold text-[#f4f6f8]">Koi starred message nahi</p>
-            <p className="mt-1 text-sm text-[#8b93a1]">Kisi message par star dabao — wo yahan save ho jayega</p>
+            <p className="mt-4 text-[15px] font-bold text-[#f4f6f8]">No starred messages</p>
+            <p className="mt-1 text-sm text-[#8b93a1]">Star any message and it will be saved here</p>
           </div>
         ) : (
           items.map((m) => <StarredRow key={m.id} m={m} />)

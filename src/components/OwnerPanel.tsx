@@ -67,16 +67,16 @@ function OverviewTab() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat icon={<Users size={18} />} label="Kul members" value={visible.length} color="#23a55a" />
-        <Stat icon={<Wifi size={18} />} label="Abhi online" value={online} color="#00b0f4" />
-        <Stat icon={<MessageSquare size={18} />} label="Aaj ke messages" value={todayMsgs} color="#4f8cff" />
+        <Stat icon={<Users size={18} />} label="Total members" value={visible.length} color="#23a55a" />
+        <Stat icon={<Wifi size={18} />} label="Online now" value={online} color="#00b0f4" />
+        <Stat icon={<MessageSquare size={18} />} label="Messages today" value={todayMsgs} color="#4f8cff" />
         <Stat icon={<AlertTriangle size={18} />} label="Banned" value={banned.length} color="#ed4245" />
       </div>
 
       <div className="card bg-white/80 p-4">
-        <SectionTitle>📊 Aakhri 7 din — messages</SectionTitle>
+        <SectionTitle>📊 Last 7 days — messages</SectionTitle>
         {weekMsgs === 0 ? (
-          <p className="py-4 text-center text-sm text-[#8b93a1]">📊 Abhi data jama ho raha hai</p>
+          <p className="py-4 text-center text-sm text-[#8b93a1]">📊 Data is still being collected</p>
         ) : (
           <div className="flex h-32 items-end gap-2">
             {days.map((d, i) => (
@@ -91,7 +91,7 @@ function OverviewTab() {
             ))}
           </div>
         )}
-        <p className="mt-2 text-xs text-[#8b93a1]">7 din me <b className="text-[#f4f6f8]">{weekMsgs}</b> messages · <b className="text-[#f4f6f8]">{active}</b> active members</p>
+        <p className="mt-2 text-xs text-[#8b93a1]"><b className="text-[#f4f6f8]">{weekMsgs}</b> messages · <b className="text-[#f4f6f8]">{active}</b> active members in the last 7 days</p>
       </div>
 
       {top.length > 0 && (
@@ -122,7 +122,7 @@ function OverviewTab() {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <SectionTitle>Members · {visible.length}</SectionTitle>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Dhoondo…" className="field w-40 px-3 py-1.5 text-sm" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="field w-40 px-3 py-1.5 text-sm" />
         </div>
         <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
           {list.map((m) => (
@@ -140,7 +140,7 @@ function OverviewTab() {
           ))}
         </div>
       </div>
-      <p className="pb-4 text-center text-xs text-[#8b93a1]">Sab numbers 100% real hain — Supabase se 🌱</p>
+      <p className="pb-4 text-center text-xs text-[#8b93a1]">All numbers are 100% real — straight from Supabase 🌱</p>
     </div>
   );
 }
@@ -159,16 +159,16 @@ function BroadcastTab() {
     set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
   const sendBroadcast = async () => {
-    if (!text.trim() || sel.length === 0) { toast("Kuch likho + chat select karo", ""); return; }
+    if (!text.trim() || sel.length === 0) { toast("Write something and select chats", ""); return; }
     const n = await broadcast(text.trim(), sel);
-    toast(`Broadcast ho gaya 📢`, `${n} chats me bheja`);
+    toast(`Broadcast sent 📢`, `Sent to ${n} chats`);
     setText(""); setSel([]);
   };
 
   const schedule = () => {
-    if (!schedText.trim() || schedChats.length === 0 || !schedAt) { toast("Sab bharo", "Text + time + chats"); return; }
+    if (!schedText.trim() || schedChats.length === 0 || !schedAt) { toast("Fill everything in", "Text + time + chats"); return; }
     const at = new Date(schedAt).getTime();
-    if (Number.isNaN(at) || at <= Date.now()) { toast("Sahi time do", "Mustaqbil ka waqt"); return; }
+    if (Number.isNaN(at) || at <= Date.now()) { toast("Pick a valid time", "Choose a time in the future"); return; }
     scheduleAnnouncement(schedText.trim(), schedChats, at);
     setSchedText(""); setSchedAt(""); setSchedChats([]);
   };
@@ -176,9 +176,9 @@ function BroadcastTab() {
   return (
     <div className="space-y-5">
       <div className="card bg-gradient-to-r from-[#4f8cff]/[0.06] to-[#3b76d6]/[0.06] p-4">
-        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Megaphone size={16} /> Elaan bhejo (foran)</p>
-        <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Sab ko kya batana hai…" className="field w-full resize-none px-3.5 py-3 text-[15px]" />
-        <p className="mb-1.5 mt-2 text-xs font-bold text-[#b6bcc7]">Kahan bhejna hai:</p>
+        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Megaphone size={16} /> Send an announcement (instant)</p>
+        <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="What do you want to tell everyone…" className="field w-full resize-none px-3.5 py-3 text-[15px]" />
+        <p className="mb-1.5 mt-2 text-xs font-bold text-[#b6bcc7]">Where to send:</p>
         <div className="mb-2 flex flex-wrap gap-1.5">
           {chats.map((c) => (
             <button
@@ -191,13 +191,13 @@ function BroadcastTab() {
           ))}
         </div>
         <button onClick={sendBroadcast} disabled={!text.trim() || sel.length === 0} className="btn btn-blurple mt-1 flex items-center gap-2 px-5 py-2.5 text-sm disabled:opacity-40">
-          <Send size={15} /> {sel.length > 0 ? `${sel.length} me bhejo` : "Bhejo"}
+          <Send size={15} /> {sel.length > 0 ? `Send to ${sel.length}` : "Send"}
         </button>
       </div>
 
       <div className="card bg-white/80 p-4">
-        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Timer size={16} /> Schedule karo ⏰</p>
-        <textarea rows={2} value={schedText} onChange={(e) => setSchedText(e.target.value)} placeholder="Elaan likho…" className="field w-full resize-none px-3.5 py-2.5 text-[15px]" />
+        <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Timer size={16} /> Schedule ⏰</p>
+        <textarea rows={2} value={schedText} onChange={(e) => setSchedText(e.target.value)} placeholder="Write an announcement…" className="field w-full resize-none px-3.5 py-2.5 text-[15px]" />
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} className="field px-3 py-2 text-sm" />
           <button onClick={schedule} className="btn rounded-xl bg-[#8dbcff] px-4 py-2 text-sm font-bold text-white">Schedule</button>
@@ -223,12 +223,12 @@ function BroadcastTab() {
                   <span className="block truncate text-sm font-bold text-[#f4f6f8]">{s.text}</span>
                   <span className="block text-[11px] text-[#8b93a1]">{new Date(s.at).toLocaleString()} · {s.chatIds.length} chats</span>
                 </span>
-                <button onClick={() => { cancelScheduled(s.id); toast("Cancel ho gaya", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
+                <button onClick={() => { cancelScheduled(s.id); toast("Cancelled", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-[11px] text-[#8b93a1]">App khuli ho to us waqt auto-post hoga ⏰</p>
+        <p className="mt-2 text-[11px] text-[#8b93a1]">If the app is open, it will auto-post at that time ⏰</p>
       </div>
     </div>
   );
@@ -255,7 +255,7 @@ function PinsTab() {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setFilter("all")} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === "all" ? "bg-[#4f8cff] text-white" : "bg-black/[0.06] text-[#b6bcc7]"}`}>
-          Sab ({entries.length})
+          All ({entries.length})
         </button>
         {Object.keys(pins).map((cid) => (
           <button key={cid} onClick={() => setFilter(cid)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === cid ? "bg-[#4f8cff] text-white" : "bg-black/[0.06] text-[#b6bcc7]"}`}>
@@ -263,7 +263,7 @@ function PinsTab() {
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">Koi pinned message nahi 📌</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">No pinned messages 📌</p>}
       {shown.map((e) => (
         <div key={e.id} className="card flex items-center gap-3 bg-white/80 px-3 py-2.5">
           <Pin size={16} className="shrink-0 text-[#8dbcff]" />
@@ -272,7 +272,7 @@ function PinsTab() {
             <span className="block text-[11px] text-[#8b93a1]">{chatName(e.chatId)}</span>
           </button>
           <button onClick={() => jump(e.chatId, e.id)} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#8dbcff] hover:bg-[#4f8cff]/15">Jump →</button>
-          <button onClick={() => { togglePin(e.chatId, e.id); toast("Unpin ho gaya", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
+          <button onClick={() => { togglePin(e.chatId, e.id); toast("Unpinned", ""); }} className="rounded-lg p-1.5 text-[#ed4245] hover:bg-[#ed4245]/10"><X size={15} /></button>
         </div>
       ))}
     </div>
@@ -296,12 +296,12 @@ function SlowModeTab() {
   const set = async (chatId: string, sec: number) => {
     await setSlowMode(chatId, sec);
     setVals((v) => ({ ...v, [chatId]: sec }));
-    toast(sec > 0 ? `Slow mode ON 🐢` : "Slow mode OFF", sec > 0 ? `Har ${sec}s me 1 message` : "");
+    toast(sec > 0 ? `Slow mode ON 🐢` : "Slow mode OFF", sec > 0 ? `1 message every ${sec}s` : "");
   };
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[#b6bcc7]">Har member kitne waqfe se 1 message bhej sake. Owner/Admin/Mod par lagoo nahi hota. 🐢</p>
+      <p className="text-sm text-[#b6bcc7]">How often each member can send 1 message. Doesn't apply to Owner/Admin/Mod. 🐢</p>
       {chats.map((c) => (
         <div key={c.id} className="card bg-white/80 p-4">
           <p className="mb-2 text-sm font-extrabold text-[#f4f6f8]">👥 {c.name}</p>
@@ -336,7 +336,7 @@ function RolesTab() {
           <p key={r.id} className="py-0.5 text-xs text-[#b6bcc7]"><b className="text-[#f4f6f8]">{r.label}</b> — {r.desc}</p>
         ))}
       </div>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Member dhoondo…" className="field w-full px-3 py-2 text-sm" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a member…" className="field w-full px-3 py-2 text-sm" />
       <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
         {list.map((m) => (
           <div key={m.id} className="card flex items-center gap-3 bg-white/70 px-3 py-2.5">
@@ -377,7 +377,7 @@ function AutoModTab() {
   const save = async () => {
     if (!chatId) return;
     await setBadWords(chatId, words.split(",").map((w) => w.trim()), action);
-    toast("Auto-mod save ho gaya 🛡️", "");
+    toast("Auto-mod saved 🛡️", "");
   };
 
   return (
@@ -392,21 +392,21 @@ function AutoModTab() {
       {loaded && chatId && (
         <div className="card space-y-3 bg-white/80 p-4">
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#b6bcc7]">Banned lafz (comma se alag karo):</p>
-            <textarea rows={3} value={words} onChange={(e) => setWords(e.target.value)} placeholder="lafz1, lafz2, lafz3…" className="field w-full resize-none px-3 py-2.5 text-sm" />
+            <p className="mb-1.5 text-xs font-bold text-[#b6bcc7]">Banned words (separate with commas):</p>
+            <textarea rows={3} value={words} onChange={(e) => setWords(e.target.value)} placeholder="word1, word2, word3…" className="field w-full resize-none px-3 py-2.5 text-sm" />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#b6bcc7]">Koi banned lafz bheje to:</p>
+            <p className="mb-1.5 text-xs font-bold text-[#b6bcc7]">If someone sends a banned word:</p>
             <div className="flex gap-1.5">
               {(["warn", "delete", "both"] as const).map((a) => (
                 <button key={a} onClick={() => setAction(a)} className={`rounded-full px-4 py-1.5 text-xs font-bold ${action === a ? "bg-[#ed4245] text-white" : "bg-black/[0.06] text-[#b6bcc7]"}`}>
-                  {a === "warn" ? "⚠️ Warn karo" : a === "delete" ? "🗑️ Delete karo" : "⚠️🗑️ Dono"}
+                  {a === "warn" ? "⚠️ Warn" : a === "delete" ? "🗑️ Delete" : "⚠️🗑️ Both"}
                 </button>
               ))}
             </div>
           </div>
-          <button onClick={save} className="btn btn-blurple px-5 py-2.5 text-sm">Save karo</button>
-          <p className="text-[11px] text-[#8b93a1]">Staff (owner/admin/mod) par auto-mod lagoo nahi hota.</p>
+          <button onClick={save} className="btn btn-blurple px-5 py-2.5 text-sm">Save</button>
+          <p className="text-[11px] text-[#8b93a1]">Auto-mod doesn't apply to staff (owner/admin/mod).</p>
         </div>
       )}
     </div>
@@ -434,11 +434,11 @@ function AuditTab() {
       <div className="flex flex-wrap gap-1.5">
         {actions.map((a) => (
           <button key={a} onClick={() => setFilter(a)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === a ? "bg-[#4f8cff] text-white" : "bg-black/[0.06] text-[#b6bcc7]"}`}>
-            {a === "all" ? `Sab (${log.length})` : `${ACTION_META[a]?.icon || "•"} ${a}`}
+            {a === "all" ? `All (${log.length})` : `${ACTION_META[a]?.icon || "•"} ${a}`}
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">Koi action abhi tak nahi 📋</p>}
+      {shown.length === 0 && <p className="py-8 text-center text-sm text-[#8b93a1]">No actions yet 📋</p>}
       <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1">
         {shown.map((e) => {
           const meta = ACTION_META[e.action] || { icon: "•", color: "#80848e" };
@@ -447,7 +447,7 @@ function AuditTab() {
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm" style={{ background: meta.color + "1f" }}>{meta.icon}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm text-[#f4f6f8]">
-                  <b>{e.byName}</b> ne <b style={{ color: meta.color }}>{e.action}</b>
+                  <b>{e.byName}</b> <b style={{ color: meta.color }}>{e.action}</b>
                   {e.targetName && <> → <b>{e.targetName}</b></>}
                 </span>
                 {e.reason && <span className="block truncate text-xs text-[#8b93a1]">{e.reason}</span>}
@@ -519,7 +519,7 @@ export default function OwnerPanel() {
         {tab === "new" && <WhatsNewTab />}
         {tab === "broadcast" && (
           <div className="card bg-gradient-to-r from-[#4f8cff]/[0.06] to-[#3b76d6]/[0.06] p-4">
-            <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Megaphone size={16} /> Quick elaan (main group)</p>
+            <p className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8dbcff]"><Megaphone size={16} /> Quick announcement (main group)</p>
             <QuickElaan />
           </div>
         )}
@@ -534,11 +534,11 @@ function QuickElaan() {
     if (!elaan.trim()) return;
     postAnnouncement(elaan.trim());
     setElaan("");
-    toast("Elaan bhej diya", "Sab ko dikhega");
+    toast("Announcement sent", "Everyone will see it");
   };
   return (
     <div className="flex gap-2">
-      <input value={elaan} onChange={(e) => setElaan(e.target.value)} placeholder="Foran elaan…" className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
+      <input value={elaan} onChange={(e) => setElaan(e.target.value)} placeholder="Instant announcement…" className="field min-w-0 flex-1 px-3.5 py-2.5 text-[15px]" />
       <button onClick={send} disabled={!elaan.trim()} className="btn btn-blurple flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm disabled:opacity-40">
         <Send size={15} />
       </button>

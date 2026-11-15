@@ -39,21 +39,21 @@ export default function CreateGroup() {
       <div className="pop-in fixed left-1/2 top-1/2 z-50 w-[380px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white soft-shadow">
         <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#4f8cff]/15 text-[#8dbcff]"><Users size={18} /></span>
-          <h3 className="flex-1 text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Naya Group</h3>
-          <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Band karo"><X size={18} /></button>
+          <h3 className="flex-1 text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">New Group</h3>
+          <button onClick={close} className="rounded-md p-2 text-[#b6bcc7] hover:bg-white/[0.06]" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto thin-scroll p-4">
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Group ka naam *</label>
+          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Group name *</label>
           <input
             autoFocus
             value={name} onChange={(e) => setName(e.target.value)} maxLength={60}
-            placeholder="jaise: Madrasa Dost 🕌"
+            placeholder="e.g. Madrasa Friends 🕌"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
           <label className="mb-1 mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-[#8b93a1]">Description (optional)</label>
           <textarea
             value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} rows={2}
-            placeholder="Group kis liye hai…"
+            placeholder="What is this group for…"
             className="field w-full px-3.5 py-2.5 text-sm"
           />
           <div className="mb-1 mt-3 flex items-center justify-between">
@@ -61,7 +61,7 @@ export default function CreateGroup() {
             <span className="text-xs font-bold text-[#8dbcff]">{sel.length} selected</span>
           </div>
           <div className="max-h-52 space-y-0.5 overflow-y-auto thin-scroll rounded-xl border border-black/[0.07] bg-black/[0.02] p-1.5">
-            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#8b93a1]">Koi member nahi mila</p>}
+            {sorted.length === 0 && <p className="p-3 text-center text-xs text-[#8b93a1]">No members found</p>}
             {sorted.map((m) => {
               const on = sel.includes(m.id);
               return (
@@ -84,13 +84,13 @@ export default function CreateGroup() {
           </div>
         </div>
         <div className="flex gap-2 border-t border-white/10 p-4">
-          <button onClick={close} className="btn btn-ghost flex-1 px-4 py-2.5 text-sm">Rehne do</button>
+          <button onClick={close} className="btn btn-ghost flex-1 px-4 py-2.5 text-sm">Cancel</button>
           <button
             onClick={submit}
             disabled={!name.trim() || busy}
             className="btn btn-primary flex-1 px-4 py-2.5 text-sm disabled:opacity-50"
           >
-            {busy ? "Ban raha hai…" : `Group banao${sel.length > 0 ? ` (${sel.length + 1})` : ""}`}
+            {busy ? "Creating…" : `Create group${sel.length > 0 ? ` (${sel.length + 1})` : ""}`}
           </button>
         </div>
       </div>
