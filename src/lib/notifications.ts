@@ -8,9 +8,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { supabase } from "./supabase";
 import { listContacts, listPosts, KIND_LABEL } from "./crm";
+import { listTasks } from "./tasks";
 
-export type NotifSection = "crm" | "posting" | "report";
-export type NotifKind = "failed_post" | "partner_posted" | "new_contact" | "daily_report";
+export type NotifSection = "crm" | "tasks" | "posting" | "report";
+export type NotifKind = "failed_post" | "partner_posted" | "new_contact" | "daily_report" | "task_overdue" | "task_today" | "followup_today";
 
 export interface NotifItem {
   id: string;
@@ -26,8 +27,9 @@ const clip = (s: string, n = 60) => (s.length > n ? s.slice(0, n).trimEnd() + "�
 export async function fetchNotifications(): Promise<NotifItem[]> {
   const items: NotifItem[] = [];
   try {
-    const [posts, contacts] = await Promise.all([listPosts(), listContacts()]);
+    const [posts, contacts, tasks] = await Promise.all([listPosts(), listContacts(), listTasks()]);
     const contactName = (id: string | null) => contacts.find((c) => c.id === id)?.name || "A partner";
+    const taskContactName = (id: string | null) => (id ? contacts.find((c) => c.id === id)?.name || null : null);
 
     // 1) Failed posts — recent first
     posts
@@ -77,7 +79,58 @@ export async function fetchNotifications(): Promise<NotifItem[]> {
         })
       );
 
-    // 4) Latest daily report (sab se recent row — ek hi item)
+    // 4) Overdue tasks (open, due_at guzar chuka) — sab se purani pehle, top 3
+    const nowMs = Date.now();
+    tasks
+      .filter((t) => t.status === "open" && t.dueAt !== null && t.dueAt < nowMs)
+      .sort((a, b) => (a.dueAt || 0) - (b.dueAt || 0))
+      .slice(0, 3)
+      .forEach((t) => {
+        const cn = taskContactName(t.contactId);
+        items.push({
+          id: `task-overdue-${t.id}`,
+          kind: "task_overdue",
+          text: `Task overdue: “${clip(t.title, 45)}”${cn ? ` — ${cn}` : ""}`,
+          at: t.dueAt || t.createdAt,
+          section: "tasks",
+        });
+      });
+
+    // 5) Tasks due today (open, due_at aaj ke din ke andar) — top 3
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+    tasks
+      .filter((t) => t.status === "open" && t.dueAt !== null && t.dueAt >= dayStart.getTime() && t.dueAt <= dayEnd.getTime())
+      .sort((a, b) => (a.dueAt || 0) - (b.dueAt || 0))
+      .slice(0, 3)
+      .forEach((t) => {
+        const cn = taskContactName(t.contactId);
+        items.push({
+          id: `task-today-${t.id}`,
+          kind: "task_today",
+          text: `Task due today: “${clip(t.title, 45)}”${cn ? ` — ${cn}` : ""}`,
+          at: t.dueAt || t.createdAt,
+          section: "tasks",
+        });
+      });
+
+    // 6) Follow-ups due today (follow_up_at aaj, stage done/lost nahi) — top 3
+    contacts
+      .filter((c) => c.followUpAt !== null && c.followUpAt >= dayStart.getTime() && c.followUpAt <= dayEnd.getTime() && c.stage !== "done" && c.stage !== "lost")
+      .sort((a, b) => (a.followUpAt || 0) - (b.followUpAt || 0))
+      .slice(0, 3)
+      .forEach((c) =>
+        items.push({
+          id: `followup-${c.id}`,
+          kind: "followup_today",
+          text: `Follow-up due today: ${c.name || "—"}`,
+          at: c.followUpAt || c.createdAt,
+          section: "crm",
+          contactId: c.id,
+        })
+      );
+
+    // 7) Latest daily report (sab se recent row — ek hi item)
     try {
       const { data } = await supabase()
         .from("crm_daily_reports")

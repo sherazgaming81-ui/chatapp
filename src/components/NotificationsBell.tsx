@@ -7,7 +7,7 @@
 // owner-only hai.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, XCircle, CheckCircle2, UserPlus, BarChart3, CheckCheck } from "lucide-react";
+import { Bell, XCircle, CheckCircle2, UserPlus, BarChart3, CheckCheck, AlertTriangle, Clock, CalendarClock } from "lucide-react";
 import { patchUI } from "@/lib/store";
 import { subscribeCrm } from "@/lib/crm";
 import { fetchNotifications, getNotifSeenAt, setNotifSeenAt, type NotifItem, type NotifKind } from "@/lib/notifications";
@@ -17,6 +17,9 @@ const KIND_ICON: Record<NotifKind, { icon: any; cls: string }> = {
   partner_posted: { icon: CheckCircle2, cls: "text-[#4ade80]" },
   new_contact: { icon: UserPlus, cls: "text-[#8dbcff]" },
   daily_report: { icon: BarChart3, cls: "text-[#fbbf24]" },
+  task_overdue: { icon: AlertTriangle, cls: "text-[#ff8589]" },
+  task_today: { icon: Clock, cls: "text-[#fbbf24]" },
+  followup_today: { icon: CalendarClock, cls: "text-[#8dbcff]" },
 };
 
 export function relTime(at: number): string {
@@ -107,7 +110,7 @@ export default function NotificationsBell({ placement }: { placement: "rail" | "
             <div className="thin-scroll max-h-[380px] overflow-y-auto p-1.5">
               {items.length === 0 ? (
                 <p className="px-3 py-8 text-center text-[13px] text-[#93A0B4]">
-                  Nothing yet — failed posts, partner completions, new contacts and daily reports will show up here.
+                  Nothing yet — failed posts, partner completions, new contacts, overdue tasks, follow-ups and daily reports will show up here.
                 </p>
               ) : (
                 items.map((item) => {

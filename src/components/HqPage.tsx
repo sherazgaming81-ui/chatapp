@@ -7,7 +7,7 @@
 // UI language: English only (owner rule).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, List, Trash2, Check, Copy, Link2, Download, Upload, Search, FileText, Info, ArrowLeftRight, Clock } from "lucide-react";
+import { Briefcase, X, Plus, Send, Mail, MessageCircle, CalendarClock, BarChart3, LayoutGrid, List, Trash2, Check, Copy, Link2, Download, Upload, Search, FileText, Info, ArrowLeftRight, Clock, ListTodo, CalendarDays, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useStore, toast } from "@/lib/store";
 import {
   CRM_KINDS, CRM_STAGES, KIND_LABEL, STAGE_LABEL, PRIORITY_LABEL,
@@ -22,8 +22,12 @@ import {
 } from "@/lib/crm";
 import { supabase } from "@/lib/supabase";
 import NotificationsBell from "@/components/NotificationsBell";
+import {
+  listTasks, createTask, updateTask, completeTask, reopenTask, deleteTask, tasksTableReady,
+  type CrmTask, type TaskPriority,
+} from "@/lib/tasks";
 
-type HqTab = "crm" | "outreach" | "posting" | "report";
+type HqTab = "crm" | "tasks" | "outreach" | "posting" | "report";
 
 const KIND_COLOR: Record<CrmKind, string> = {
   client: "bg-[#23a55a]/20 text-[#4ade80]",
@@ -58,8 +62,10 @@ export default function HqPage() {
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [outreach, setOutreach] = useState<CrmOutreach[]>([]);
   const [posts, setPosts] = useState<CrmPost[]>([]);
+  const [tasks, setTasks] = useState<CrmTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [tablesReady, setTablesReady] = useState(true);
+  const [taskTablesReady, setTaskTablesReady] = useState(true);
   const [selected, setSelected] = useState<CrmContact | null>(null);
   const refreshTimer = useRef<any>(null);
 
@@ -67,11 +73,16 @@ export default function HqPage() {
   const hqNav = useStore((s) => s.ui.hqNav);
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
   const [formNonce, setFormNonce] = useState(0);
+  const [taskFormNonce, setTaskFormNonce] = useState(0);
   useEffect(() => {
     if (!hqNav) return;
     setTab(hqNav.section);
     if (hqNav.contactId) setPendingContactId(hqNav.contactId);
-    if (hqNav.newContact) setFormNonce((n) => n + 1);
+    if (hqNav.newContact) {
+      // "Add Lead" → CRM form; "Add Task" → Tasks form (alag nonce, cross-talk nahi)
+      if (hqNav.section === "tasks") setTaskFormNonce((n) => n + 1);
+      else setFormNonce((n) => n + 1);
+    }
   }, [hqNav]);
   // contacts load ho jayen to pending contact ka drawer khol do
   useEffect(() => {
@@ -84,11 +95,13 @@ export default function HqPage() {
   }, [pendingContactId, contacts]);
 
   const refresh = useCallback(async () => {
-    const [c, o, p] = await Promise.all([listContacts(), listOutreach(), listPosts()]);
+    const [c, o, p, t] = await Promise.all([listContacts(), listOutreach(), listPosts(), listTasks()]);
     setContacts(c);
     setOutreach(o);
     setPosts(p);
+    setTasks(t);
     setTablesReady(crmTablesReady);
+    setTaskTablesReady(tasksTableReady);
     setLoading(false);
   }, []);
 
@@ -100,7 +113,22 @@ export default function HqPage() {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(refresh, 400);
     });
-    return off;
+    // crm_tasks ka apna channel (subscribeCrm use nahi karta) — table na ho
+    // to bhi crash nahi, sirf events nahi ayenge
+    let taskChannel: any = null;
+    try {
+      taskChannel = supabase()
+        .channel("crm-tasks-live")
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_tasks" }, () => {
+          clearTimeout(refreshTimer.current);
+          refreshTimer.current = setTimeout(refresh, 400);
+        })
+        .subscribe();
+    } catch { /* ignore */ }
+    return () => {
+      off();
+      if (taskChannel) { try { supabase().removeChannel(taskChannel); } catch { /* ignore */ } }
+    };
   }, [isOwner, refresh]);
 
   // fresh copy of the selected contact (drawer stays current after stage changes)
@@ -124,7 +152,7 @@ export default function HqPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[16px] font-extrabold tracking-tight text-[#f4f6f8]">Business HQ</h1>
-          <p className="truncate text-xs text-[#93A0B4]">Symbiote Systems — CRM · Outreach · Posting · Report (owner only)</p>
+          <p className="truncate text-xs text-[#93A0B4]">Symbiote Systems — CRM · Tasks · Outreach · Posting · Report (owner only)</p>
         </div>
         <span className="hidden shrink-0 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-bold text-[#b6bcc7] sm:block">
           {contacts.length} contacts · {stats.postsQueued} posts queued
@@ -136,6 +164,7 @@ export default function HqPage() {
       <div className="flex shrink-0 gap-1 border-b border-[#27334D] px-3 py-2">
         {([
           { id: "crm", label: "CRM", icon: LayoutGrid },
+          { id: "tasks", label: "Tasks", icon: ListTodo },
           { id: "outreach", label: "Outreach", icon: Send },
           { id: "posting", label: "Posting", icon: CalendarClock },
           { id: "report", label: "Daily Report", icon: BarChart3 },
@@ -163,6 +192,8 @@ export default function HqPage() {
           </div>
         ) : tab === "crm" ? (
           <CrmBoard contacts={contacts} onAdd={async (c) => { setContacts((p) => [c, ...p]); }} onSelect={setSelected} formNonce={formNonce} refresh={refresh} />
+        ) : tab === "tasks" ? (
+          <TasksTab tasks={tasks} contacts={contacts} posts={posts} tablesReady={taskTablesReady} formNonce={taskFormNonce} onSelectContact={setSelected} refresh={refresh} />
         ) : tab === "outreach" ? (
           <OutreachTab contacts={contacts} outreach={outreach} refresh={refresh} />
         ) : tab === "posting" ? (
@@ -176,6 +207,7 @@ export default function HqPage() {
         <ContactDrawer
           contact={selectedLive}
           outreach={outreach.filter((o) => o.contactId === selectedLive.id)}
+          tasks={tasks.filter((t) => t.contactId === selectedLive.id)}
           onClose={() => setSelected(null)}
           refresh={refresh}
         />
@@ -540,7 +572,7 @@ function PartnerThreadsLink({ contactId }: { contactId: string }) {
 }
 
 /* ─────────────────────────── CONTACT DRAWER ─────────────────────────── */
-function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmContact; outreach: CrmOutreach[]; onClose: () => void; refresh: () => Promise<void> }) {
+function ContactDrawer({ contact, outreach, tasks, onClose, refresh }: { contact: CrmContact; outreach: CrmOutreach[]; tasks: CrmTask[]; onClose: () => void; refresh: () => Promise<void> }) {
   const [notes, setNotes] = useState(contact.notes);
   const [busy, setBusy] = useState(false);
   // Phase 2 fields
@@ -726,6 +758,9 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
           <PartnerThreadsLink contactId={contact.id} />
         )}
 
+        {/* Tasks linked to this contact + quick add (Phase 3) */}
+        <DrawerTasks contact={contact} tasks={tasks} refresh={refresh} />
+
         {/* Add note → activity */}
         <label className={`${labelCls} mt-6`}>Add a note</label>
         <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={2} className={inputCls} placeholder="Called them, they asked for the demo link…" />
@@ -753,6 +788,62 @@ function ContactDrawer({ contact, outreach, onClose, refresh }: { contact: CrmCo
         </button>
       </div>
     </>
+  );
+}
+
+/* ─────────── Drawer tasks — is contact ki tasks + quick add (Phase 3) ─────────── */
+function DrawerTasks({ contact, tasks, refresh }: { contact: CrmContact; tasks: CrmTask[]; refresh: () => Promise<void> }) {
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = tasks.filter((t) => t.status === "open").sort((a, b) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER));
+  const doneCount = tasks.filter((t) => t.status === "done").length;
+  const now = Date.now();
+
+  const add = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      await createTask({ title: title.trim(), contactId: contact.id, dueAt: due ? new Date(due).getTime() : null });
+      setTitle(""); setDue("");
+      toast("Task added", contact.name);
+      refresh();
+    } catch (e: any) { toast("Couldn't add the task", e?.message || ""); }
+    setBusy(false);
+  };
+  const toggle = async (t: CrmTask) => {
+    try {
+      if (t.status === "open") await completeTask(t.id); else await reopenTask(t.id);
+      refresh();
+    } catch (e: any) { toast("Couldn't update the task", e?.message || ""); }
+  };
+
+  return (
+    <div className="mt-6">
+      <label className={labelCls}>Tasks {tasks.length > 0 && <span className="normal-case tracking-normal text-[#93A0B4]">({open.length} open{doneCount ? ` · ${doneCount} done` : ""})</span>}</label>
+      {open.length > 0 && (
+        <div className="mb-2 space-y-1.5">
+          {open.map((t) => {
+            const overdue = t.dueAt !== null && t.dueAt < now;
+            return (
+              <div key={t.id} className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+                <input type="checkbox" checked={false} onChange={() => toggle(t)} className="h-4 w-4 shrink-0 cursor-pointer accent-[#4f8cff]" title="Mark done" />
+                <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${PRIORITY_LABEL[t.priority]} priority`} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#f4f6f8]">{t.title}</span>
+                {t.dueAt !== null && <span className={`shrink-0 text-[11px] font-bold ${overdue ? "text-[#ff8589]" : "text-[#93A0B4]"}`}>{new Date(t.dueAt).toLocaleDateString()}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} className={`${inputCls} flex-1`} placeholder={`New task for ${contact.name.split(" ")[0] || "this contact"}…`} />
+        <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} className={`${inputCls} w-[168px] shrink-0`} title="Due date (optional)" />
+      </div>
+      <button onClick={add} disabled={busy || !title.trim()} className="btn btn-ghost mt-2 flex items-center gap-1.5 px-4 py-2 text-sm disabled:opacity-60">
+        <ListTodo size={14} /> {busy ? "Adding…" : "Add task"}
+      </button>
+    </div>
   );
 }
 
@@ -1029,6 +1120,332 @@ function PostingTab({ posts, contacts, refresh }: { posts: CrmPost[]; contacts: 
             <button onClick={async () => { await deletePost(p.id); refresh(); }} className="rounded-md p-1.5 text-[#93A0B4] hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete"><Trash2 size={15} /></button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── TASKS TAB (Phase 3) ─────────────────────────── */
+const startOfTodayMs = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const dayKeyOf = (ms: number): string => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+const fmtDue = (ms: number) => new Date(ms).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+function TasksTab({ tasks, contacts, posts, tablesReady, formNonce = 0, onSelectContact, refresh }: {
+  tasks: CrmTask[]; contacts: CrmContact[]; posts: CrmPost[]; tablesReady: boolean; formNonce?: number;
+  onSelectContact: (c: CrmContact) => void; refresh: () => Promise<void>;
+}) {
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [contactId, setContactId] = useState("");
+  const [due, setDue] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
+
+  // Command Center "Add Task" — signal aye to form khol do
+  useEffect(() => { if (formNonce > 0) { setEditingId(null); setFormOpen(true); } }, [formNonce]);
+
+  const contactOf = (id: string | null) => (id ? contacts.find((c) => c.id === id) || null : null);
+
+  const resetForm = () => { setTitle(""); setContactId(""); setDue(""); setPriority("medium"); setNotes(""); setEditingId(null); };
+
+  const startEdit = (t: CrmTask) => {
+    setEditingId(t.id);
+    setTitle(t.title);
+    setContactId(t.contactId || "");
+    setDue(t.dueAt ? toLocalInput(t.dueAt) : "");
+    setPriority(t.priority);
+    setNotes(t.notes);
+    setFormOpen(true);
+  };
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      const input = { title: title.trim(), contactId: contactId || null, dueAt: due ? new Date(due).getTime() : null, priority, notes: notes.trim() };
+      if (editingId) { await updateTask(editingId, input); toast("Task updated", input.title); }
+      else { await createTask(input); toast("Task added", input.title); }
+      resetForm();
+      setFormOpen(false);
+      refresh();
+    } catch (e: any) { toast(editingId ? "Couldn't update the task" : "Couldn't add the task", e?.message || ""); }
+    setBusy(false);
+  };
+
+  const toggle = async (t: CrmTask) => {
+    try {
+      if (t.status === "open") await completeTask(t.id); else await reopenTask(t.id);
+      refresh();
+    } catch (e: any) { toast("Couldn't update the task", e?.message || ""); }
+  };
+
+  const remove = async (t: CrmTask) => {
+    if (!window.confirm(`Delete this task?\n\n“${t.title}”`)) return;
+    try { await deleteTask(t.id); toast("Task deleted", t.title); refresh(); }
+    catch (e: any) { toast("Couldn't delete the task", e?.message || ""); }
+  };
+
+  // Groups — Overdue = guzre hue din (aaj ke din wale Today me rehte hain;
+  // un ka waqt guzar jaye to row par due label red ho jata hai)
+  const groups = useMemo(() => {
+    const t0 = startOfTodayMs();
+    const t1 = t0 + 86400e3;
+    const open = tasks.filter((t) => t.status === "open");
+    const byDue = (a: CrmTask, b: CrmTask) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER) || b.createdAt - a.createdAt;
+    return {
+      overdue: open.filter((t) => t.dueAt !== null && t.dueAt < t0).sort(byDue),
+      today: open.filter((t) => t.dueAt !== null && t.dueAt >= t0 && t.dueAt < t1).sort(byDue),
+      upcoming: open.filter((t) => t.dueAt !== null && t.dueAt >= t1).sort(byDue),
+      noDue: open.filter((t) => t.dueAt === null).sort((a, b) => b.createdAt - a.createdAt),
+      completed: tasks.filter((t) => t.status === "done").sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)),
+    };
+  }, [tasks]);
+
+  const renderRow = (t: CrmTask) => {
+    const contact = contactOf(t.contactId);
+    const overdue = t.status === "open" && t.dueAt !== null && t.dueAt < Date.now();
+    return (
+      <div key={t.id} className="rounded-2xl border border-[#27334D] bg-[#1B2638] px-3.5 py-3">
+        <div className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={t.status === "done"}
+            onChange={() => toggle(t)}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#4f8cff]"
+            title={t.status === "done" ? "Reopen" : "Mark done"}
+          />
+          <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${PRIORITY_LABEL[t.priority]} priority`} />
+          <div className="min-w-0 flex-1">
+            <p className={`text-sm font-bold ${t.status === "done" ? "text-[#93A0B4] line-through" : "text-[#f4f6f8]"}`}>{t.title}</p>
+            {t.notes && <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-[#93A0B4]">{t.notes}</p>}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {contact && (
+                <button onClick={() => onSelectContact(contact)} className="rounded-full bg-[#4f8cff]/15 px-2 py-0.5 text-[11px] font-bold text-[#8dbcff] transition hover:bg-[#4f8cff]/25" title="Open contact">
+                  {contact.name}
+                </button>
+              )}
+              {t.dueAt !== null && (
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${overdue ? "bg-[#ed4245]/15 text-[#ff8589]" : "bg-white/[0.06] text-[#93A0B4]"}`}>
+                  {overdue ? "Overdue · " : "Due "}{fmtDue(t.dueAt)}
+                </span>
+              )}
+              {t.status === "done" && t.completedAt && (
+                <span className="rounded-full bg-[#23a55a]/15 px-2 py-0.5 text-[11px] font-bold text-[#4ade80]">Done {new Date(t.completedAt).toLocaleDateString()}</span>
+              )}
+            </div>
+          </div>
+          <button onClick={() => startEdit(t)} className="rounded-md p-1.5 text-[#93A0B4] transition hover:bg-white/[0.06] hover:text-[#f4f6f8]" title="Edit task"><Pencil size={14} /></button>
+          <button onClick={() => remove(t)} className="rounded-md p-1.5 text-[#93A0B4] transition hover:bg-white/[0.06] hover:text-[#ff8589]" title="Delete task"><Trash2 size={14} /></button>
+        </div>
+      </div>
+    );
+  };
+
+  const groupSection = (label: string, list: CrmTask[], accent = "text-[#f4f6f8]") =>
+    list.length === 0 ? null : (
+      <section key={label}>
+        <h3 className={`mb-2 text-sm font-extrabold ${accent}`}>{label} <span className="text-[#93A0B4]">({list.length})</span></h3>
+        <div className="space-y-2">{list.map(renderRow)}</div>
+      </section>
+    );
+
+  return (
+    <div className="p-3 sm:p-4">
+      {!tablesReady && (
+        <div className="mb-4 rounded-xl border border-[#f5a623]/30 bg-[#f5a623]/10 px-4 py-3 text-[13px] font-semibold text-[#fbbf24]">
+          The tasks table isn't in the database yet — run <span className="font-mono">supabase/tasks-phase3.sql</span> first. The Tasks tab will stay empty until then.
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-[13px] font-semibold text-[#93A0B4]">Everything you have to do — linked to CRM contacts, with due dates and priorities. The calendar also shows CRM follow-ups and scheduled posts.</p>
+        <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#27334D]">
+          <button onClick={() => setView("list")} className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold transition ${view === "list" ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06]"}`} title="List view"><List size={14} /> List</button>
+          <button onClick={() => setView("calendar")} className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold transition ${view === "calendar" ? "bg-[#4f8cff] text-white" : "text-[#93A0B4] hover:bg-white/[0.06]"}`} title="Calendar view"><CalendarDays size={14} /> Calendar</button>
+        </div>
+        <button onClick={() => { if (formOpen && !editingId) { setFormOpen(false); } else { resetForm(); setFormOpen(true); } }} className="btn btn-blurple flex shrink-0 items-center gap-1.5 px-3.5 py-2 text-[13px]">
+          <Plus size={15} /> New task
+        </button>
+      </div>
+
+      {formOpen && (
+        <div className="pop-in mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="mb-3 text-sm font-extrabold text-[#f4f6f8]">{editingId ? "Edit task" : "New task"}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2"><label className={labelCls}>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} placeholder="e.g. Send the demo link" /></div>
+            <div><label className={labelCls}>Contact (optional)</label>
+              <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={inputCls}>
+                <option value="">No contact</option>
+                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({KIND_LABEL[c.kind]})</option>)}
+              </select>
+            </div>
+            <div><label className={labelCls}>Priority</label>
+              <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)} className={inputCls}>
+                {(["low", "medium", "high"] as TaskPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+              </select>
+            </div>
+            <div><label className={labelCls}>Due date & time (optional)</label><input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls} /></div>
+            <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>Notes (optional)</label><input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls} placeholder="Anything to remember…" /></div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={submit} disabled={busy || !title.trim()} className="btn btn-blurple px-4 py-2 text-sm disabled:opacity-60">{busy ? "Saving…" : editingId ? "Save changes" : "Add task"}</button>
+            <button onClick={() => { resetForm(); setFormOpen(false); }} className="btn btn-ghost px-4 py-2 text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {view === "calendar" ? (
+        <CalendarView tasks={tasks} contacts={contacts} posts={posts} onSelectContact={onSelectContact} onShowList={() => setView("list")} />
+      ) : (
+        <div className="space-y-6">
+          {groupSection("Overdue", groups.overdue, "text-[#ff8589]")}
+          {groupSection("Today", groups.today)}
+          {groupSection("Upcoming", groups.upcoming)}
+          {groupSection("No due date", groups.noDue)}
+          {tasks.length === 0 && (
+            <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-6 text-center text-[13px] text-[#93A0B4]">No tasks yet — press "New task" to add your first one.</p>
+          )}
+          {groups.completed.length > 0 && (
+            <section>
+              <button onClick={() => setCompletedOpen((v) => !v)} className="mb-2 flex items-center gap-1.5 text-sm font-extrabold text-[#93A0B4] transition hover:text-[#f4f6f8]">
+                {completedOpen ? <ChevronRight size={14} className="rotate-90 transition" /> : <ChevronRight size={14} className="transition" />}
+                Completed <span>({groups.completed.length})</span>
+              </button>
+              {completedOpen && <div className="space-y-2">{groups.completed.map(renderRow)}</div>}
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────── Calendar — month grid: tasks + CRM follow-ups + scheduled posts ─────────── */
+type CalItem = { key: string; at: number; type: "task" | "followup" | "post"; label: string; done?: boolean; contact?: CrmContact };
+
+function CalendarView({ tasks, contacts, posts, onSelectContact, onShowList }: {
+  tasks: CrmTask[]; contacts: CrmContact[]; posts: CrmPost[]; onSelectContact: (c: CrmContact) => void; onShowList: () => void;
+}) {
+  const nowD = new Date();
+  const [cursor, setCursor] = useState({ y: nowD.getFullYear(), m: nowD.getMonth() });
+  const [selected, setSelected] = useState(() => startOfTodayMs());
+
+  // Teeno asal sources se din ke hisab se items
+  const byDay = useMemo(() => {
+    const map = new Map<string, CalItem[]>();
+    const push = (ms: number, item: CalItem) => {
+      const k = dayKeyOf(ms);
+      const arr = map.get(k) || [];
+      arr.push(item);
+      map.set(k, arr);
+    };
+    tasks.forEach((t) => { if (t.dueAt !== null) push(t.dueAt, { key: `t-${t.id}`, at: t.dueAt, type: "task", label: t.title, done: t.status === "done" }); });
+    contacts.forEach((c) => { if (c.followUpAt !== null && c.stage !== "done" && c.stage !== "lost") push(c.followUpAt, { key: `f-${c.id}`, at: c.followUpAt, type: "followup", label: `Follow-up: ${c.name}`, contact: c }); });
+    posts.forEach((p) => { if (p.status === "queued") push(p.scheduledAt, { key: `p-${p.id}`, at: p.scheduledAt, type: "post", label: `${p.platform}: ${p.body}` }); });
+    map.forEach((arr) => arr.sort((a, b) => a.at - b.at));
+    return map;
+  }, [tasks, contacts, posts]);
+
+  // Month grid — Monday first, 6 weeks (42 cells), pichle/aglay mahine ke din muted
+  const cells = useMemo(() => {
+    const first = new Date(cursor.y, cursor.m, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const start = new Date(cursor.y, cursor.m, 1 - offset);
+    return Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
+  }, [cursor]);
+
+  const moveMonth = (delta: number) => setCursor((c) => { const d = new Date(c.y, c.m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const monthLabel = new Date(cursor.y, cursor.m, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const todayMs = startOfTodayMs();
+  const agenda = byDay.get(dayKeyOf(selected)) || [];
+
+  const dotCls = (type: CalItem["type"]) => (type === "task" ? "bg-[#4f8cff]" : type === "followup" ? "bg-[#f5a623]" : "bg-[#23a55a]");
+  const badgeCls = (type: CalItem["type"]) =>
+    type === "task" ? "bg-[#4f8cff]/15 text-[#8dbcff]" : type === "followup" ? "bg-[#f5a623]/15 text-[#fbbf24]" : "bg-[#23a55a]/15 text-[#4ade80]";
+  const typeLabel = (type: CalItem["type"]) => (type === "task" ? "Task" : type === "followup" ? "Follow-up" : "Post");
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-base font-extrabold text-[#f4f6f8]">{monthLabel}</p>
+        <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#93A0B4]">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#4f8cff]" /> Tasks</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f5a623]" /> Follow-ups</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#23a55a]" /> Scheduled posts</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => moveMonth(-1)} className="btn btn-ghost px-2.5 py-1.5" title="Previous month"><ChevronLeft size={15} /></button>
+          <button onClick={() => { setCursor({ y: nowD.getFullYear(), m: nowD.getMonth() }); setSelected(todayMs); }} className="btn btn-ghost px-3 py-1.5 text-[13px]">Today</button>
+          <button onClick={() => moveMonth(1)} className="btn btn-ghost px-2.5 py-1.5" title="Next month"><ChevronRight size={15} /></button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-[#27334D]">
+        <div className="grid grid-cols-7 border-b border-[#27334D] bg-[#1B2638]">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+            <p key={d} className="px-2 py-2 text-center text-[11px] font-bold uppercase tracking-[0.08em] text-[#93A0B4]">{d}</p>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {cells.map((d, i) => {
+            const ms = d.getTime();
+            const items = byDay.get(dayKeyOf(ms)) || [];
+            const inMonth = d.getMonth() === cursor.m;
+            const isToday = ms === todayMs;
+            const isSel = ms === selected;
+            return (
+              <button
+                key={i}
+                onClick={() => setSelected(ms)}
+                className={`min-h-[64px] border-b border-r border-white/[0.04] p-1.5 text-left align-top transition sm:min-h-[76px] ${i % 7 === 6 ? "border-r-0" : ""} ${isSel ? "bg-[#4f8cff]/[0.08]" : "hover:bg-white/[0.03]"} ${inMonth ? "" : "opacity-40"}`}
+              >
+                <span className={`inline-grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${isToday ? "bg-[#4f8cff] text-white" : "text-[#b6bcc7]"}`}>{d.getDate()}</span>
+                {items.length > 0 && (
+                  <span className="mt-1 flex flex-wrap items-center gap-1 px-0.5">
+                    {items.slice(0, 3).map((it) => <span key={it.key} className={`h-1.5 w-1.5 rounded-full ${dotCls(it.type)} ${it.done ? "opacity-40" : ""}`} />)}
+                    <span className="text-[10px] font-bold text-[#93A0B4]">{items.length}</span>
+                  </span>
+                )}
+                {items.length > 0 && (
+                  <span className="mt-0.5 hidden truncate px-0.5 text-[10px] font-semibold text-[#93A0B4] lg:block">{items[0].label}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected day agenda — teeno sources, time ke sath */}
+      <div className="mt-4">
+        <h3 className="mb-2 text-sm font-extrabold text-[#f4f6f8]">
+          {new Date(selected).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          <span className="text-[#93A0B4]"> ({agenda.length})</span>
+        </h3>
+        {agenda.length === 0 ? (
+          <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-[#93A0B4]">Nothing scheduled for this day — no tasks, follow-ups or posts.</p>
+        ) : (
+          <div className="space-y-2">
+            {agenda.map((it) => (
+              <button
+                key={it.key}
+                onClick={() => { if (it.type === "followup" && it.contact) onSelectContact(it.contact); else if (it.type === "task") onShowList(); }}
+                className={`flex w-full flex-wrap items-center gap-2 rounded-2xl border border-[#27334D] bg-[#1B2638] px-3.5 py-3 text-left ${it.type === "post" ? "cursor-default" : "transition hover:border-[#4f8cff]/50"}`}
+              >
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeCls(it.type)}`}>{typeLabel(it.type)}</span>
+                <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${it.done ? "text-[#93A0B4] line-through" : "text-[#f4f6f8]"}`}>{it.label}</span>
+                <span className="text-xs font-bold text-[#93A0B4]">{new Date(it.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

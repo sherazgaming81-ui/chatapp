@@ -105,9 +105,9 @@ export interface UIState {
   selectedMsgs: string[]; // multi-select mode (WhatsApp jaisa)
   /** Command Center / notifications se HQ ke andar navigation ka signal.
    *  HqPage nonce change par apply karta hai: tab switch, contact drawer,
-   *  ya add-contact form. */
+   *  ya add form (contact / task — section ke hisab se). */
   hqNav: {
-    section: "crm" | "outreach" | "posting" | "report";
+    section: "crm" | "tasks" | "outreach" | "posting" | "report";
     contactId?: string;
     newContact?: boolean;
     nonce: number;
