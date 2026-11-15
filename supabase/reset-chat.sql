@@ -39,6 +39,18 @@ truncate table public.group_settings restart identity cascade;
 truncate table public.mutes restart identity cascade;
 truncate table public.bans restart identity cascade;
 truncate table public.warns restart identity cascade;
+-- asal DB par mojood baqi chat-data tables (full reset ke liye)
+truncate table public.slow_modes restart identity cascade;
+truncate table public.user_stars restart identity cascade;
+truncate table public.scheduled_messages restart identity cascade;
+truncate table public.message_drafts restart identity cascade;
+truncate table public.invite_links restart identity cascade;
+truncate table public.join_requests restart identity cascade;
+truncate table public.locked_chats restart identity cascade;
+truncate table public.group_themes restart identity cascade;
+truncate table public.chat_backups restart identity cascade;
+truncate table public.chat_keys restart identity cascade;
+truncate table public.blocked_users restart identity cascade;
 
 -- per-user chat settings — table ho tab hi saaf karo (na ho to error na aye)
 do $$
@@ -58,8 +70,8 @@ truncate table public.chats restart identity cascade;
 -- mehfooz), is liye participants dobara jorne ki zaroorat nahi — members
 -- pehli login/load par app khud main group join karwa leti hai
 -- (db.ts: chat_participants insert on load).
-insert into public.chats (type, name, is_main_group)
-values ('group', 'Madrasa Group', true);
+insert into public.chats (id, type, name, is_main_group)
+values ('main-group', 'group', 'Madrasa Group', true);
 
 commit;
 
